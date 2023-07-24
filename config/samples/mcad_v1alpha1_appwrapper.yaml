@@ -1,0 +1,12 @@
+apiVersion: mcad.my.domain/v1alpha1
+kind: AppWrapper
+metadata:
+  labels:
+    app.kubernetes.io/name: appwrapper
+    app.kubernetes.io/instance: appwrapper-sample
+    app.kubernetes.io/part-of: mcad
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: mcad
+  name: appwrapper-sample
+spec:
+  # TODO(user): Add fields here

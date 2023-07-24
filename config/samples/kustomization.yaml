@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- mcad_v1alpha1_appwrapper.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
