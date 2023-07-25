@@ -91,12 +91,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case "Terminating":
 		// delete wrapped resources
-		count, err := r.deleteResources(ctx, aw)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if count != 0 {
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
+		if r.deleteResources(ctx, aw) != 0 {
+			if slowDeletion(aw) {
+				log.Error(nil, "Resource deletion timeout")
+			} else {
+				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
+			}
 		}
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(aw, finalizer) {
@@ -108,12 +108,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case "Requeuing":
 		// delete wrapped resources
-		count, err := r.deleteResources(ctx, aw)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if count != 0 {
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
+		if r.deleteResources(ctx, aw) != 0 {
+			if slowDeletion(aw) {
+				log.Error(nil, "Resource deletion timeout")
+			} else {
+				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
+			}
 		}
 		// update status to queued
 		return ctrl.Result{}, r.updateStatus(ctx, aw, "Queued")
@@ -299,26 +299,32 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, aw *mcadv1al
 	return nil
 }
 
-// Delete wrapped resources, returning count of initiated deletions
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (int, error) {
+// Delete wrapped resources, returning count of pending deletions
+func (r *AppWrapperReconciler) deleteResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) int {
+	log := log.FromContext(ctx)
 	count := 0
 	for _, resource := range aw.Spec.Resources {
 		obj, err := r.parseResource(aw, resource.Template.Raw)
 		if err != nil {
-			return 0, err
+			log.Error(err, "Resource parsing error during deletion")
+			continue
 		}
 		background := metav1.DeletePropagationBackground
 		if err := r.Delete(ctx, obj, &client.DeleteOptions{PropagationPolicy: &background}); err != nil {
-			if !errors.IsNotFound(err) { // ignore missing resources
-				return 0, err
+			if errors.IsNotFound(err) {
+				continue // ignore missing resources
 			}
-		} else {
-			count += 1
+			log.Error(err, "Resource deletion error")
 		}
+		count += 1
 	}
-	return count, nil
+	return count
 }
 
 func slowDispatch(aw *mcadv1alpha1.AppWrapper) bool {
 	return metav1.Now().After(aw.Status.LastDispatchTime.Add(2 * time.Minute))
+}
+
+func slowDeletion(aw *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(aw.ObjectMeta.DeletionTimestamp.Add(2 * time.Minute))
 }
