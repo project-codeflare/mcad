@@ -90,16 +90,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 
 	case "Terminating":
-		// count wrapped resources
-		count, err := r.countResources(ctx, aw)
+		// delete wrapped resources
+		count, err := r.deleteResources(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if count != 0 {
-			// request deletion of wrapped resources
-			if err := r.deleteResources(ctx, aw); err != nil {
-				return ctrl.Result{}, err
-			}
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
 		}
 		// remove finalizer
@@ -111,16 +107,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 
 	case "Requeuing":
-		// count wrapped resources
-		count, err := r.countResources(ctx, aw)
+		// delete wrapped resources
+		count, err := r.deleteResources(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if count != 0 {
-			// request deletion of wrapped resources
-			if err := r.deleteResources(ctx, aw); err != nil {
-				return ctrl.Result{}, err
-			}
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
 		}
 		// update status to queued
@@ -297,33 +289,18 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, aw *mcadv1al
 	return nil
 }
 
-// Delete wrapped resources
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) error {
-	for _, resource := range aw.Spec.Resources {
-		obj, err := r.parseResource(aw, resource.Raw)
-		if err != nil {
-			return err
-		}
-		if err := r.Delete(ctx, obj); err != nil {
-			if !errors.IsNotFound(err) { // ignore missing resources
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// Count wrapped resources
-func (r *AppWrapperReconciler) countResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (int, error) {
+// Delete wrapped resources, returning count of initiated deletions
+func (r *AppWrapperReconciler) deleteResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (int, error) {
 	count := 0
 	for _, resource := range aw.Spec.Resources {
 		obj, err := r.parseResource(aw, resource.Raw)
 		if err != nil {
-			return count, err
+			return 0, err
 		}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		background := metav1.DeletePropagationBackground
+		if err := r.Delete(ctx, obj, &client.DeleteOptions{PropagationPolicy: &background}); err != nil {
 			if !errors.IsNotFound(err) { // ignore missing resources
-				return count, err
+				return 0, err
 			}
 		} else {
 			count += 1
