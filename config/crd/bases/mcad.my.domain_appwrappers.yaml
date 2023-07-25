@@ -69,8 +69,8 @@ spec:
                 format: date-time
                 type: string
               phase:
-                description: 'phase: Queued, Dispatching, Running, Completed, Failed,
-                  Terminating, Requeuing'
+                description: 'phase: <empty>, Queued, Dispatching, Running, Completed,
+                  Failed, Terminating, Requeuing'
                 type: string
               requeued:
                 description: how many times requeued

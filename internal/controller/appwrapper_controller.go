@@ -79,15 +79,28 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	if aw.Status.Phase == "Terminating" {
+	// deletion requested
+	if !aw.ObjectMeta.DeletionTimestamp.IsZero() && aw.Status.Phase != "Terminating" {
+		return ctrl.Result{}, r.updateStatus(ctx, aw, "Terminating")
+	}
+
+	switch aw.Status.Phase {
+	case "Completed", "Failed":
+		// nothing to reconcile
+		return ctrl.Result{}, nil
+
+	case "Terminating":
 		// count wrapped resources
 		count, err := r.countResources(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		// requeue if deletion still pending
 		if count != 0 {
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
+			// request deletion of wrapped resources
+			if err := r.deleteResources(ctx, aw); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
 		}
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(aw, finalizer) {
@@ -96,40 +109,38 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 		return ctrl.Result{}, nil
-	}
 
-	if !aw.ObjectMeta.DeletionTimestamp.IsZero() {
-		// request deletion of wrapped resources
-		if err := r.deleteResources(ctx, aw); err != nil {
-			return ctrl.Result{}, err
-		}
-		// set terminating status only after successfully requesting the deletion of all resources
-		return ctrl.Result{}, r.updateStatus(ctx, aw, "Terminating")
-	}
-
-	if aw.Status.Phase == "Completed" || aw.Status.Phase == "Failed" {
-		// nothing to reconcile
-		return ctrl.Result{}, nil
-	}
-
-	if aw.Status.Phase == "Requeuing" {
+	case "Requeuing":
 		// count wrapped resources
 		count, err := r.countResources(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if count == 0 {
-			// update status to queued
-			return ctrl.Result{}, r.updateStatus(ctx, aw, "Queued")
+		if count != 0 {
+			// request deletion of wrapped resources
+			if err := r.deleteResources(ctx, aw); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
 		}
-		// request deletion of wrapped resources
-		if err := r.deleteResources(ctx, aw); err != nil {
+		// update status to queued
+		return ctrl.Result{}, r.updateStatus(ctx, aw, "Queued")
+
+	case "Queued":
+		// check if appwrapper fits available resources
+		shouldDispatch, err := r.shouldDispatch(ctx, aw)
+		if err != nil {
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
-	}
+		if shouldDispatch {
+			// set dispatching status
+			aw.Status.LastDispatchTime = metav1.Now()
+			return ctrl.Result{}, r.updateStatus(ctx, aw, "Dispatching")
+		}
+		// if not, retry after a delay
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
 
-	if aw.Status.Phase == "Dispatching" {
+	case "Dispatching":
 		// dispatching is taking too long?
 		if slowDispatch(aw) {
 			// set requeuing or failed status
@@ -145,9 +156,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		// set running status only after successfully requesting the creation of all resources
 		return ctrl.Result{}, r.updateStatus(ctx, aw, "Running")
-	}
 
-	if aw.Status.Phase == "Running" {
+	case "Running":
 		// check appwrapper health
 		counts, err := r.monitorPods(ctx, aw)
 		if err != nil {
@@ -170,9 +180,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // check soon
 		}
 		return ctrl.Result{}, nil
-	}
 
-	if aw.Status.Phase == "" {
+	default: // empty phase
 		// add finalizer
 		if controllerutil.AddFinalizer(aw, finalizer) {
 			if err := r.Update(ctx, aw); err != nil {
@@ -182,21 +191,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// set queued status only after adding finalizer
 		return ctrl.Result{}, r.updateStatus(ctx, aw, "Queued")
 	}
-
-	// status == "Queued"
-
-	// check if appwrapper fits available resources
-	shouldDispatch, err := r.shouldDispatch(ctx, aw)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if shouldDispatch {
-		// set dispatching status
-		aw.Status.LastDispatchTime = metav1.Now()
-		return ctrl.Result{}, r.updateStatus(ctx, aw, "Dispatching")
-	}
-	// if not, retry after a delay
-	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

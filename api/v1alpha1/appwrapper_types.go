@@ -50,7 +50,8 @@ type AppWrapperStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// phase: Queued, Dispatching, Running, Completed, Failed, Terminating, Requeuing
+	// phase: <empty>, Queued, Dispatching, Running, Completed, Failed, Terminating, Requeuing
+	//
 	Phase string `json:"phase,omitempty"`
 
 	// when last dispatched
