@@ -189,13 +189,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// watch pods in addition to appwrappers
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&mcadv1alpha1.AppWrapper{}).Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
+		For(&mcadv1alpha1.AppWrapper{}).WatchesMetadata(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)
 }
 
 // Map labelled pods to appwrappers
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
-	pod := obj.(*v1.Pod)
+	pod := obj.(*metav1.PartialObjectMetadata)
 	if aw, ok := pod.ObjectMeta.Labels[label]; ok {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: aw}}}
 	}
