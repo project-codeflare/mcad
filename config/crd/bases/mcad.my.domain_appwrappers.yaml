@@ -42,6 +42,10 @@ spec:
                 description: gpus needed
                 format: int32
                 type: integer
+              maxRetries:
+                description: max retries
+                format: int32
+                type: integer
               pods:
                 description: expected pod count
                 format: int32
@@ -66,8 +70,12 @@ spec:
                 type: string
               phase:
                 description: 'phase: Queued, Dispatching, Running, Completed, Failed,
-                  Terminating'
+                  Terminating, Requeuing'
                 type: string
+              requeued:
+                description: how many times requeued
+                format: int32
+                type: integer
             type: object
         type: object
     served: true

@@ -112,9 +112,31 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
+	if aw.Status.Phase == "Requeuing" {
+		// count wrapped resources
+		count, err := r.countResources(ctx, aw)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if count == 0 {
+			// update status to queued
+			return ctrl.Result{}, r.updateStatus(ctx, aw, "Queued")
+		}
+		// request deletion of wrapped resources
+		if err := r.deleteResources(ctx, aw); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
+	}
+
 	if aw.Status.Phase == "Dispatching" {
 		// dispatching is taking too long?
 		if slowDispatch(aw) {
+			// set requeuing or failed status
+			if aw.Status.Requeued < aw.Spec.MaxRetries {
+				aw.Status.Requeued += 1
+				return ctrl.Result{}, r.updateStatus(ctx, aw, "Requeuing")
+			}
 			return ctrl.Result{}, r.updateStatus(ctx, aw, "Failed")
 		}
 		// create wrapped resources
@@ -131,15 +153,20 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if counts.Failed > 0 || counts.Other > 0 && slowDispatch(aw) {
-			// set failed status
+		slow := slowDispatch(aw)
+		if counts.Failed > 0 || slow && (counts.Other > 0 || counts.Running < int(aw.Spec.Pods)) {
+			// set requeuing or failed status
+			if aw.Status.Requeued < aw.Spec.MaxRetries {
+				aw.Status.Requeued += 1
+				return ctrl.Result{}, r.updateStatus(ctx, aw, "Requeuing")
+			}
 			return ctrl.Result{}, r.updateStatus(ctx, aw, "Failed")
 		}
 		if counts.Succeeded >= int(aw.Spec.Pods) && counts.Running == 0 && counts.Other == 0 {
 			// set completed status
 			return ctrl.Result{}, r.updateStatus(ctx, aw, "Completed")
 		}
-		if !slowDispatch(aw) {
+		if !slow {
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // check soon
 		}
 		return ctrl.Result{}, nil
@@ -211,7 +238,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alp
 	// compute available gpu capacity at desired priority level
 	var gpus int32 = 40 // cluster capacity minus gpu usage by things other than appwrappers
 	for _, a := range aws.Items {
-		if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed"}, a.Status.Phase)) &&
+		if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed", "Requeuing"}, a.Status.Phase)) &&
 			a.Spec.Priority >= aw.Spec.Priority {
 			gpus -= a.Spec.Gpus
 		}

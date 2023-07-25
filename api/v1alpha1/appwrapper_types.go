@@ -38,6 +38,9 @@ type AppWrapperSpec struct {
 	// expected pod count
 	Pods int32 `json:"pods,omitempty"`
 
+	// max retries
+	MaxRetries int32 `json:"maxRetries,omitempty"`
+
 	// resources
 	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
@@ -47,11 +50,14 @@ type AppWrapperStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// phase: Queued, Dispatching, Running, Completed, Failed, Terminating
+	// phase: Queued, Dispatching, Running, Completed, Failed, Terminating, Requeuing
 	Phase string `json:"phase,omitempty"`
 
 	// when last dispatched
 	LastDispatchTime metav1.Time `json:"lastDispatchTime,omitempty"`
+
+	// how many times requeued
+	Requeued int32 `json:"requeued,omitempty"`
 }
 
 //+kubebuilder:object:root=true
