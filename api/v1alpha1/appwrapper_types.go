@@ -50,8 +50,8 @@ type AppWrapperStatus struct {
 	// phase: Queued, Dispatching, Running, Completed, Failed, Terminating
 	Phase string `json:"phase,omitempty"`
 
-	// when dispatched
-	LastDispatchTime metav1.Time `json:"lastdispatchtime,omitempty"`
+	// when last dispatched
+	LastDispatchTime metav1.Time `json:"lastDispatchTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true
