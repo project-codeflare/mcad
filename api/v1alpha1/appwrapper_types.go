@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -29,9 +30,6 @@ type AppWrapperSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// gpus needed
-	Gpus int32 `json:"gpus,omitempty"`
-
 	// priority
 	Priority int32 `json:"priority,omitempty"`
 
@@ -42,7 +40,7 @@ type AppWrapperSpec struct {
 	MaxRetries int32 `json:"maxRetries,omitempty"`
 
 	// resources
-	Resources []runtime.RawExtension `json:"resources,omitempty"`
+	Resources []AppWrapperResource `json:"resources"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper
@@ -59,6 +57,18 @@ type AppWrapperStatus struct {
 
 	// how many times requeued
 	Requeued int32 `json:"requeued,omitempty"`
+}
+
+// AppWrapperResource is the Schema for the wrapped resources
+type AppWrapperResource struct {
+	// replica count
+	Replicas int32 `json:"replicas"`
+
+	// request per replica
+	Requests v1.ResourceList `json:"requests"`
+
+	// resource template
+	Template runtime.RawExtension `json:"template"`
 }
 
 //+kubebuilder:object:root=true

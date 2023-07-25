@@ -222,14 +222,24 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alp
 		return false, err
 	}
 	// compute available gpu capacity at desired priority level
-	var gpus int32 = 40 // cluster capacity minus gpu usage by things other than appwrappers
+	gpus := 40 // cluster capacity minus gpu usage by things other than appwrappers
 	for _, a := range aws.Items {
 		if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed", "Requeuing"}, a.Status.Phase)) &&
 			a.Spec.Priority >= aw.Spec.Priority {
-			gpus -= a.Spec.Gpus
+			gpus -= gpuRequest(&a)
 		}
 	}
-	return aw.Spec.Gpus <= gpus, nil
+	return gpuRequest(aw) <= gpus, nil
+}
+
+// Count gpu requested by appwrapper
+func gpuRequest(aw *mcadv1alpha1.AppWrapper) int {
+	gpus := 0
+	for _, resource := range aw.Spec.Resources {
+		g := resource.Requests["nvidia.com/gpu"]
+		gpus += int(resource.Replicas) * int(g.Value())
+	}
+	return gpus
 }
 
 // Monitor appwrapper pods
@@ -276,7 +286,7 @@ func (r *AppWrapperReconciler) parseResource(aw *mcadv1alpha1.AppWrapper, raw []
 // Create wrapped resources
 func (r *AppWrapperReconciler) createResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) error {
 	for _, resource := range aw.Spec.Resources {
-		obj, err := r.parseResource(aw, resource.Raw)
+		obj, err := r.parseResource(aw, resource.Template.Raw)
 		if err != nil {
 			return err
 		}
@@ -293,7 +303,7 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, aw *mcadv1al
 func (r *AppWrapperReconciler) deleteResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (int, error) {
 	count := 0
 	for _, resource := range aw.Spec.Resources {
-		obj, err := r.parseResource(aw, resource.Raw)
+		obj, err := r.parseResource(aw, resource.Template.Raw)
 		if err != nil {
 			return 0, err
 		}

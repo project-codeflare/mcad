@@ -38,10 +38,6 @@ spec:
           spec:
             description: AppWrapperSpec defines the desired state of AppWrapper
             properties:
-              gpus:
-                description: gpus needed
-                format: int32
-                type: integer
               maxRetries:
                 description: max retries
                 format: int32
@@ -57,9 +53,33 @@ spec:
               resources:
                 description: resources
                 items:
+                  description: AppWrapperResource is the Schema for the wrapped resources
+                  properties:
+                    replicas:
+                      description: replica count
+                      format: int32
+                      type: integer
+                    requests:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      description: request per replica
+                      type: object
+                    template:
+                      description: resource template
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - replicas
+                  - requests
+                  - template
                   type: object
-                  x-kubernetes-preserve-unknown-fields: true
                 type: array
+            required:
+            - resources
             type: object
           status:
             description: AppWrapperStatus defines the observed state of AppWrapper
