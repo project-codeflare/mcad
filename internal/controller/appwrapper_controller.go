@@ -222,7 +222,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alp
 		return false, err
 	}
 	// compute available gpu capacity at desired priority level
-	gpus := 40 // cluster capacity minus gpu usage by things other than appwrappers
+	gpus := 100 // cluster capacity minus gpu usage by things other than appwrappers
 	for _, a := range aws.Items {
 		if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed", "Requeuing"}, a.Status.Phase)) &&
 			a.Spec.Priority >= aw.Spec.Priority {

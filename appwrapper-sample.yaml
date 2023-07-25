@@ -1,0 +1,47 @@
+apiVersion: mcad.my.domain/v1alpha1
+kind: AppWrapper
+metadata:
+  name: appwrapper-sample
+spec:
+  priority: 5
+  pods: 2
+  maxRetries: 5
+  resources:
+    - requests:
+        nvidia.com/gpu: 8
+      replicas: 1
+      template:
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: appwrapper-sample-1
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: busybox
+              image: busybox
+              command: ["sh", "-c", "sleep 5"]
+              resources:
+                requests:
+                  nvidia.com/gpu: 8
+                limits:
+                  nvidia.com/gpu: 8
+    - requests:
+        nvidia.com/gpu: 4
+      replicas: 1
+      template:
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: appwrapper-sample-2
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: busybox
+              image: busybox
+              command: ["sh", "-c", "sleep 10"]
+              resources:
+                requests:
+                  nvidia.com/gpu: 4
+                limits:
+                  nvidia.com/gpu: 4
