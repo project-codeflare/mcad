@@ -143,7 +143,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, r.updateStatus(ctx, aw, "Failed")
 		}
 		// create wrapped resources
-		if err := r.createResources(ctx, aw); err != nil {
+		objects, err := r.parseResources(aw)
+		if err != nil {
+			log.Error(err, "Resource parsing error during creation")
+			return ctrl.Result{}, r.updateStatus(ctx, aw, "Failed")
+		}
+		// create wrapped resources
+		if err := r.createResources(ctx, objects); err != nil {
 			return ctrl.Result{}, err
 		}
 		// set running status only after successfully requesting the creation of all resources
@@ -283,13 +289,22 @@ func (r *AppWrapperReconciler) parseResource(aw *mcadv1alpha1.AppWrapper, raw []
 	return obj, nil
 }
 
-// Create wrapped resources
-func (r *AppWrapperReconciler) createResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) error {
-	for _, resource := range aw.Spec.Resources {
-		obj, err := r.parseResource(aw, resource.Template.Raw)
+// Parse raw resources
+func (r *AppWrapperReconciler) parseResources(aw *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
+	objects := make([]client.Object, len(aw.Spec.Resources))
+	var err error
+	for i, resource := range aw.Spec.Resources {
+		objects[i], err = r.parseResource(aw, resource.Template.Raw)
 		if err != nil {
-			return err
+			return nil, err
 		}
+	}
+	return objects, err
+}
+
+// Create wrapped resources
+func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []client.Object) error {
+	for _, obj := range objects {
 		if err := r.Create(ctx, obj); err != nil {
 			if !errors.IsAlreadyExists(err) { // ignore existing resources
 				return err
