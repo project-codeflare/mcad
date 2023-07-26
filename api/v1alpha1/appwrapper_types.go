@@ -83,7 +83,7 @@ type AppWrapper struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AppWrapperSpec   `json:"spec,omitempty"`
+	Spec   AppWrapperSpec   `json:"spec"`
 	Status AppWrapperStatus `json:"status,omitempty"`
 }
 
