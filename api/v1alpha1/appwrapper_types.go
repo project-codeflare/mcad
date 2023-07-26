@@ -57,6 +57,9 @@ type AppWrapperStatus struct {
 
 	// how many times requeued
 	Requeued int32 `json:"requeued,omitempty"`
+
+	// conditions
+	Conditions []AppWrapperCondition `json:"conditions,omitempty"`
 }
 
 // AppWrapperResource is the Schema for the wrapped resources
@@ -95,4 +98,12 @@ type AppWrapperList struct {
 
 func init() {
 	SchemeBuilder.Register(&AppWrapper{}, &AppWrapperList{})
+}
+
+// AppWrapper condition
+type AppWrapperCondition struct {
+	// Timestamp
+	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+	// Condition
+	Reason string `json:"reason"`
 }

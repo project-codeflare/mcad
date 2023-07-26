@@ -211,7 +211,12 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 // Update appwrapper status
 func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *mcadv1alpha1.AppWrapper, phase string) error {
 	log := log.FromContext(ctx)
-
+	now := metav1.Now()
+	if phase == "Dispatching" {
+		now = aw.Status.LastDispatchTime // ensure timestamps are consistent
+	}
+	condition := mcadv1alpha1.AppWrapperCondition{LastTransitionTime: now, Reason: phase}
+	aw.Status.Conditions = append(aw.Status.Conditions, condition)
 	aw.Status.Phase = phase
 	if err := r.Status().Update(ctx, aw); err != nil {
 		return err

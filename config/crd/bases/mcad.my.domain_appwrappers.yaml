@@ -84,6 +84,23 @@ spec:
           status:
             description: AppWrapperStatus defines the observed state of AppWrapper
             properties:
+              conditions:
+                description: conditions
+                items:
+                  description: AppWrapper condition
+                  properties:
+                    lastTransitionTime:
+                      description: Timestamp
+                      format: date-time
+                      type: string
+                    reason:
+                      description: Condition
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  type: object
+                type: array
               lastDispatchTime:
                 description: when last dispatched
                 format: date-time
