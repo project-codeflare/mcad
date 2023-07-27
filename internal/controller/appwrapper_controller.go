@@ -39,15 +39,16 @@ import (
 	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
 )
 
-// AppWrapperReconciler reconciles a AppWrapper object
+// AppWrapperReconciler reconciles an AppWrapper object
 type AppWrapperReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-const label = "mcad.my.domain/appwrapper"
-const finalizer = "mcad.my.domain/finalizer"
+const label = "mcad.my.domain/AppWrapper"    // label injected in every wrapped resource
+const finalizer = "mcad.my.domain/finalizer" // AppWrapper finalizer name
 
+// PodCounts summarizes the status of the pods associated with one AppWrapper
 type PodCounts struct {
 	Failed    int
 	Other     int
@@ -55,53 +56,45 @@ type PodCounts struct {
 	Succeeded int
 }
 
-//+kubebuilder:rbac:groups=mcad.my.domain,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=mcad.my.domain,resources=appwrappers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=mcad.my.domain,resources=appwrappers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=mcad.my.domain,resources=AppWrappers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=mcad.my.domain,resources=AppWrappers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=mcad.my.domain,resources=AppWrappers/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the AppWrapper object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+// Reconcile one AppWrapper
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	log.Info("Reconcile")
 
-	aw := &mcadv1alpha1.AppWrapper{}
+	appwrapper := &mcadv1alpha1.AppWrapper{}
 
-	if err := r.Get(ctx, req.NamespacedName, aw); err != nil {
-		// no such appwrapper, nothing to reconcile, not an error
+	if err := r.Get(ctx, req.NamespacedName, appwrapper); err != nil {
+		// no such AppWrapper, nothing to reconcile, not an error
 		return ctrl.Result{}, nil
 	}
 
 	// deletion requested
-	if !aw.ObjectMeta.DeletionTimestamp.IsZero() && aw.Status.Phase != "Terminating" {
-		return ctrl.Result{}, r.updateStatus(ctx, aw, "Terminating")
+	if !appwrapper.ObjectMeta.DeletionTimestamp.IsZero() && appwrapper.Status.Phase != "Terminating" {
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Terminating")
 	}
 
-	switch aw.Status.Phase {
+	switch appwrapper.Status.Phase {
 	case "Completed", "Failed":
 		// nothing to reconcile
 		return ctrl.Result{}, nil
 
 	case "Terminating":
 		// delete wrapped resources
-		if r.deleteResources(ctx, aw) != 0 {
-			if slowDeletion(aw) {
+		if r.deleteResources(ctx, appwrapper) != 0 {
+			if slowDeletion(appwrapper) {
 				log.Error(nil, "Resource deletion timeout")
 			} else {
 				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
 			}
 		}
 		// remove finalizer
-		if controllerutil.RemoveFinalizer(aw, finalizer) {
-			if err := r.Update(ctx, aw); err != nil {
+		if controllerutil.RemoveFinalizer(appwrapper, finalizer) {
+			if err := r.Update(ctx, appwrapper); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -109,71 +102,71 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case "Requeuing":
 		// delete wrapped resources
-		if r.deleteResources(ctx, aw) != 0 {
-			if slowDeletion(aw) {
+		if r.deleteResources(ctx, appwrapper) != 0 {
+			if slowDeletion(appwrapper) {
 				log.Error(nil, "Resource deletion timeout")
 			} else {
 				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
 			}
 		}
 		// update status to queued
-		return ctrl.Result{}, r.updateStatus(ctx, aw, "Queued")
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Queued")
 
 	case "Queued":
-		// check if appwrapper fits available resources
-		shouldDispatch, err := r.shouldDispatch(ctx, aw)
+		// check if AppWrapper fits available resources
+		shouldDispatch, err := r.shouldDispatch(ctx, appwrapper)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if shouldDispatch {
 			// set dispatching status
-			aw.Status.LastDispatchTime = metav1.Now()
-			return ctrl.Result{}, r.updateStatus(ctx, aw, "Dispatching")
+			appwrapper.Status.LastDispatchTime = metav1.Now()
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Dispatching")
 		}
 		// if not, retry after a delay
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 
 	case "Dispatching":
 		// dispatching is taking too long?
-		if slowDispatch(aw) {
+		if slowDispatch(appwrapper) {
 			// set requeuing or failed status
-			if aw.Status.Requeued < aw.Spec.MaxRetries {
-				aw.Status.Requeued += 1
-				return ctrl.Result{}, r.updateStatus(ctx, aw, "Requeuing")
+			if appwrapper.Status.Requeued < appwrapper.Spec.MaxRetries {
+				appwrapper.Status.Requeued += 1
+				return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Requeuing")
 			}
-			return ctrl.Result{}, r.updateStatus(ctx, aw, "Failed")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Failed")
 		}
 		// create wrapped resources
-		objects, err := r.parseResources(aw)
+		objects, err := r.parseResources(appwrapper)
 		if err != nil {
 			log.Error(err, "Resource parsing error during creation")
-			return ctrl.Result{}, r.updateStatus(ctx, aw, "Failed")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Failed")
 		}
 		// create wrapped resources
 		if err := r.createResources(ctx, objects); err != nil {
 			return ctrl.Result{}, err
 		}
 		// set running status only after successfully requesting the creation of all resources
-		return ctrl.Result{}, r.updateStatus(ctx, aw, "Running")
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Running")
 
 	case "Running":
-		// check appwrapper health
-		counts, err := r.monitorPods(ctx, aw)
+		// check AppWrapper health
+		counts, err := r.monitorPods(ctx, appwrapper)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		slow := slowDispatch(aw)
-		if counts.Failed > 0 || slow && (counts.Other > 0 || counts.Running < int(aw.Spec.Pods)) {
+		slow := slowDispatch(appwrapper)
+		if counts.Failed > 0 || slow && (counts.Other > 0 || counts.Running < int(appwrapper.Spec.MinPods)) {
 			// set requeuing or failed status
-			if aw.Status.Requeued < aw.Spec.MaxRetries {
-				aw.Status.Requeued += 1
-				return ctrl.Result{}, r.updateStatus(ctx, aw, "Requeuing")
+			if appwrapper.Status.Requeued < appwrapper.Spec.MaxRetries {
+				appwrapper.Status.Requeued += 1
+				return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Requeuing")
 			}
-			return ctrl.Result{}, r.updateStatus(ctx, aw, "Failed")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Failed")
 		}
-		if counts.Succeeded >= int(aw.Spec.Pods) && counts.Running == 0 && counts.Other == 0 {
+		if counts.Succeeded >= int(appwrapper.Spec.MinPods) && counts.Running == 0 && counts.Other == 0 {
 			// set completed status
-			return ctrl.Result{}, r.updateStatus(ctx, aw, "Completed")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Completed")
 		}
 		if !slow {
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // check soon
@@ -182,13 +175,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	default: // empty phase
 		// add finalizer
-		if controllerutil.AddFinalizer(aw, finalizer) {
-			if err := r.Update(ctx, aw); err != nil {
+		if controllerutil.AddFinalizer(appwrapper, finalizer) {
+			if err := r.Update(ctx, appwrapper); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 		// set queued status only after adding finalizer
-		return ctrl.Result{}, r.updateStatus(ctx, aw, "Queued")
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Queued")
 	}
 }
 
@@ -201,41 +194,41 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	// watch pods in addition to appwrappers
+	// watch pods in addition to AppWrappers
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1alpha1.AppWrapper{}).
 		WatchesMetadata(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)
 }
 
-// Map labelled pods to appwrappers
+// Map labelled pods to AppWrappers
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*metav1.PartialObjectMetadata)
-	if aw, ok := pod.ObjectMeta.Labels[label]; ok {
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: aw}}}
+	if appwrapper, ok := pod.ObjectMeta.Labels[label]; ok {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: appwrapper}}}
 	}
 	return nil
 }
 
-// Update appwrapper status
-func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *mcadv1alpha1.AppWrapper, phase string) error {
+// Update AppWrapper status
+func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper, phase string) error {
 	log := log.FromContext(ctx)
 	now := metav1.Now()
 	if phase == "Dispatching" {
-		now = aw.Status.LastDispatchTime // ensure timestamps are consistent
+		now = appwrapper.Status.LastDispatchTime // ensure timestamps are consistent
 	}
 	condition := mcadv1alpha1.AppWrapperCondition{LastTransitionTime: now, Reason: phase}
-	aw.Status.Conditions = append(aw.Status.Conditions, condition)
-	aw.Status.Phase = phase
-	if err := r.Status().Update(ctx, aw); err != nil {
+	appwrapper.Status.Conditions = append(appwrapper.Status.Conditions, condition)
+	appwrapper.Status.Phase = phase
+	if err := r.Status().Update(ctx, appwrapper); err != nil {
 		return err
 	}
 	log.Info(phase)
 	return nil
 }
 
-// Test if appwrapper fits available resources
-func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (bool, error) {
+// Test if AppWrapper fits available resources
+func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) (bool, error) {
 	gpus := 0 // available gpus
 	// add available gpus for each schedulable node
 	nodes := &v1.NodeList{}
@@ -250,7 +243,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alp
 		// add allocatable gpus
 		g := node.Status.Allocatable["nvidia.com/gpu"]
 		gpus += int(g.Value())
-		// subtract gpus used by non-appwrapper, non-terminated pods on this node
+		// subtract gpus used by non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(".spec.nodeName=" + node.Name)
 		if err != nil {
 			return false, err
@@ -269,37 +262,37 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alp
 			}
 		}
 	}
-	// subtract gpus used by non-preemptable appwrappers
+	// subtract gpus used by non-preemptable AppWrappers
 	aws := &mcadv1alpha1.AppWrapperList{}
 	if err := r.List(ctx, aws, client.UnsafeDisableDeepCopy); err != nil {
 		return false, err
 	}
 	for _, a := range aws.Items {
-		if a.UID != aw.UID {
+		if a.UID != appwrapper.UID {
 			if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed", "Requeuing"}, a.Status.Phase)) &&
-				a.Spec.Priority >= aw.Spec.Priority {
+				a.Spec.Priority >= appwrapper.Spec.Priority {
 				gpus -= gpuRequest(&a)
 			}
 		}
 	}
-	return gpuRequest(aw) <= gpus, nil
+	return gpuRequest(appwrapper) <= gpus, nil
 }
 
-// Count gpu requested by appwrapper
-func gpuRequest(aw *mcadv1alpha1.AppWrapper) int {
+// Count gpu requested by AppWrapper
+func gpuRequest(appwrapper *mcadv1alpha1.AppWrapper) int {
 	gpus := 0
-	for _, resource := range aw.Spec.Resources {
+	for _, resource := range appwrapper.Spec.Resources {
 		g := resource.Requests["nvidia.com/gpu"]
 		gpus += int(resource.Replicas) * int(g.Value())
 	}
 	return gpus
 }
 
-// Monitor appwrapper pods
-func (r *AppWrapperReconciler) monitorPods(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
+// Monitor AppWrapper pods
+func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{label: aw.ObjectMeta.Name}); err != nil {
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{label: appwrapper.ObjectMeta.Name}); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}
@@ -319,7 +312,7 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, aw *mcadv1alpha1
 }
 
 // Parse raw resource into client object
-func (r *AppWrapperReconciler) parseResource(aw *mcadv1alpha1.AppWrapper, raw []byte) (client.Object, error) {
+func (r *AppWrapperReconciler) parseResource(appwrapper *mcadv1alpha1.AppWrapper, raw []byte) (client.Object, error) {
 	into, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, nil)
 	if err != nil {
 		return nil, err
@@ -330,18 +323,18 @@ func (r *AppWrapperReconciler) parseResource(aw *mcadv1alpha1.AppWrapper, raw []
 		return nil, err
 	}
 	if namespaced && obj.GetNamespace() == "" {
-		obj.SetNamespace(aw.ObjectMeta.Namespace) // use appwrapper namespace as default
+		obj.SetNamespace(appwrapper.ObjectMeta.Namespace) // use AppWrapper namespace as default
 	}
-	obj.SetLabels(map[string]string{label: aw.ObjectMeta.Name}) // add appwrapper label
+	obj.SetLabels(map[string]string{label: appwrapper.ObjectMeta.Name}) // add AppWrapper label
 	return obj, nil
 }
 
 // Parse raw resources
-func (r *AppWrapperReconciler) parseResources(aw *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
-	objects := make([]client.Object, len(aw.Spec.Resources))
+func (r *AppWrapperReconciler) parseResources(appwrapper *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
+	objects := make([]client.Object, len(appwrapper.Spec.Resources))
 	var err error
-	for i, resource := range aw.Spec.Resources {
-		objects[i], err = r.parseResource(aw, resource.Template.Raw)
+	for i, resource := range appwrapper.Spec.Resources {
+		objects[i], err = r.parseResource(appwrapper, resource.Template.Raw)
 		if err != nil {
 			return nil, err
 		}
@@ -362,11 +355,11 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []cl
 }
 
 // Delete wrapped resources, returning count of pending deletions
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, aw *mcadv1alpha1.AppWrapper) int {
+func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) int {
 	log := log.FromContext(ctx)
 	count := 0
-	for _, resource := range aw.Spec.Resources {
-		obj, err := r.parseResource(aw, resource.Template.Raw)
+	for _, resource := range appwrapper.Spec.Resources {
+		obj, err := r.parseResource(appwrapper, resource.Template.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during deletion")
 			continue
@@ -383,10 +376,10 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, aw *mcadv1al
 	return count
 }
 
-func slowDispatch(aw *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(aw.Status.LastDispatchTime.Add(2 * time.Minute))
+func slowDispatch(appwrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appwrapper.Status.LastDispatchTime.Add(2 * time.Minute))
 }
 
-func slowDeletion(aw *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(aw.ObjectMeta.DeletionTimestamp.Add(2 * time.Minute))
+func slowDeletion(appwrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appwrapper.ObjectMeta.DeletionTimestamp.Add(2 * time.Minute))
 }

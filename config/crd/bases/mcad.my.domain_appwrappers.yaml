@@ -21,7 +21,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: AppWrapper is the Schema for the appwrappers API
+        description: AppWrapper object
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -39,24 +39,24 @@ spec:
             description: AppWrapperSpec defines the desired state of AppWrapper
             properties:
               maxRetries:
-                description: max retries
+                description: Max requeuings
                 format: int32
                 type: integer
               pods:
-                description: expected pod count
+                description: Minimum number of pods that need to run and succeeded
                 format: int32
                 type: integer
               priority:
-                description: priority
+                description: Priority
                 format: int32
                 type: integer
               resources:
-                description: resources
+                description: Wrapped resources
                 items:
-                  description: AppWrapperResource is the Schema for the wrapped resources
+                  description: AppWrapperResource is the schema for the wrapped resources
                   properties:
                     replicas:
-                      description: replica count
+                      description: Replica count
                       format: int32
                       type: integer
                     requests:
@@ -66,10 +66,10 @@ spec:
                         - type: string
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
-                      description: request per replica
+                      description: Resource requests per replica
                       type: object
                     template:
-                      description: resource template
+                      description: Resource template
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
                   required:
@@ -85,7 +85,7 @@ spec:
             description: AppWrapperStatus defines the observed state of AppWrapper
             properties:
               conditions:
-                description: conditions
+                description: Conditions
                 items:
                   description: AppWrapper condition
                   properties:
@@ -102,15 +102,15 @@ spec:
                   type: object
                 type: array
               lastDispatchTime:
-                description: when last dispatched
+                description: When last dispatched
                 format: date-time
                 type: string
               phase:
-                description: 'phase: <empty>, Queued, Dispatching, Running, Completed,
+                description: 'Phase: <empty>, Queued, Dispatching, Running, Completed,
                   Failed, Terminating, Requeuing'
                 type: string
               requeued:
-                description: how many times requeued
+                description: How many times requeued
                 format: int32
                 type: integer
             type: object

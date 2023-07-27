@@ -7,7 +7,7 @@ rules:
 - apiGroups:
   - mcad.my.domain
   resources:
-  - appwrappers
+  - AppWrappers
   verbs:
   - create
   - delete
@@ -19,13 +19,13 @@ rules:
 - apiGroups:
   - mcad.my.domain
   resources:
-  - appwrappers/finalizers
+  - AppWrappers/finalizers
   verbs:
   - update
 - apiGroups:
   - mcad.my.domain
   resources:
-  - appwrappers/status
+  - AppWrappers/status
   verbs:
   - get
   - patch
