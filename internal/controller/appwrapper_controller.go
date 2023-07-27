@@ -278,7 +278,29 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 	for _, a := range aws.Items {
 		if a.UID != appwrapper.UID {
 			if isActivePhase(a.Status.Phase) && a.Spec.Priority >= appwrapper.Spec.Priority {
-				gpus -= gpuRequest(&a)
+				pods := &v1.PodList{}
+				if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
+					client.MatchingLabels{label: a.ObjectMeta.Name}); err != nil {
+					return false, err
+				}
+				awGpus := gpuRequest(&a) // gpus requested by appwrapper
+				podGpus := 0             // gpus in use by appwrapper pods
+				for _, pod := range pods.Items {
+					if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+						for _, container := range pod.Spec.Containers {
+							g := container.Resources.Requests[nvidiaGpu]
+							podGpus += int(g.Value())
+						}
+					}
+				}
+				// subtract max gpu usage among the two:
+				// reserve the requested appwrapper resources even if the pods are not all running
+				// account for incorrect appwrapper specs where actual use is greater than reservation
+				if awGpus > podGpus {
+					gpus -= awGpus
+				} else {
+					gpus -= podGpus
+				}
 			}
 		}
 	}
