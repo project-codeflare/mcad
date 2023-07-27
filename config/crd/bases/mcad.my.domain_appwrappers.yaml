@@ -105,9 +105,12 @@ spec:
                 description: When last dispatched
                 format: date-time
                 type: string
+              lastRequeuingTime:
+                description: When last requeued
+                format: date-time
+                type: string
               phase:
-                description: 'Phase: <empty>, Queued, Dispatching, Running, Completed,
-                  Failed, Terminating, Requeuing'
+                description: Phase
                 type: string
               requeued:
                 description: How many times requeued

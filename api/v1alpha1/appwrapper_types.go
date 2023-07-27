@@ -39,11 +39,14 @@ type AppWrapperSpec struct {
 
 // AppWrapperStatus defines the observed state of AppWrapper
 type AppWrapperStatus struct {
-	// Phase: <empty>, Queued, Dispatching, Running, Completed, Failed, Terminating, Requeuing
-	Phase string `json:"phase,omitempty"`
+	// Phase
+	Phase AppWrapperPhase `json:"phase,omitempty"`
 
 	// When last dispatched
 	LastDispatchTime metav1.Time `json:"lastDispatchTime,omitempty"`
+
+	// When last requeued
+	LastRequeuingTime metav1.Time `json:"lastRequeuingTime,omitempty"`
 
 	// How many times requeued
 	Requeued int32 `json:"requeued,omitempty"`
@@ -51,6 +54,20 @@ type AppWrapperStatus struct {
 	// Conditions
 	Conditions []AppWrapperCondition `json:"conditions,omitempty"`
 }
+
+// AppWrapperPhase is the label for the AppWrapper status
+type AppWrapperPhase string
+
+// AppWrapper phases
+const (
+	Queued      AppWrapperPhase = "Queued"
+	Dispatching AppWrapperPhase = "Dispatching"
+	Running     AppWrapperPhase = "Running"
+	Succeeded   AppWrapperPhase = "Succeeded"
+	Failed      AppWrapperPhase = "Failed"
+	Terminating AppWrapperPhase = "Terminating"
+	Requeuing   AppWrapperPhase = "Requeuing"
+)
 
 // AppWrapperResource is the schema for the wrapped resources
 type AppWrapperResource struct {

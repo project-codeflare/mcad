@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/strings/slices"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,8 +44,12 @@ type AppWrapperReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-const label = "mcad.my.domain/AppWrapper"    // label injected in every wrapped resource
-const finalizer = "mcad.my.domain/finalizer" // AppWrapper finalizer name
+const (
+	label        = "mcad.my.domain/AppWrapper" // label injected in every wrapped resource
+	finalizer    = "mcad.my.domain/finalizer"  // AppWrapper finalizer name
+	nvidiaGpu    = "nvidia.com/gpu"            // GPU resource name
+	specNodeName = ".spec.nodeName"            // pod node name field
+)
 
 // PodCounts summarizes the status of the pods associated with one AppWrapper
 type PodCounts struct {
@@ -74,19 +77,19 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// deletion requested
-	if !appwrapper.ObjectMeta.DeletionTimestamp.IsZero() && appwrapper.Status.Phase != "Terminating" {
-		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Terminating")
+	if !appwrapper.ObjectMeta.DeletionTimestamp.IsZero() && appwrapper.Status.Phase != mcadv1alpha1.Terminating {
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Terminating)
 	}
 
 	switch appwrapper.Status.Phase {
-	case "Completed", "Failed":
+	case mcadv1alpha1.Succeeded, mcadv1alpha1.Failed:
 		// nothing to reconcile
 		return ctrl.Result{}, nil
 
-	case "Terminating":
+	case mcadv1alpha1.Terminating:
 		// delete wrapped resources
 		if r.deleteResources(ctx, appwrapper) != 0 {
-			if slowDeletion(appwrapper) {
+			if isSlowDeletion(appwrapper) {
 				log.Error(nil, "Resource deletion timeout")
 			} else {
 				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
@@ -100,19 +103,19 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		return ctrl.Result{}, nil
 
-	case "Requeuing":
+	case mcadv1alpha1.Requeuing:
 		// delete wrapped resources
 		if r.deleteResources(ctx, appwrapper) != 0 {
-			if slowDeletion(appwrapper) {
+			if isSlowRequeuing(appwrapper) {
 				log.Error(nil, "Resource deletion timeout")
 			} else {
 				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
 			}
 		}
 		// update status to queued
-		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Queued")
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Queued)
 
-	case "Queued":
+	case mcadv1alpha1.Queued:
 		// check if AppWrapper fits available resources
 		shouldDispatch, err := r.shouldDispatch(ctx, appwrapper)
 		if err != nil {
@@ -121,52 +124,54 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if shouldDispatch {
 			// set dispatching status
 			appwrapper.Status.LastDispatchTime = metav1.Now()
-			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Dispatching")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Dispatching)
 		}
 		// if not, retry after a delay
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 
-	case "Dispatching":
+	case mcadv1alpha1.Dispatching:
 		// dispatching is taking too long?
-		if slowDispatch(appwrapper) {
+		if isSlowDispatch(appwrapper) {
 			// set requeuing or failed status
 			if appwrapper.Status.Requeued < appwrapper.Spec.MaxRetries {
 				appwrapper.Status.Requeued += 1
-				return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Requeuing")
+				appwrapper.Status.LastRequeuingTime = metav1.Now()
+				return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Requeuing)
 			}
-			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Failed")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Failed)
 		}
 		// create wrapped resources
 		objects, err := r.parseResources(appwrapper)
 		if err != nil {
 			log.Error(err, "Resource parsing error during creation")
-			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Failed")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Failed)
 		}
 		// create wrapped resources
 		if err := r.createResources(ctx, objects); err != nil {
 			return ctrl.Result{}, err
 		}
 		// set running status only after successfully requesting the creation of all resources
-		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Running")
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Running)
 
-	case "Running":
+	case mcadv1alpha1.Running:
 		// check AppWrapper health
 		counts, err := r.monitorPods(ctx, appwrapper)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		slow := slowDispatch(appwrapper)
+		slow := isSlowDispatch(appwrapper)
 		if counts.Failed > 0 || slow && (counts.Other > 0 || counts.Running < int(appwrapper.Spec.MinPods)) {
 			// set requeuing or failed status
 			if appwrapper.Status.Requeued < appwrapper.Spec.MaxRetries {
 				appwrapper.Status.Requeued += 1
-				return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Requeuing")
+				appwrapper.Status.LastRequeuingTime = metav1.Now()
+				return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Requeuing)
 			}
-			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Failed")
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Failed)
 		}
 		if counts.Succeeded >= int(appwrapper.Spec.MinPods) && counts.Running == 0 && counts.Other == 0 {
-			// set completed status
-			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Completed")
+			// set succeeded status
+			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Succeeded)
 		}
 		if !slow {
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // check soon
@@ -181,13 +186,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 		// set queued status only after adding finalizer
-		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, "Queued")
+		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Queued)
 	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Pod{}, ".spec.nodeName", func(obj client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Pod{}, specNodeName, func(obj client.Object) []string {
 		pod := obj.(*v1.Pod)
 		return []string{pod.Spec.NodeName}
 	}); err != nil {
@@ -211,19 +216,21 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 }
 
 // Update AppWrapper status
-func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper, phase string) error {
+func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper, phase mcadv1alpha1.AppWrapperPhase) error {
 	log := log.FromContext(ctx)
 	now := metav1.Now()
-	if phase == "Dispatching" {
+	if phase == mcadv1alpha1.Dispatching {
 		now = appwrapper.Status.LastDispatchTime // ensure timestamps are consistent
+	} else if phase == mcadv1alpha1.Requeuing {
+		now = appwrapper.Status.LastRequeuingTime // ensure timestamps are consistent
 	}
-	condition := mcadv1alpha1.AppWrapperCondition{LastTransitionTime: now, Reason: phase}
+	condition := mcadv1alpha1.AppWrapperCondition{LastTransitionTime: now, Reason: string(phase)}
 	appwrapper.Status.Conditions = append(appwrapper.Status.Conditions, condition)
 	appwrapper.Status.Phase = phase
 	if err := r.Status().Update(ctx, appwrapper); err != nil {
 		return err
 	}
-	log.Info(phase)
+	log.Info(string(phase))
 	return nil
 }
 
@@ -241,10 +248,10 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 			continue
 		}
 		// add allocatable gpus
-		g := node.Status.Allocatable["nvidia.com/gpu"]
+		g := node.Status.Allocatable[nvidiaGpu]
 		gpus += int(g.Value())
 		// subtract gpus used by non-AppWrapper, non-terminated pods on this node
-		fieldSelector, err := fields.ParseSelector(".spec.nodeName=" + node.Name)
+		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
 			return false, err
 		}
@@ -256,7 +263,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[label]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 				for _, container := range pod.Spec.Containers {
-					g := container.Resources.Requests["nvidia.com/gpu"]
+					g := container.Resources.Requests[nvidiaGpu]
 					gpus -= int(g.Value())
 				}
 			}
@@ -269,8 +276,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 	}
 	for _, a := range aws.Items {
 		if a.UID != appwrapper.UID {
-			if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed", "Requeuing"}, a.Status.Phase)) &&
-				a.Spec.Priority >= appwrapper.Spec.Priority {
+			if isActivePhase(a.Status.Phase) && a.Spec.Priority >= appwrapper.Spec.Priority {
 				gpus -= gpuRequest(&a)
 			}
 		}
@@ -282,7 +288,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 func gpuRequest(appwrapper *mcadv1alpha1.AppWrapper) int {
 	gpus := 0
 	for _, resource := range appwrapper.Spec.Resources {
-		g := resource.Requests["nvidia.com/gpu"]
+		g := resource.Requests[nvidiaGpu]
 		gpus += int(resource.Replicas) * int(g.Value())
 	}
 	return gpus
@@ -298,11 +304,11 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appwrapper *mcad
 	counts := &PodCounts{}
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
-		case "Succeeded":
+		case v1.PodSucceeded:
 			counts.Succeeded += 1
-		case "Running":
+		case v1.PodRunning:
 			counts.Running += 1
-		case "Failed":
+		case v1.PodFailed:
 			counts.Failed += 1
 		default:
 			counts.Other += 1
@@ -376,10 +382,24 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appwrapper *
 	return count
 }
 
-func slowDispatch(appwrapper *mcadv1alpha1.AppWrapper) bool {
+func isSlowDispatch(appwrapper *mcadv1alpha1.AppWrapper) bool {
 	return metav1.Now().After(appwrapper.Status.LastDispatchTime.Add(2 * time.Minute))
 }
 
-func slowDeletion(appwrapper *mcadv1alpha1.AppWrapper) bool {
+func isSlowDeletion(appwrapper *mcadv1alpha1.AppWrapper) bool {
 	return metav1.Now().After(appwrapper.ObjectMeta.DeletionTimestamp.Add(2 * time.Minute))
+}
+
+func isSlowRequeuing(appwrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appwrapper.Status.LastRequeuingTime.Add(2 * time.Minute))
+}
+
+// Are resources reserved in this phase
+func isActivePhase(phase mcadv1alpha1.AppWrapperPhase) bool {
+	switch phase {
+	case mcadv1alpha1.Dispatching, mcadv1alpha1.Running, mcadv1alpha1.Failed, mcadv1alpha1.Terminating, mcadv1alpha1.Requeuing:
+		return true
+	default:
+		return false
+	}
 }

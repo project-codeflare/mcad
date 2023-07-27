@@ -150,6 +150,7 @@ func (in *AppWrapperSpec) DeepCopy() *AppWrapperSpec {
 func (in *AppWrapperStatus) DeepCopyInto(out *AppWrapperStatus) {
 	*out = *in
 	in.LastDispatchTime.DeepCopyInto(&out.LastDispatchTime)
+	in.LastRequeuingTime.DeepCopyInto(&out.LastRequeuingTime)
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]AppWrapperCondition, len(*in))
