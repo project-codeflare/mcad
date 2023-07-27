@@ -195,7 +195,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// watch pods in addition to appwrappers
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&mcadv1alpha1.AppWrapper{}).WatchesMetadata(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
+		For(&mcadv1alpha1.AppWrapper{}).
+		WatchesMetadata(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)
 }
 
@@ -227,17 +228,42 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *mcadv1alpha
 
 // Test if appwrapper fits available resources
 func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (bool, error) {
-	// list all appwrappers
-	aws := &mcadv1alpha1.AppWrapperList{}
-	if err := r.List(ctx, aws); err != nil {
+	gpus := 0 // available gpus
+	// add allocatable gpus for each schedulable node
+	nodes := &v1.NodeList{}
+	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
 		return false, err
 	}
-	// compute available gpu capacity at desired priority level
-	gpus := 100 // cluster capacity minus gpu usage by things other than appwrappers
+	for _, node := range nodes.Items {
+		if !node.Spec.Unschedulable {
+			g := node.Status.Allocatable["nvidia.com/gpu"]
+			gpus += int(g.Value())
+		}
+	}
+	// subtract gpus used by non-appwrapper pods
+	pods := &v1.PodList{}
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy); err != nil {
+		return false, err
+	}
+	for _, pod := range pods.Items {
+		if _, ok := pod.Labels[label]; !ok {
+			for _, container := range pod.Spec.Containers {
+				g := container.Resources.Requests["nvidia.com/gpu"]
+				gpus -= int(g.Value())
+			}
+		}
+	}
+	// subtract gpus used by non-preemptable appwrappers
+	aws := &mcadv1alpha1.AppWrapperList{}
+	if err := r.List(ctx, aws, client.UnsafeDisableDeepCopy); err != nil {
+		return false, err
+	}
 	for _, a := range aws.Items {
-		if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed", "Requeuing"}, a.Status.Phase)) &&
-			a.Spec.Priority >= aw.Spec.Priority {
-			gpus -= gpuRequest(&a)
+		if a.UID != aw.UID {
+			if (slices.Contains([]string{"Dispatching", "Running", "Terminating", "Failed", "Requeuing"}, a.Status.Phase)) &&
+				a.Spec.Priority >= aw.Spec.Priority {
+				gpus -= gpuRequest(&a)
+			}
 		}
 	}
 	return gpuRequest(aw) <= gpus, nil
@@ -257,7 +283,10 @@ func gpuRequest(aw *mcadv1alpha1.AppWrapper) int {
 func (r *AppWrapperReconciler) monitorPods(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.InNamespace(aw.ObjectMeta.Namespace), client.MatchingLabels{label: aw.ObjectMeta.Name}); err != nil {
+	if err := r.List(ctx, pods,
+		client.InNamespace(aw.ObjectMeta.Namespace),
+		client.MatchingLabels{label: aw.ObjectMeta.Name},
+		client.UnsafeDisableDeepCopy); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}
