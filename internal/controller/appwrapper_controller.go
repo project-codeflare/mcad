@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/strings/slices"
@@ -193,6 +194,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Pod{}, ".spec.nodeName", func(obj client.Object) []string {
+		pod := obj.(*v1.Pod)
+		return []string{pod.Spec.NodeName}
+	}); err != nil {
+		return err
+	}
+
 	// watch pods in addition to appwrappers
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1alpha1.AppWrapper{}).
@@ -229,27 +237,35 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *mcadv1alpha
 // Test if appwrapper fits available resources
 func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (bool, error) {
 	gpus := 0 // available gpus
-	// add allocatable gpus for each schedulable node
+	// add available gpus for each schedulable node
 	nodes := &v1.NodeList{}
 	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
 		return false, err
 	}
 	for _, node := range nodes.Items {
-		if !node.Spec.Unschedulable {
-			g := node.Status.Allocatable["nvidia.com/gpu"]
-			gpus += int(g.Value())
+		// skip unschedulable nodes
+		if node.Spec.Unschedulable {
+			continue
 		}
-	}
-	// subtract gpus used by non-appwrapper pods
-	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy); err != nil {
-		return false, err
-	}
-	for _, pod := range pods.Items {
-		if _, ok := pod.Labels[label]; !ok {
-			for _, container := range pod.Spec.Containers {
-				g := container.Resources.Requests["nvidia.com/gpu"]
-				gpus -= int(g.Value())
+		// add allocatable gpus
+		g := node.Status.Allocatable["nvidia.com/gpu"]
+		gpus += int(g.Value())
+		// subtract gpus used by non-appwrapper, non-terminated pods on this node
+		fieldSelector, err := fields.ParseSelector(".spec.nodeName=" + node.Name)
+		if err != nil {
+			return false, err
+		}
+		pods := &v1.PodList{}
+		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
+			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
+			return false, err
+		}
+		for _, pod := range pods.Items {
+			if _, ok := pod.GetLabels()[label]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+				for _, container := range pod.Spec.Containers {
+					g := container.Resources.Requests["nvidia.com/gpu"]
+					gpus -= int(g.Value())
+				}
 			}
 		}
 	}
@@ -283,10 +299,9 @@ func gpuRequest(aw *mcadv1alpha1.AppWrapper) int {
 func (r *AppWrapperReconciler) monitorPods(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods,
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 		client.InNamespace(aw.ObjectMeta.Namespace),
-		client.MatchingLabels{label: aw.ObjectMeta.Name},
-		client.UnsafeDisableDeepCopy); err != nil {
+		client.MatchingLabels{label: aw.ObjectMeta.Name}); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}
