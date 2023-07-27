@@ -42,7 +42,7 @@ spec:
                 description: Max requeuings
                 format: int32
                 type: integer
-              pods:
+              minPods:
                 description: Minimum number of pods that need to run and succeeded
                 format: int32
                 type: integer

@@ -4,7 +4,7 @@ metadata:
   name: appwrapper-sample
 spec:
   priority: 5
-  pods: 2
+  minPods: 2
   maxRetries: 5
   resources:
     - requests:

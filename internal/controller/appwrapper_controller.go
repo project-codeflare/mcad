@@ -169,7 +169,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Failed)
 		}
-		if counts.Succeeded >= int(appwrapper.Spec.MinPods) && counts.Running == 0 && counts.Other == 0 {
+		if appwrapper.Spec.MinPods > 0 && counts.Succeeded >= int(appwrapper.Spec.MinPods) &&
+			counts.Running == 0 && counts.Other == 0 {
 			// set succeeded status
 			return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Succeeded)
 		}
