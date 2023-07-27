@@ -299,9 +299,7 @@ func gpuRequest(aw *mcadv1alpha1.AppWrapper) int {
 func (r *AppWrapperReconciler) monitorPods(ctx context.Context, aw *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-		client.InNamespace(aw.ObjectMeta.Namespace),
-		client.MatchingLabels{label: aw.ObjectMeta.Name}); err != nil {
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{label: aw.ObjectMeta.Name}); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}
