@@ -5,28 +5,8 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - mcad.my.domain
+  - '*'
   resources:
-  - AppWrappers
+  - '*'
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - mcad.my.domain
-  resources:
-  - AppWrappers/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - mcad.my.domain
-  resources:
-  - AppWrappers/status
-  verbs:
-  - get
-  - patch
-  - update
+  - '*'

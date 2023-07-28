@@ -56,9 +56,7 @@ type PodCounts struct {
 	Succeeded int
 }
 
-//+kubebuilder:rbac:groups=mcad.my.domain,resources=AppWrappers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=mcad.my.domain,resources=AppWrappers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=mcad.my.domain,resources=AppWrappers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=*,resources=*,verbs=*
 
 // Reconcile one AppWrapper
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
