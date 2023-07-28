@@ -43,7 +43,7 @@ spec:
                 format: int32
                 type: integer
               minPods:
-                description: Minimum number of pods that need to run and succeeded
+                description: Minimum number of pods that need to run and succeed
                 format: int32
                 type: integer
               priority:

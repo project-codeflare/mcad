@@ -27,7 +27,7 @@ type AppWrapperSpec struct {
 	// Priority
 	Priority int32 `json:"priority,omitempty"`
 
-	// Minimum number of pods that need to run and succeeded
+	// Minimum number of pods that need to run and succeed
 	MinPods int32 `json:"minPods,omitempty"`
 
 	// Max requeuings
