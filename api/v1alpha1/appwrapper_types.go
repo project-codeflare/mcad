@@ -60,13 +60,33 @@ type AppWrapperPhase string
 
 // AppWrapper phases
 const (
-	Queued      AppWrapperPhase = "Queued"
+	// Queued: resource requests ARE NOT reserved
+	// Decide to dispatch -> Dispatching
+	Queued AppWrapperPhase = "Queued"
+
+	// Dispatching: resource requests ARE reserved (resource creation in progress)
+	// Create wrapped resources -> Running or Failed (parsing error) or Failed/Requeuing (timeout creating resources)
 	Dispatching AppWrapperPhase = "Dispatching"
-	Running     AppWrapperPhase = "Running"
-	Succeeded   AppWrapperPhase = "Succeeded"
-	Failed      AppWrapperPhase = "Failed"
+
+	// Running: resource requests ARE reserved
+	// Monitor pods -> Succeeded or Failed/Requeuing (pod failed or min pod running/non-running pod timeout)
+	Running AppWrapperPhase = "Running"
+
+	// Succeeded: resource requests ARE NOT reserved
+	// Entering when >= max(min pods, 1) succeeded and no other pod
+	Succeeded AppWrapperPhase = "Succeeded"
+
+	// Failed: resource requests ARE reserved (because failure can be partial and there is no cleanup)
+	// Entering error if requeued status >= max retries spec
+	Failed AppWrapperPhase = "Failed"
+
+	// Terminating: resource requests ARE reserved (wrapped resource deletion in progress)
+	// Entering when deletion requested, until wrapped resources are deleted or timeout
 	Terminating AppWrapperPhase = "Terminating"
-	Requeuing   AppWrapperPhase = "Requeuing"
+
+	// Requeuing: resource requests ARE reserved (wrapped resource deletion in progress)
+	// Entering on error if requeued status < max retries spec (except always entering Failed on parsing error)
+	Requeuing AppWrapperPhase = "Requeuing"
 )
 
 // AppWrapperResource is the schema for the wrapped resources
