@@ -21,10 +21,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -193,13 +190,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// index pods with nodeName key
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Pod{}, specNodeName, func(obj client.Object) []string {
 		pod := obj.(*v1.Pod)
 		return []string{pod.Spec.NodeName}
 	}); err != nil {
 		return err
 	}
-
 	// watch pods in addition to AppWrappers
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1alpha1.AppWrapper{}).
@@ -225,6 +222,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appwrapper *mca
 	} else if phase == mcadv1alpha1.Requeuing {
 		now = appwrapper.Status.LastRequeuingTime // ensure timestamps are consistent
 	}
+	// log transition as condition
 	condition := mcadv1alpha1.AppWrapperCondition{LastTransitionTime: now, Reason: string(phase)}
 	appwrapper.Status.Conditions = append(appwrapper.Status.Conditions, condition)
 	appwrapper.Status.Phase = phase
@@ -233,188 +231,6 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appwrapper *mca
 	}
 	log.Info(string(phase))
 	return nil
-}
-
-// Test if AppWrapper fits available resources
-func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) (bool, error) {
-	gpus := 0 // available gpus
-	// add available gpus for each schedulable node
-	nodes := &v1.NodeList{}
-	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
-		return false, err
-	}
-	for _, node := range nodes.Items {
-		// skip unschedulable nodes
-		if node.Spec.Unschedulable {
-			continue
-		}
-		// add allocatable gpus
-		g := node.Status.Allocatable[nvidiaGpu]
-		gpus += int(g.Value())
-		// subtract gpus used by non-AppWrapper, non-terminated pods on this node
-		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
-		if err != nil {
-			return false, err
-		}
-		pods := &v1.PodList{}
-		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
-			return false, err
-		}
-		for _, pod := range pods.Items {
-			if _, ok := pod.GetLabels()[label]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-				for _, container := range pod.Spec.Containers {
-					g := container.Resources.Requests[nvidiaGpu]
-					gpus -= int(g.Value())
-				}
-			}
-		}
-	}
-	// subtract gpus used by non-preemptable AppWrappers
-	aws := &mcadv1alpha1.AppWrapperList{}
-	if err := r.List(ctx, aws, client.UnsafeDisableDeepCopy); err != nil {
-		return false, err
-	}
-	for _, a := range aws.Items {
-		if a.UID != appwrapper.UID {
-			if isActivePhase(a.Status.Phase) && a.Spec.Priority >= appwrapper.Spec.Priority {
-				pods := &v1.PodList{}
-				if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-					client.MatchingLabels{label: a.ObjectMeta.Name}); err != nil {
-					return false, err
-				}
-				awGpus := gpuRequest(&a) // gpus requested by appwrapper
-				podGpus := 0             // gpus in use by appwrapper pods
-				for _, pod := range pods.Items {
-					if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-						for _, container := range pod.Spec.Containers {
-							g := container.Resources.Requests[nvidiaGpu]
-							podGpus += int(g.Value())
-						}
-					}
-				}
-				// subtract max gpu usage among the two:
-				// reserve the requested appwrapper resources even if the pods are not all running
-				// account for incorrect appwrapper specs where actual use is greater than reservation
-				if awGpus > podGpus {
-					gpus -= awGpus
-				} else {
-					gpus -= podGpus
-				}
-			}
-		}
-	}
-	return gpuRequest(appwrapper) <= gpus, nil
-}
-
-// Count gpu requested by AppWrapper
-func gpuRequest(appwrapper *mcadv1alpha1.AppWrapper) int {
-	gpus := 0
-	for _, resource := range appwrapper.Spec.Resources {
-		g := resource.Requests[nvidiaGpu]
-		gpus += int(resource.Replicas) * int(g.Value())
-	}
-	return gpus
-}
-
-// Monitor AppWrapper pods
-func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
-	// list matching pods
-	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{label: appwrapper.ObjectMeta.Name}); err != nil {
-		return nil, err
-	}
-	counts := &PodCounts{}
-	for _, pod := range pods.Items {
-		switch pod.Status.Phase {
-		case v1.PodSucceeded:
-			counts.Succeeded += 1
-		case v1.PodRunning:
-			counts.Running += 1
-		case v1.PodFailed:
-			counts.Failed += 1
-		default:
-			counts.Other += 1
-		}
-	}
-	return counts, nil
-}
-
-// Parse raw resource into client object
-func (r *AppWrapperReconciler) parseResource(appwrapper *mcadv1alpha1.AppWrapper, raw []byte) (client.Object, error) {
-	into, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	obj := into.(client.Object)
-	namespaced, err := r.IsObjectNamespaced(obj)
-	if err != nil {
-		return nil, err
-	}
-	if namespaced && obj.GetNamespace() == "" {
-		obj.SetNamespace(appwrapper.ObjectMeta.Namespace) // use AppWrapper namespace as default
-	}
-	obj.SetLabels(map[string]string{label: appwrapper.ObjectMeta.Name}) // add AppWrapper label
-	return obj, nil
-}
-
-// Parse raw resources
-func (r *AppWrapperReconciler) parseResources(appwrapper *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
-	objects := make([]client.Object, len(appwrapper.Spec.Resources))
-	var err error
-	for i, resource := range appwrapper.Spec.Resources {
-		objects[i], err = r.parseResource(appwrapper, resource.Template.Raw)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return objects, err
-}
-
-// Create wrapped resources
-func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []client.Object) error {
-	for _, obj := range objects {
-		if err := r.Create(ctx, obj); err != nil {
-			if !errors.IsAlreadyExists(err) { // ignore existing resources
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// Delete wrapped resources, returning count of pending deletions
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) int {
-	log := log.FromContext(ctx)
-	count := 0
-	for _, resource := range appwrapper.Spec.Resources {
-		obj, err := r.parseResource(appwrapper, resource.Template.Raw)
-		if err != nil {
-			log.Error(err, "Resource parsing error during deletion")
-			continue
-		}
-		background := metav1.DeletePropagationBackground
-		if err := r.Delete(ctx, obj, &client.DeleteOptions{PropagationPolicy: &background}); err != nil {
-			if errors.IsNotFound(err) {
-				continue // ignore missing resources
-			}
-			log.Error(err, "Resource deletion error")
-		}
-		count += 1
-	}
-	return count
-}
-
-func isSlowDispatch(appwrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appwrapper.Status.LastDispatchTime.Add(2 * time.Minute))
-}
-
-func isSlowDeletion(appwrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appwrapper.ObjectMeta.DeletionTimestamp.Add(2 * time.Minute))
-}
-
-func isSlowRequeuing(appwrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appwrapper.Status.LastRequeuingTime.Add(2 * time.Minute))
 }
 
 // Are resources reserved in this phase
