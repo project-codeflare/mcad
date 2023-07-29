@@ -31,7 +31,7 @@ import (
 )
 
 // Test if AppWrapper fits available resources
-func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) (bool, error) {
+func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) (bool, error) {
 	gpus := 0 // available gpus
 	// add available gpus for each schedulable node
 	nodes := &v1.NodeList{}
@@ -71,12 +71,12 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 		return false, err
 	}
 	for _, aw := range aws.Items {
-		if aw.UID != appwrapper.UID {
+		if aw.UID != appWrapper.UID {
 			phase := aw.Status.Phase
 			if p, ok := r.Phases[aw.UID]; ok {
 				phase = p // use cached phase for better accuracy
 			}
-			if isActivePhase(phase) && aw.Spec.Priority >= appwrapper.Spec.Priority {
+			if isActivePhase(phase) && aw.Spec.Priority >= appWrapper.Spec.Priority {
 				pods := &v1.PodList{}
 				if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 					client.MatchingLabels{uidLabel: string(aw.UID)}); err != nil {
@@ -104,13 +104,13 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 		}
 	}
 	fmt.Println(gpus)
-	return gpuRequest(appwrapper) <= gpus, nil
+	return gpuRequest(appWrapper) <= gpus, nil
 }
 
 // Count gpu requested by AppWrapper
-func gpuRequest(appwrapper *mcadv1alpha1.AppWrapper) int {
+func gpuRequest(appWrapper *mcadv1alpha1.AppWrapper) int {
 	gpus := 0
-	for _, resource := range appwrapper.Spec.Resources {
+	for _, resource := range appWrapper.Spec.Resources {
 		g := resource.Requests[nvidiaGpu]
 		gpus += int(resource.Replicas) * int(g.Value())
 	}
@@ -118,6 +118,6 @@ func gpuRequest(appwrapper *mcadv1alpha1.AppWrapper) int {
 }
 
 // Is dispatch too slow?
-func isSlowDispatch(appwrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appwrapper.Status.LastDispatchTime.Add(2 * time.Minute))
+func isSlowDispatch(appWrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(2 * time.Minute))
 }

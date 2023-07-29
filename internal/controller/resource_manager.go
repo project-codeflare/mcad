@@ -32,7 +32,7 @@ import (
 )
 
 // Parse raw resource into client object
-func (r *AppWrapperReconciler) parseResource(appwrapper *mcadv1alpha1.AppWrapper, raw []byte) (client.Object, error) {
+func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1alpha1.AppWrapper, raw []byte) (client.Object, error) {
 	into, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, nil)
 	if err != nil {
 		return nil, err
@@ -43,18 +43,18 @@ func (r *AppWrapperReconciler) parseResource(appwrapper *mcadv1alpha1.AppWrapper
 		return nil, err
 	}
 	if namespaced && obj.GetNamespace() == "" {
-		obj.SetNamespace(appwrapper.Namespace) // use AppWrapper namespace as default
+		obj.SetNamespace(appWrapper.Namespace) // use AppWrapper namespace as default
 	}
-	obj.SetLabels(map[string]string{namespaceLabel: appwrapper.Namespace, nameLabel: appwrapper.Name, uidLabel: string(appwrapper.UID)})
+	obj.SetLabels(map[string]string{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name, uidLabel: string(appWrapper.UID)})
 	return obj, nil
 }
 
 // Parse raw resources
-func (r *AppWrapperReconciler) parseResources(appwrapper *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
-	objects := make([]client.Object, len(appwrapper.Spec.Resources))
+func (r *AppWrapperReconciler) parseResources(appWrapper *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
+	objects := make([]client.Object, len(appWrapper.Spec.Resources))
 	var err error
-	for i, resource := range appwrapper.Spec.Resources {
-		objects[i], err = r.parseResource(appwrapper, resource.Template.Raw)
+	for i, resource := range appWrapper.Spec.Resources {
+		objects[i], err = r.parseResource(appWrapper, resource.Template.Raw)
 		if err != nil {
 			return nil, err
 		}
@@ -75,11 +75,11 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []cl
 }
 
 // Delete wrapped resources, returning count of pending deletions
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) int {
+func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) int {
 	log := log.FromContext(ctx)
 	count := 0
-	for _, resource := range appwrapper.Spec.Resources {
-		obj, err := r.parseResource(appwrapper, resource.Template.Raw)
+	for _, resource := range appWrapper.Spec.Resources {
+		obj, err := r.parseResource(appWrapper, resource.Template.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during deletion")
 			continue
@@ -97,10 +97,10 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appwrapper *
 }
 
 // Monitor AppWrapper pods
-func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
+func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{uidLabel: string(appwrapper.UID)}); err != nil {
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{uidLabel: string(appWrapper.UID)}); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}
@@ -120,11 +120,11 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appwrapper *mcad
 }
 
 // Is deletion too slow?
-func isSlowDeletion(appwrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appwrapper.DeletionTimestamp.Add(2 * time.Minute))
+func isSlowDeletion(appWrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.DeletionTimestamp.Add(2 * time.Minute))
 }
 
 // Is requeuing too slow?
-func isSlowRequeuing(appwrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appwrapper.Status.LastRequeuingTime.Add(2 * time.Minute))
+func isSlowRequeuing(appWrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(2 * time.Minute))
 }
