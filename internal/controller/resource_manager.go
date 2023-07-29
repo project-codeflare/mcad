@@ -43,9 +43,9 @@ func (r *AppWrapperReconciler) parseResource(appwrapper *mcadv1alpha1.AppWrapper
 		return nil, err
 	}
 	if namespaced && obj.GetNamespace() == "" {
-		obj.SetNamespace(appwrapper.ObjectMeta.Namespace) // use AppWrapper namespace as default
+		obj.SetNamespace(appwrapper.Namespace) // use AppWrapper namespace as default
 	}
-	obj.SetLabels(map[string]string{label: appwrapper.ObjectMeta.Name}) // add AppWrapper label
+	obj.SetLabels(map[string]string{namespaceLabel: appwrapper.Namespace, nameLabel: appwrapper.Name, uidLabel: string(appwrapper.UID)})
 	return obj, nil
 }
 
@@ -100,7 +100,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appwrapper *
 func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{label: appwrapper.ObjectMeta.Name}); err != nil {
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{uidLabel: string(appwrapper.UID)}); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}
@@ -121,7 +121,7 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appwrapper *mcad
 
 // Is deletion too slow?
 func isSlowDeletion(appwrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appwrapper.ObjectMeta.DeletionTimestamp.Add(2 * time.Minute))
+	return metav1.Now().After(appwrapper.DeletionTimestamp.Add(2 * time.Minute))
 }
 
 // Is requeuing too slow?

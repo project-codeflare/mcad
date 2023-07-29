@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -28,9 +29,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
 )
@@ -38,14 +41,19 @@ import (
 // AppWrapperReconciler reconciles an AppWrapper object
 type AppWrapperReconciler struct {
 	client.Client
+	Events chan event.GenericEvent
 	Scheme *runtime.Scheme
+	Phases map[types.UID]mcadv1alpha1.AppWrapperPhase // cache phases to improve dispatch accuracy
+	// useful because List calls do not always account for more recent AppWrapper status update
 }
 
 const (
-	label        = "mcad.my.domain/AppWrapper" // label injected in every wrapped resource
-	finalizer    = "mcad.my.domain/finalizer"  // AppWrapper finalizer name
-	nvidiaGpu    = "nvidia.com/gpu"            // GPU resource name
-	specNodeName = ".spec.nodeName"            // pod node name field
+	namespaceLabel = "mcad.my.domain/namespace" // owner namespace label for wrapped resources
+	nameLabel      = "mcad.my.domain/name"      // owner name label for wrapped resources
+	uidLabel       = "mcad.my.domain/uid"       // owner UID label for wrapped resources
+	finalizer      = "mcad.my.domain/finalizer" // AppWrapper finalizer name
+	nvidiaGpu      = "nvidia.com/gpu"           // GPU resource name
+	specNodeName   = ".spec.nodeName"           // pod node name field
 )
 
 // PodCounts summarizes the status of the pods associated with one AppWrapper
@@ -66,13 +74,24 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	appwrapper := &mcadv1alpha1.AppWrapper{}
 
+	// get deep copy of AppWrapper object in reconciler cache
 	if err := r.Get(ctx, req.NamespacedName, appwrapper); err != nil {
 		// no such AppWrapper, nothing to reconcile, not an error
 		return ctrl.Result{}, nil
 	}
 
+	if _, ok := r.Phases[appwrapper.UID]; !ok {
+		// cache phase
+		r.Phases[appwrapper.UID] = appwrapper.Status.Phase
+	}
+	if r.Phases[appwrapper.UID] != appwrapper.Status.Phase {
+		// reconciler cache and our cache are out of sync
+		delete(r.Phases, appwrapper.UID)                   // remove phase from our cache
+		return ctrl.Result{}, errors.New("phase conflict") // force redo
+	}
+
 	// deletion requested
-	if !appwrapper.ObjectMeta.DeletionTimestamp.IsZero() && appwrapper.Status.Phase != mcadv1alpha1.Terminating {
+	if !appwrapper.DeletionTimestamp.IsZero() && appwrapper.Status.Phase != mcadv1alpha1.Terminating {
 		return ctrl.Result{}, r.updateStatus(ctx, appwrapper, mcadv1alpha1.Terminating)
 	}
 
@@ -95,7 +114,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if err := r.Update(ctx, appwrapper); err != nil {
 				return ctrl.Result{}, err
 			}
+			delete(r.Phases, appwrapper.UID) // remove phase from cache
 		}
+		r.notify() // cluster may have more available capacity
 		return ctrl.Result{}, nil
 
 	case mcadv1alpha1.Requeuing:
@@ -198,6 +219,7 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// watch pods in addition to AppWrappers
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1alpha1.AppWrapper{}).
+		WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
 		WatchesMetadata(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)
 }
@@ -205,8 +227,10 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Map labelled pods to AppWrappers
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*metav1.PartialObjectMetadata)
-	if appwrapper, ok := pod.ObjectMeta.Labels[label]; ok {
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: appwrapper}}}
+	if namespace, ok := pod.Labels[namespaceLabel]; ok {
+		if name, ok := pod.Labels[nameLabel]; ok {
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
+		}
 	}
 	return nil
 }
@@ -215,6 +239,7 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appwrapper *mcadv1alpha1.AppWrapper, phase mcadv1alpha1.AppWrapperPhase) error {
 	log := log.FromContext(ctx)
 	now := metav1.Now()
+	activeBefore := isActivePhase(appwrapper.Status.Phase)
 	if phase == mcadv1alpha1.Dispatching {
 		now = appwrapper.Status.LastDispatchTime // ensure timestamps are consistent
 	} else if phase == mcadv1alpha1.Requeuing {
@@ -228,6 +253,11 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appwrapper *mca
 		return err
 	}
 	log.Info(string(phase))
+	r.Phases[appwrapper.UID] = phase // update cached phase
+	activeAfter := isActivePhase(appwrapper.Status.Phase)
+	if activeAfter && !activeBefore {
+		r.notify() // cluster may have more available capacity
+	}
 	return nil
 }
 
@@ -238,5 +268,13 @@ func isActivePhase(phase mcadv1alpha1.AppWrapperPhase) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// Notify reconciler that more resources may be available
+func (r *AppWrapperReconciler) notify() {
+	select {
+	case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Namespace: "*", Name: "*"}}}:
+	default:
 	}
 }

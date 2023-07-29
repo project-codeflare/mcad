@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -56,7 +57,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 			return false, err
 		}
 		for _, pod := range pods.Items {
-			if _, ok := pod.GetLabels()[label]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+			if _, ok := pod.GetLabels()[uidLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 				for _, container := range pod.Spec.Containers {
 					g := container.Resources.Requests[nvidiaGpu]
 					gpus -= int(g.Value())
@@ -64,21 +65,25 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 			}
 		}
 	}
-	// subtract gpus used by non-preemptable AppWrappers
+	// subtract gpus reserved or used by active non-preemptable AppWrappers
 	aws := &mcadv1alpha1.AppWrapperList{}
 	if err := r.List(ctx, aws, client.UnsafeDisableDeepCopy); err != nil {
 		return false, err
 	}
-	for _, a := range aws.Items {
-		if a.UID != appwrapper.UID {
-			if isActivePhase(a.Status.Phase) && a.Spec.Priority >= appwrapper.Spec.Priority {
+	for _, aw := range aws.Items {
+		if aw.UID != appwrapper.UID {
+			phase := aw.Status.Phase
+			if p, ok := r.Phases[aw.UID]; ok {
+				phase = p // use cached phase for better accuracy
+			}
+			if isActivePhase(phase) && aw.Spec.Priority >= appwrapper.Spec.Priority {
 				pods := &v1.PodList{}
 				if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-					client.MatchingLabels{label: a.ObjectMeta.Name}); err != nil {
+					client.MatchingLabels{uidLabel: string(aw.UID)}); err != nil {
 					return false, err
 				}
-				awGpus := gpuRequest(&a) // gpus requested by appwrapper
-				podGpus := 0             // gpus in use by appwrapper pods
+				awGpus := gpuRequest(&aw)
+				podGpus := 0 // gpus in use by non-terminated AppWrapper pods
 				for _, pod := range pods.Items {
 					if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 						for _, container := range pod.Spec.Containers {
@@ -88,8 +93,8 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 					}
 				}
 				// subtract max gpu usage among the two:
-				// reserve the requested appwrapper resources even if the pods are not all running
-				// account for incorrect appwrapper specs where actual use is greater than reservation
+				// reserve the requested AppWrapper resources even if the pods are not all running
+				// account for incorrect AppWrapper specs where actual use is greater than reservation
 				if awGpus > podGpus {
 					gpus -= awGpus
 				} else {
@@ -98,6 +103,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appwrapper *m
 			}
 		}
 	}
+	fmt.Println(gpus)
 	return gpuRequest(appwrapper) <= gpus, nil
 }
 
