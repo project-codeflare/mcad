@@ -76,15 +76,20 @@ const (
 	Running AppWrapperPhase = "Running"
 
 	// Succeeded: resource requests ARE NOT reserved
-	// Entering when >= max(min pods, 1) succeeded and no other pod
+	// Final state
 	Succeeded AppWrapperPhase = "Succeeded"
 
 	// Failed: resource requests ARE reserved (because failure can be partial and there is no cleanup)
-	// Entering error if requeued status >= max retries spec
+	// Final state
+	// Entered on:
+	// - parsing error (always)
+	// - Requeuing timeout deleting resources (always)
+	// - Dispatching/Running errors and timeouts (after max retries)
 	Failed AppWrapperPhase = "Failed"
 
 	// Requeuing: resource requests ARE reserved (wrapped resource deletion in progress)
-	// Entering on error if requeued status < max retries spec (except always entering Failed on parsing error)
+	// Try deleting resources -> Queued or Failed if timeout deleting resources
+	// Entered on Dispatching/Running errors and timeouts (before max retries)
 	Requeuing AppWrapperPhase = "Requeuing"
 )
 
