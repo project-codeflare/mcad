@@ -18,10 +18,10 @@ package controller
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -73,51 +73,57 @@ func (r *AppWrapperReconciler) availableGpus(ctx context.Context) (int, error) {
 	return gpus, nil
 }
 
-// Test if AppWrapper fits available resources
-func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) (bool, error) {
-	gpus, err := r.availableGpus(ctx)
-	if err != nil {
-		return false, err
-	}
-	// subtract gpus reserved or used by active non-preemptable AppWrappers
+// Compute gpus reserved by AppWrappers at every priority level and sort queued AppWrappers
+// AppWrappers in output queue must be cloned if mutated
+func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int, []*mcadv1alpha1.AppWrapper, error) {
 	aws := &mcadv1alpha1.AppWrapperList{}
 	if err := r.List(ctx, aws, client.UnsafeDisableDeepCopy); err != nil {
-		return false, err
+		return nil, nil, err
 	}
+	gpus := map[int]int{}                 // gpus requested per priority level
+	queue := []*mcadv1alpha1.AppWrapper{} // queued appwrappers
 	for _, aw := range aws.Items {
-		if aw.UID != appWrapper.UID {
-			phase := aw.Status.Phase
-			if p, ok := r.Phases[aw.UID]; ok {
-				phase = p // use cached phase for better accuracy
-			}
-			if isActivePhase(phase) && aw.Spec.Priority >= appWrapper.Spec.Priority {
-				pods := &v1.PodList{}
-				if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-					client.MatchingLabels{uidLabel: string(aw.UID)}); err != nil {
-					return false, err
-				}
-				awGpus := gpuRequest(&aw)
-				podGpus := 0 // gpus in use by non-terminated AppWrapper pods
-				for _, pod := range pods.Items {
-					if pod.Spec.NodeName != "" && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-						for _, container := range pod.Spec.Containers {
-							g := container.Resources.Requests[nvidiaGpu]
-							podGpus += int(g.Value())
-						}
-					}
-				}
-				// subtract max gpu usage among the two:
-				// reserve the requested AppWrapper resources even if the pods are not all running
-				// account for incorrect AppWrapper specs where actual use is greater than reservation
-				if awGpus > podGpus {
-					gpus -= awGpus
-				} else {
-					gpus -= podGpus
-				}
-			}
+		phase := aw.Status.Phase
+		if p, ok := r.Phases[aw.UID]; ok {
+			phase = p // use cached phase for better accuracy
+		}
+		if isActivePhase(phase) {
+			gpus[int(aw.Spec.Priority)] += gpuRequest(&aw) // gpus requested by AppWrapper
+		} else if phase == mcadv1alpha1.Queued {
+			queue = append(queue, &aw)
 		}
 	}
-	return gpuRequest(appWrapper) <= gpus, nil
+	// propagate gpu reservations at all priority levels to all levels below
+	Accumulate(gpus)
+	// order AppWrapper queue based on priority and creation time
+	sort.Slice(queue, func(i, j int) bool {
+		if queue[i].Spec.Priority > queue[j].Spec.Priority {
+			return true
+		}
+		if queue[i].Spec.Priority < queue[j].Spec.Priority {
+			return false
+		}
+		return queue[j].CreationTimestamp.After(queue[i].CreationTimestamp.Time)
+	})
+	return gpus, queue, nil
+}
+
+// Find next AppWrapper to dispatch in queue order, return false AppWrapper is last in queue
+func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1alpha1.AppWrapper, bool, error) {
+	gpus, err := r.availableGpus(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	reservations, queue, err := r.listAppWrappers(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	for i, appWrapper := range queue {
+		if gpuRequest(appWrapper) <= gpus-reservations[int(appWrapper.Spec.Priority)] {
+			return appWrapper.DeepCopy(), i < len(queue)-1, nil
+		}
+	}
+	return nil, false, nil
 }
 
 // Count gpu requested by AppWrapper
@@ -130,7 +136,26 @@ func gpuRequest(appWrapper *mcadv1alpha1.AppWrapper) int {
 	return gpus
 }
 
-// Is dispatch too slow?
-func isSlowDispatch(appWrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(2 * time.Minute))
+// Propagate gpu reservations at all priority levels to all levels below
+func Accumulate(m map[int]int) {
+	keys := make([]int, len(m))
+	i := 0
+	for k, _ := range m {
+		keys[i] = k
+		i += 1
+	}
+	sort.Ints(keys)
+	for i := len(keys) - 1; i > 0; i-- {
+		m[keys[i-1]] += m[keys[i]]
+	}
+}
+
+// Are resources reserved in this phase
+func isActivePhase(phase mcadv1alpha1.AppWrapperPhase) bool {
+	switch phase {
+	case mcadv1alpha1.Dispatching, mcadv1alpha1.Running, mcadv1alpha1.Failed, mcadv1alpha1.Requeuing:
+		return true
+	default:
+		return false
+	}
 }
