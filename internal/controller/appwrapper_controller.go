@@ -71,7 +71,7 @@ type PodCounts struct {
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	log.Info("Reconcile")
+	// log.Info("Reconcile")
 
 	// req == "*/*", do not reconcile a specific appWrapper
 	// instead dispatch appWrapper proposed by dispatchNext if any
@@ -86,6 +86,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// requeue reconciliation if reconciler cache is not updated
 		if err := r.checkCache(appWrapper); err != nil {
 			return ctrl.Result{}, err
+		}
+		if appWrapper.Status.Phase != mcadv1alpha1.Queued {
+			return ctrl.Result{}, errors.New("not queued")
 		}
 		// set dispatching timestamp and status
 		appWrapper.Status.LastDispatchTime = metav1.Now()
@@ -254,7 +257,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	// this appWrapper is a deep copy of the reconciler cache already (obtained with r.Get)
 	// this appWrapper should not be mutated beyond this point
 	activeAfter := isActivePhase(phase)
-	if activeAfter && !activeBefore {
+	if activeBefore && !activeAfter {
 		r.triggerDispatchNext() // cluster may have more available capacity
 	}
 	return ctrl.Result{}, nil

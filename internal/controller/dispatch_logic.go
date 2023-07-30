@@ -83,13 +83,15 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int
 	gpus := map[int]int{}                 // gpus requested per priority level
 	queue := []*mcadv1alpha1.AppWrapper{} // queued appwrappers
 	for _, appWrapper := range appWrappers.Items {
+		phase := appWrapper.Status.Phase
 		if cached, ok := r.Cache[appWrapper.UID]; ok && len(cached.Status.Conditions) > len(appWrapper.Status.Conditions) {
-			appWrapper = *cached // use our cached appWrapper if more current than reconciler cache
+			phase = cached.Status.Phase // use our cached phase if more current than reconciler cache
 		}
-		if isActivePhase(appWrapper.Status.Phase) {
+		if isActivePhase(phase) {
 			gpus[int(appWrapper.Spec.Priority)] += gpuRequest(&appWrapper) // gpus requested by AppWrapper
-		} else if appWrapper.Status.Phase == mcadv1alpha1.Queued {
-			queue = append(queue, &appWrapper)
+		} else if phase == mcadv1alpha1.Queued {
+			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
+			queue = append(queue, &copy)
 		}
 	}
 	// propagate gpu reservations at all priority levels to all levels below
