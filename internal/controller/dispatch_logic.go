@@ -107,7 +107,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int
 	return gpus, queue, nil
 }
 
-// Find next AppWrapper to dispatch in queue order, return false AppWrapper is last in queue
+// Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
 func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1alpha1.AppWrapper, bool, error) {
 	gpus, err := r.availableGpus(ctx)
 	if err != nil {
@@ -119,7 +119,7 @@ func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1alpha1.
 	}
 	for i, appWrapper := range queue {
 		if gpuRequest(appWrapper) <= gpus-reservations[int(appWrapper.Spec.Priority)] {
-			return appWrapper.DeepCopy(), i < len(queue)-1, nil // deep copy appWrapper
+			return appWrapper.DeepCopy(), i == len(queue)-1, nil // deep copy appWrapper
 		}
 	}
 	return nil, false, nil

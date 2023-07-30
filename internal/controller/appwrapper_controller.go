@@ -73,13 +73,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	log.Info("Reconcile")
 
-	// try to dispatch next appWrapper in queue order
+	// req == "*/*", do not reconcile a specific appWrapper
+	// instead dispatch appWrapper proposed by dispatchNext if any
 	if req.Name == "*" {
-		appWrapper, more, err := r.dispatchNext(ctx)
+		appWrapper, last, err := r.dispatchNext(ctx) // last == is last appWrapper in queue?
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if appWrapper == nil {
+		if appWrapper == nil { // no appWrapper eligible for dispatch
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // retry to dispatch later
 		}
 		// requeue reconciliation if reconciler cache is not updated
@@ -91,10 +92,10 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if _, err := r.updateStatus(ctx, appWrapper, mcadv1alpha1.Dispatching); err != nil {
 			return ctrl.Result{}, err
 		}
-		if more {
-			return ctrl.Result{Requeue: true}, nil // requeue to continue to dispatch queued appWrappers
+		if last {
+			return ctrl.Result{RequeueAfter: time.Minute}, nil // retry to dispatch later
 		}
-		return ctrl.Result{RequeueAfter: time.Minute}, nil // retry to dispatch later
+		return ctrl.Result{Requeue: true}, nil // requeue to continue to dispatch queued appWrappers
 	}
 
 	appWrapper := &mcadv1alpha1.AppWrapper{}
