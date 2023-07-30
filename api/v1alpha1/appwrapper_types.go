@@ -59,6 +59,9 @@ type AppWrapperStatus struct {
 type AppWrapperPhase string
 
 // AppWrapper phases
+// There are also two pseudo phases:
+// - object creation: empty "" phase
+// - object deletion: any phase with deletion timestamp set
 const (
 	// Queued: resource requests ARE NOT reserved
 	// Decide to dispatch -> Dispatching
@@ -79,10 +82,6 @@ const (
 	// Failed: resource requests ARE reserved (because failure can be partial and there is no cleanup)
 	// Entering error if requeued status >= max retries spec
 	Failed AppWrapperPhase = "Failed"
-
-	// Terminating: resource requests ARE reserved (wrapped resource deletion in progress)
-	// Entering when deletion requested, until wrapped resources are deleted or timeout
-	Terminating AppWrapperPhase = "Terminating"
 
 	// Requeuing: resource requests ARE reserved (wrapped resource deletion in progress)
 	// Entering on error if requeued status < max retries spec (except always entering Failed on parsing error)

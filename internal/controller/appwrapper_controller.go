@@ -91,23 +91,10 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// deletion requested
-	if !appWrapper.DeletionTimestamp.IsZero() && appWrapper.Status.Phase != mcadv1alpha1.Terminating {
-		return ctrl.Result{}, r.updateStatus(ctx, appWrapper, mcadv1alpha1.Terminating)
-	}
-
-	switch appWrapper.Status.Phase {
-	case mcadv1alpha1.Succeeded, mcadv1alpha1.Failed:
-		// nothing to reconcile
-		return ctrl.Result{}, nil
-
-	case mcadv1alpha1.Terminating:
+	if !appWrapper.DeletionTimestamp.IsZero() {
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			if isSlowDeletion(appWrapper) {
-				log.Error(nil, "Resource deletion timeout")
-			} else {
-				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
-			}
+			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue reconciliation
 		}
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(appWrapper, finalizer) {
@@ -116,16 +103,25 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 			delete(r.Phases, appWrapper.UID) // remove phase from cache
 		}
-		r.notify() // cluster may have more available capacity
+		if isActivePhase(appWrapper.Status.Phase) {
+			r.notify() // cluster may have more available capacity
+		}
+		return ctrl.Result{}, nil
+	}
+
+	switch appWrapper.Status.Phase {
+	case mcadv1alpha1.Succeeded, mcadv1alpha1.Failed:
+		// nothing to reconcile
 		return ctrl.Result{}, nil
 
 	case mcadv1alpha1.Requeuing:
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			if isSlowRequeuing(appWrapper) {
-				log.Error(nil, "Resource deletion timeout")
+				// give up requeuing and fail instead
+				return ctrl.Result{}, r.updateStatus(ctx, appWrapper, mcadv1alpha1.Failed)
 			} else {
-				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue
+				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue reconciliation
 			}
 		}
 		// update status to queued
@@ -253,7 +249,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 // Are resources reserved in this phase
 func isActivePhase(phase mcadv1alpha1.AppWrapperPhase) bool {
 	switch phase {
-	case mcadv1alpha1.Dispatching, mcadv1alpha1.Running, mcadv1alpha1.Failed, mcadv1alpha1.Terminating, mcadv1alpha1.Requeuing:
+	case mcadv1alpha1.Dispatching, mcadv1alpha1.Running, mcadv1alpha1.Failed, mcadv1alpha1.Requeuing:
 		return true
 	default:
 		return false

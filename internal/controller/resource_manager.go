@@ -119,11 +119,6 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcad
 	return counts, nil
 }
 
-// Is deletion too slow?
-func isSlowDeletion(appWrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.DeletionTimestamp.Add(2 * time.Minute))
-}
-
 // Is requeuing too slow?
 func isSlowRequeuing(appWrapper *mcadv1alpha1.AppWrapper) bool {
 	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(2 * time.Minute))
