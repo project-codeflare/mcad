@@ -140,7 +140,7 @@ func gpuRequest(appWrapper *mcadv1alpha1.AppWrapper) int {
 func Accumulate(m map[int]int) {
 	keys := make([]int, len(m))
 	i := 0
-	for k, _ := range m {
+	for k := range m {
 		keys[i] = k
 		i += 1
 	}
