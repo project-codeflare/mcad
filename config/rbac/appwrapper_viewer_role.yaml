@@ -12,7 +12,7 @@ metadata:
   name: appwrapper-viewer-role
 rules:
 - apiGroups:
-  - mcad.my.domain
+  - mcad.codeflare.dev
   resources:
   - appwrappers
   verbs:
@@ -20,7 +20,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - mcad.my.domain
+  - mcad.codeflare.dev
   resources:
   - appwrappers/status
   verbs:

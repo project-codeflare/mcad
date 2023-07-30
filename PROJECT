@@ -2,7 +2,7 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
-domain: my.domain
+domain: codeflare.dev
 layout:
 - go.kubebuilder.io/v4
 projectName: mcad
@@ -12,7 +12,7 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: my.domain
+  domain: codeflare.dev
   group: mcad
   kind: AppWrapper
   path: tardieu/mcad/api/v1alpha1

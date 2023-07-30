@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: appwrappers.mcad.my.domain
+  name: appwrappers.mcad.codeflare.dev
 spec:
-  group: mcad.my.domain
+  group: mcad.codeflare.dev
   names:
     kind: AppWrapper
     listKind: AppWrapperList

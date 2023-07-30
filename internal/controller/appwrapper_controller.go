@@ -49,12 +49,12 @@ type AppWrapperReconciler struct {
 }
 
 const (
-	namespaceLabel = "mcad.my.domain/namespace" // owner namespace label for wrapped resources
-	nameLabel      = "mcad.my.domain/name"      // owner name label for wrapped resources
-	uidLabel       = "mcad.my.domain/uid"       // owner UID label for wrapped resources
-	finalizer      = "mcad.my.domain/finalizer" // AppWrapper finalizer name
-	nvidiaGpu      = "nvidia.com/gpu"           // GPU resource name
-	specNodeName   = ".spec.nodeName"           // pod node name field
+	namespaceLabel = "mcad.codeflare.dev/namespace" // owner namespace label for wrapped resources
+	nameLabel      = "mcad.codeflare.dev/name"      // owner name label for wrapped resources
+	uidLabel       = "mcad.codeflare.dev/uid"       // owner UID label for wrapped resources
+	finalizer      = "mcad.codeflare.dev/finalizer" // AppWrapper finalizer name
+	nvidiaGpu      = "nvidia.com/gpu"               // GPU resource name
+	specNodeName   = ".spec.nodeName"               // pod node name field
 )
 
 // PodCounts summarizes the status of the pods associated with one AppWrapper

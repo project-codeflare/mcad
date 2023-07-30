@@ -1,4 +1,4 @@
-apiVersion: mcad.my.domain/v1alpha1
+apiVersion: mcad.codeflare.dev/v1alpha1
 kind: AppWrapper
 metadata:
   labels:
