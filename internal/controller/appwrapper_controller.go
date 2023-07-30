@@ -222,13 +222,13 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1alpha1.AppWrapper{}).
 		WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
-		WatchesMetadata(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
+		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)
 }
 
 // Map labelled pods to AppWrappers
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
-	pod := obj.(*metav1.PartialObjectMetadata)
+	pod := obj.(*v1.Pod)
 	if namespace, ok := pod.Labels[namespaceLabel]; ok {
 		if name, ok := pod.Labels[nameLabel]; ok {
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
