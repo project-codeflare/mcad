@@ -43,9 +43,9 @@ type AppWrapperReconciler struct {
 	client.Client
 	Events        chan event.GenericEvent
 	Scheme        *runtime.Scheme
-	Phases        map[types.UID]mcadv1alpha1.AppWrapperPhase // cache phases to improve dispatch accuracy
-	AvailableGpus int                                        // gpus available to mcad
-	WhenAvailable time.Time                                  // when last computed
+	Cache         map[types.UID]*mcadv1alpha1.AppWrapper // cache appWrapper updates to improve dispatch accuracy
+	AvailableGpus int                                    // gpus available to mcad
+	WhenAvailable time.Time                              // when last computed
 }
 
 const (
@@ -82,10 +82,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if appWrapper == nil {
 			return ctrl.Result{RequeueAfter: time.Minute}, nil // retry to dispatch later
 		}
-		if _, ok := r.Phases[appWrapper.UID]; ok && r.Phases[appWrapper.UID] != appWrapper.Status.Phase {
-			// reconciler cache and our cache are out of sync
-			delete(r.Phases, appWrapper.UID)                   // remove phase from our cache
-			return ctrl.Result{}, errors.New("phase conflict") // force redo
+		// requeue reconciliation if reconciler cache is not updated
+		if err := r.checkCache(appWrapper); err != nil {
+			return ctrl.Result{}, err
 		}
 		// set dispatching timestamp and status
 		appWrapper.Status.LastDispatchTime = metav1.Now()
@@ -106,14 +105,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	// cache AppWrapper phase because reconciler List calls may not reflect the most recent status
-	if _, ok := r.Phases[appWrapper.UID]; !ok {
-		// cache phase
-		r.Phases[appWrapper.UID] = appWrapper.Status.Phase
-	} else if r.Phases[appWrapper.UID] != appWrapper.Status.Phase {
-		// reconciler cache and our cache are out of sync
-		delete(r.Phases, appWrapper.UID)                   // remove phase from our cache
-		return ctrl.Result{}, errors.New("phase conflict") // force redo
+	// requeue reconciliation if reconciler cache is not updated
+	if err := r.checkCache(appWrapper); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	// deletion requested
@@ -128,7 +122,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{}, err
 			}
 		}
-		delete(r.Phases, appWrapper.UID) // remove phase from cache
+		delete(r.Cache, appWrapper.UID) // remove appWrapper from cache
 		if isActivePhase(appWrapper.Status.Phase) {
 			r.triggerDispatchNext() // cluster may have more available capacity
 		}
@@ -255,7 +249,9 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 		return ctrl.Result{}, err
 	}
 	log.Info(string(phase))
-	r.Phases[appWrapper.UID] = phase // update cached phase
+	r.Cache[appWrapper.UID] = appWrapper // cache updated appWrapper
+	// this appWrapper is a deep copy of the reconciler cache already (obtained with r.Get)
+	// this appWrapper should not be mutated beyond this point
 	activeAfter := isActivePhase(phase)
 	if activeAfter && !activeBefore {
 		r.triggerDispatchNext() // cluster may have more available capacity
@@ -279,4 +275,15 @@ func (r *AppWrapperReconciler) triggerDispatchNext() {
 	case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Namespace: "*", Name: "*"}}}:
 	default:
 	}
+}
+
+// Check whether our cache and reconciler cache appear to be in sync
+func (r *AppWrapperReconciler) checkCache(appWrapper *mcadv1alpha1.AppWrapper) error {
+	// check number of conditions is the same
+	if cached, ok := r.Cache[appWrapper.UID]; ok && len(cached.Status.Conditions) != len(appWrapper.Status.Conditions) {
+		// reconciler cache and our cache are out of sync
+		delete(r.Cache, appWrapper.UID)     // remove appWrapper from cache
+		return errors.New("cache conflict") // force redo
+	}
+	return nil
 }

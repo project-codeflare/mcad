@@ -76,25 +76,24 @@ func (r *AppWrapperReconciler) availableGpus(ctx context.Context) (int, error) {
 // Compute gpus reserved by AppWrappers at every priority level and sort queued AppWrappers
 // AppWrappers in output queue must be cloned if mutated
 func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int, []*mcadv1alpha1.AppWrapper, error) {
-	aws := &mcadv1alpha1.AppWrapperList{}
-	if err := r.List(ctx, aws, client.UnsafeDisableDeepCopy); err != nil {
+	appWrappers := &mcadv1alpha1.AppWrapperList{}
+	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, nil, err
 	}
 	gpus := map[int]int{}                 // gpus requested per priority level
 	queue := []*mcadv1alpha1.AppWrapper{} // queued appwrappers
-	for _, aw := range aws.Items {
-		phase := aw.Status.Phase
-		if p, ok := r.Phases[aw.UID]; ok {
-			phase = p // use cached phase for better accuracy
+	for _, appWrapper := range appWrappers.Items {
+		if cached, ok := r.Cache[appWrapper.UID]; ok && len(cached.Status.Conditions) > len(appWrapper.Status.Conditions) {
+			appWrapper = *cached // use our cached appWrapper if more current than reconciler cache
 		}
-		if isActivePhase(phase) {
-			gpus[int(aw.Spec.Priority)] += gpuRequest(&aw) // gpus requested by AppWrapper
-		} else if phase == mcadv1alpha1.Queued {
-			queue = append(queue, &aw)
+		if isActivePhase(appWrapper.Status.Phase) {
+			gpus[int(appWrapper.Spec.Priority)] += gpuRequest(&appWrapper) // gpus requested by AppWrapper
+		} else if appWrapper.Status.Phase == mcadv1alpha1.Queued {
+			queue = append(queue, &appWrapper)
 		}
 	}
 	// propagate gpu reservations at all priority levels to all levels below
-	Accumulate(gpus)
+	accumulate(gpus)
 	// order AppWrapper queue based on priority and creation time
 	sort.Slice(queue, func(i, j int) bool {
 		if queue[i].Spec.Priority > queue[j].Spec.Priority {
@@ -103,7 +102,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int
 		if queue[i].Spec.Priority < queue[j].Spec.Priority {
 			return false
 		}
-		return queue[j].CreationTimestamp.After(queue[i].CreationTimestamp.Time)
+		return queue[i].CreationTimestamp.Before(&queue[j].CreationTimestamp)
 	})
 	return gpus, queue, nil
 }
@@ -120,7 +119,7 @@ func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1alpha1.
 	}
 	for i, appWrapper := range queue {
 		if gpuRequest(appWrapper) <= gpus-reservations[int(appWrapper.Spec.Priority)] {
-			return appWrapper.DeepCopy(), i < len(queue)-1, nil
+			return appWrapper.DeepCopy(), i < len(queue)-1, nil // deep copy appWrapper
 		}
 	}
 	return nil, false, nil
@@ -137,7 +136,7 @@ func gpuRequest(appWrapper *mcadv1alpha1.AppWrapper) int {
 }
 
 // Propagate gpu reservations at all priority levels to all levels below
-func Accumulate(m map[int]int) {
+func accumulate(m map[int]int) {
 	keys := make([]int, len(m))
 	i := 0
 	for k := range m {
