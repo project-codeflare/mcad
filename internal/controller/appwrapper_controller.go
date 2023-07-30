@@ -101,8 +101,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if err := r.Update(ctx, appWrapper); err != nil {
 				return ctrl.Result{}, err
 			}
-			delete(r.Phases, appWrapper.UID) // remove phase from cache
 		}
+		delete(r.Phases, appWrapper.UID) // remove phase from cache
 		if isActivePhase(appWrapper.Status.Phase) {
 			r.notify() // cluster may have more available capacity
 		}
