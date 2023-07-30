@@ -45,6 +45,8 @@ type AppWrapperReconciler struct {
 	Scheme *runtime.Scheme
 	Phases map[types.UID]mcadv1alpha1.AppWrapperPhase // cache phases to improve dispatch accuracy
 	// useful because List calls do not always account for more recent AppWrapper status update
+	AvailableGpus int       // gpus available to mcad
+	WhenAvailable time.Time // when last computed
 }
 
 const (

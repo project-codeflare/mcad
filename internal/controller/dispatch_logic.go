@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -30,13 +29,17 @@ import (
 	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
 )
 
-// Test if AppWrapper fits available resources
-func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) (bool, error) {
+// Refresh and cache count of available gpus
+// Add schedulable gpus, subtract gpus requested by scheduled non-AppWrapper non-terminated pods
+func (r *AppWrapperReconciler) availableGpus(ctx context.Context) (int, error) {
+	if !time.Now().After(r.WhenAvailable.Add(time.Minute)) {
+		return r.AvailableGpus, nil
+	}
 	gpus := 0 // available gpus
 	// add available gpus for each schedulable node
 	nodes := &v1.NodeList{}
 	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
-		return false, err
+		return 0, err
 	}
 	for _, node := range nodes.Items {
 		// skip unschedulable nodes
@@ -49,12 +52,12 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *m
 		// subtract gpus used by non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
-			return false, err
+			return 0, err
 		}
 		pods := &v1.PodList{}
 		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
-			return false, err
+			return 0, err
 		}
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[uidLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
@@ -64,6 +67,17 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *m
 				}
 			}
 		}
+	}
+	r.AvailableGpus = gpus
+	r.WhenAvailable = time.Now()
+	return gpus, nil
+}
+
+// Test if AppWrapper fits available resources
+func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) (bool, error) {
+	gpus, err := r.availableGpus(ctx)
+	if err != nil {
+		return false, err
 	}
 	// subtract gpus reserved or used by active non-preemptable AppWrappers
 	aws := &mcadv1alpha1.AppWrapperList{}
@@ -85,7 +99,7 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *m
 				awGpus := gpuRequest(&aw)
 				podGpus := 0 // gpus in use by non-terminated AppWrapper pods
 				for _, pod := range pods.Items {
-					if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+					if pod.Spec.NodeName != "" && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 						for _, container := range pod.Spec.Containers {
 							g := container.Resources.Requests[nvidiaGpu]
 							podGpus += int(g.Value())
@@ -103,7 +117,6 @@ func (r *AppWrapperReconciler) shouldDispatch(ctx context.Context, appWrapper *m
 			}
 		}
 	}
-	fmt.Println(gpus)
 	return gpuRequest(appWrapper) <= gpus, nil
 }
 
