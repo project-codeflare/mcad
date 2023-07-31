@@ -88,7 +88,27 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int
 			phase = cached.Status.Phase // use our cached phase if more current than reconciler cache
 		}
 		if isActivePhase(phase) {
-			gpus[int(appWrapper.Spec.Priority)] += gpuRequest(&appWrapper) // gpus requested by AppWrapper
+			// use max gpu usage among appWrapper request and non-terminated appWrapper pods
+			awGpus := gpuRequest(&appWrapper)
+			podGpus := 0
+			pods := &v1.PodList{}
+			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
+				client.MatchingLabels{uidLabel: string(appWrapper.UID)}); err != nil {
+				return nil, nil, err
+			}
+			for _, pod := range pods.Items {
+				if pod.Spec.NodeName != "" && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+					for _, container := range pod.Spec.Containers {
+						g := container.Resources.Requests[nvidiaGpu]
+						podGpus += int(g.Value())
+					}
+				}
+			}
+			if awGpus > podGpus {
+				gpus[int(appWrapper.Spec.Priority)] += awGpus
+			} else {
+				gpus[int(appWrapper.Spec.Priority)] += podGpus
+			}
 		} else if phase == mcadv1alpha1.Queued {
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
