@@ -126,6 +126,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{}, err
 			}
 		}
+		log.Info("Deleted")
 		delete(r.Cache, appWrapper.UID) // remove appWrapper from cache
 		if isActivePhase(appWrapper.Status.Phase) {
 			r.triggerDispatchNext() // cluster may have more available capacity
