@@ -292,10 +292,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	}
 	log.Info(string(phase))
 	// cache AppWrapper status
-	r.Cache[appWrapper.UID] = &CachedAppWrapper{
-		Phase:           appWrapper.Status.Phase,
-		ResourceVersion: appWrapper.ResourceVersion,
-		Conditions:      len(appWrapper.Status.Conditions)}
+	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Conditions: len(appWrapper.Status.Conditions)}
 	activeAfter := isActivePhase(phase)
 	if activeBefore && !activeAfter {
 		r.triggerDispatchNext() // cluster may have more available capacity
