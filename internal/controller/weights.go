@@ -29,7 +29,7 @@ type Weights map[v1.ResourceName]*inf.Dec
 func NewWeights(r v1.ResourceList) Weights {
 	w := Weights{}
 	for k, v := range r {
-		w[k] = v.AsDec()
+		w[k] = v.AsDec() // should be lossless
 	}
 	return w
 }
@@ -38,7 +38,7 @@ func NewWeights(r v1.ResourceList) Weights {
 func (w Weights) Add(r Weights) {
 	for k, v := range r {
 		if w[k] == nil {
-			w[k] = &inf.Dec{}
+			w[k] = &inf.Dec{} // fresh zero
 		}
 		w[k].Add(w[k], v)
 	}
@@ -48,7 +48,7 @@ func (w Weights) Add(r Weights) {
 func (w Weights) Sub(r Weights) {
 	for k, v := range r {
 		if w[k] == nil {
-			w[k] = &inf.Dec{}
+			w[k] = &inf.Dec{} // fresh zero
 		}
 		w[k].Sub(w[k], v)
 	}
@@ -58,7 +58,7 @@ func (w Weights) Sub(r Weights) {
 func (w Weights) AddProd(coefficient int32, r Weights) {
 	for k, v := range r {
 		if w[k] == nil {
-			w[k] = &inf.Dec{}
+			w[k] = &inf.Dec{} // fresh zero
 		}
 		tmp := inf.NewDec(int64(coefficient), 0)
 		tmp.Mul(tmp, v)
@@ -70,22 +70,25 @@ func (w Weights) AddProd(coefficient int32, r Weights) {
 func (w Weights) Max(r Weights) {
 	for k, v := range r {
 		if w[k] == nil {
-			w[k] = &inf.Dec{}
+			w[k] = &inf.Dec{} // fresh zero
 		}
 		if w[k].Cmp(v) == -1 {
-			w[k].Set(v)
+			w[k].Set(v) // w[k] = v would not be correct due to aliasing
 		}
 	}
 }
 
 // Compare receiver to argument
-// True if receiver is <= argument in every dimension
-func (w Weights) Fits(x Weights) bool {
-	for k, v := range w {
-		if v.Cmp(&inf.Dec{}) <= 0 {
+// True if receiver is less than or equal to argument in every dimension
+func (w Weights) Fits(r Weights) bool {
+	zero := &inf.Dec{}    // shared zero, never mutated
+	for k, v := range w { // range over receiver not argument
+		// ignore 0 requests in case r does not contain k
+		if v.Cmp(zero) <= 0 {
 			continue
 		}
-		if x[k] == nil || v.Cmp(x[k]) == 1 {
+		// v > 0 so r[k] must be defined and no less than v
+		if r[k] == nil || v.Cmp(r[k]) == 1 {
 			return false
 		}
 	}
