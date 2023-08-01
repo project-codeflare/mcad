@@ -41,23 +41,23 @@ import (
 // AppWrapperReconciler reconciles an AppWrapper object
 type AppWrapperReconciler struct {
 	client.Client
-	Events        chan event.GenericEvent
-	Scheme        *runtime.Scheme
-	Cache         map[types.UID]*mcadv1alpha1.AppWrapper // cache appWrapper updates to improve dispatch accuracy
-	Capacity      Weights                                // cluster capacity available to mcad
-	WhenAvailable time.Time                              // when last computed
+	Events          chan event.GenericEvent
+	Scheme          *runtime.Scheme
+	Cache           map[types.UID]*mcadv1alpha1.AppWrapper // cache appWrapper updates to improve dispatch accuracy
+	ClusterCapacity Weights                                // cluster capacity available to mcad
+	NextSync        time.Time                              // when to refresh cluster capacity
 }
 
 const (
 	namespaceLabel = "mcad.codeflare.dev/namespace" // owner namespace label for wrapped resources
 	nameLabel      = "mcad.codeflare.dev/name"      // owner name label for wrapped resources
 	uidLabel       = "mcad.codeflare.dev/uid"       // owner UID label for wrapped resources
-	finalizer      = "mcad.codeflare.dev/finalizer" // AppWrapper finalizer name
+	finalizer      = "mcad.codeflare.dev/finalizer" // finalizer name
 	nvidiaGpu      = "nvidia.com/gpu"               // GPU resource name
-	specNodeName   = ".spec.nodeName"               // pod node name field
+	specNodeName   = ".spec.nodeName"               // key to index pods based on node placement
 )
 
-// PodCounts summarizes the status of the pods associated with one AppWrapper
+// PodCounts summarize the status of the pods associated with one AppWrapper
 type PodCounts struct {
 	Failed    int
 	Other     int
@@ -68,23 +68,26 @@ type PodCounts struct {
 //+kubebuilder:rbac:groups=*,resources=*,verbs=*
 
 // Reconcile one AppWrapper or dispatch next AppWrapper
-// Queued AppWrapper are dispatched as part of a special "*/*" reconciliation cycle
+// Normal reconciliations "namespace/name" implement all phase transitions except for Queued->Dispatching
+// Queued->Dispatching transitions happen as part of a special "*/*" reconciliation
+// In a "*/*" invocation, we first decide which AppWrapper to dispatch then make the transition
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	// log.Info("Reconcile")
 
-	// req == "*/*", do not reconcile a specific appWrapper
-	// instead dispatch appWrapper proposed by dispatchNext if any
+	// handle dispatching first
+
+	// req == "*/*", find the next AppWrapper to dispatch and dispatch this AppWrapper
 	if req.Name == "*" {
 		appWrapper, last, err := r.dispatchNext(ctx) // last == is last appWrapper in queue?
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if appWrapper == nil { // no appWrapper eligible for dispatch
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // retry to dispatch later
+			return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
 		}
-		// requeue reconciliation if reconciler cache is not updated
+		// abort and requeue reconciliation if reconciler cache is not updated
 		if err := r.checkCache(appWrapper); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -97,10 +100,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err
 		}
 		if last {
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // retry to dispatch later
+			return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
 		}
 		return ctrl.Result{Requeue: true}, nil // requeue to continue to dispatch queued appWrappers
 	}
+
+	// normal reconciliation starts here
 
 	appWrapper := &mcadv1alpha1.AppWrapper{}
 
@@ -110,16 +115,16 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	// requeue reconciliation if reconciler cache is not updated
+	// abort and requeue reconciliation if reconciler cache is not updated
 	if err := r.checkCache(appWrapper); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// deletion requested
+	// first handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue reconciliation
+			return ctrl.Result{RequeueAfter: deletionDelay}, nil // requeue reconciliation
 		}
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(appWrapper, finalizer) {
@@ -135,6 +140,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
+	// handle all other phases including the default empty phase
+
 	switch appWrapper.Status.Phase {
 	case mcadv1alpha1.Succeeded, mcadv1alpha1.Failed:
 		// nothing to reconcile
@@ -148,11 +155,11 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case mcadv1alpha1.Requeuing:
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			if isSlowRequeuing(appWrapper) {
+			if isSlowDeletion(appWrapper) {
 				// give up requeuing and fail instead
 				return r.updateStatus(ctx, appWrapper, mcadv1alpha1.Failed)
 			} else {
-				return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue reconciliation
+				return ctrl.Result{RequeueAfter: deletionDelay}, nil // requeue reconciliation
 			}
 		}
 		// update status to queued
@@ -160,7 +167,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case mcadv1alpha1.Dispatching:
 		// dispatching is taking too long?
-		if isSlowDispatch(appWrapper) {
+		if isSlowCreation(appWrapper) {
 			// set requeuing or failed status
 			return r.requeueOrFail(ctx, appWrapper)
 		}
@@ -183,7 +190,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		slow := isSlowDispatch(appWrapper)
+		slow := isSlowCreation(appWrapper)
 		if counts.Failed > 0 || slow && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.MinPods)) {
 			// set requeuing or failed status
 			return r.requeueOrFail(ctx, appWrapper)
@@ -193,7 +200,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return r.updateStatus(ctx, appWrapper, mcadv1alpha1.Succeeded)
 		}
 		if !slow {
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // check again soon
+			return ctrl.Result{RequeueAfter: creationDelay}, nil // check again soon
 		}
 		return ctrl.Result{}, nil // only check again on pod change
 
@@ -218,7 +225,8 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
-	// watch AppWrapper pods in addition to AppWrappers
+	// watch AppWrapper pods in addition to AppWrappers so we can react to pod failures and other pod events
+	// watch r.Events channel, which we use to trigger dispatchNext
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1alpha1.AppWrapper{}).
 		WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
@@ -226,7 +234,7 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Map labelled pods to AppWrappers
+// Map labelled pods to corresponding AppWrappers
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*v1.Pod)
 	if namespace, ok := pod.Labels[namespaceLabel]; ok {
@@ -243,16 +251,16 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	now := metav1.Now()
 	activeBefore := isActivePhase(appWrapper.Status.Phase)
 	if phase == mcadv1alpha1.Dispatching {
-		now = appWrapper.Status.LastDispatchTime // ensure timestamps are consistent
+		now = appWrapper.Status.LastDispatchTime // ensure condition timestamp is consistent with status field
 	} else if phase == mcadv1alpha1.Requeuing {
-		now = appWrapper.Status.LastRequeuingTime // ensure timestamps are consistent
+		now = appWrapper.Status.LastRequeuingTime // ensure condition timestamp is consistent with status field
 	}
 	// log transition as condition
 	condition := mcadv1alpha1.AppWrapperCondition{LastTransitionTime: now, Reason: string(phase)}
 	appWrapper.Status.Conditions = append(appWrapper.Status.Conditions, condition)
 	appWrapper.Status.Phase = phase
 	if err := r.Status().Update(ctx, appWrapper); err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
 	}
 	log.Info(string(phase))
 	r.Cache[appWrapper.UID] = appWrapper // cache updated appWrapper
@@ -288,7 +296,7 @@ func (r *AppWrapperReconciler) checkCache(appWrapper *mcadv1alpha1.AppWrapper) e
 	// check number of conditions is the same
 	if cached, ok := r.Cache[appWrapper.UID]; ok && len(cached.Status.Conditions) != len(appWrapper.Status.Conditions) {
 		// reconciler cache and our cache are out of sync
-		delete(r.Cache, appWrapper.UID)     // remove appWrapper from cache
+		delete(r.Cache, appWrapper.UID)
 		return errors.New("cache conflict") // force redo
 	}
 	return nil

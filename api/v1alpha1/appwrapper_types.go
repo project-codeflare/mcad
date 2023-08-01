@@ -109,6 +109,7 @@ type AppWrapperResource struct {
 type AppWrapperCondition struct {
 	// Timestamp
 	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+
 	// Condition
 	Reason string `json:"reason"`
 }

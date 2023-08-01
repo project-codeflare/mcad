@@ -33,8 +33,8 @@ import (
 // Add allocatable capacity for every schedulable node
 // Subtract requests from non-AppWrapper non-terminated pods scheduled on these nodes
 func (r *AppWrapperReconciler) allocatableCapacity(ctx context.Context) (Weights, error) {
-	if !time.Now().After(r.WhenAvailable.Add(time.Minute)) {
-		return r.Capacity, nil
+	if !time.Now().After(r.NextSync) {
+		return r.ClusterCapacity, nil
 	}
 	capacity := Weights{}
 	// add allocatable capacity for each schedulable node
@@ -67,8 +67,8 @@ func (r *AppWrapperReconciler) allocatableCapacity(ctx context.Context) (Weights
 			}
 		}
 	}
-	r.Capacity = capacity
-	r.WhenAvailable = time.Now()
+	r.ClusterCapacity = capacity
+	r.NextSync = time.Now().Add(clusterCapacityTimeout)
 	return capacity, nil
 }
 

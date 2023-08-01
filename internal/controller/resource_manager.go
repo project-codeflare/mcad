@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -52,14 +51,14 @@ func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1alpha1.AppWrapper
 // Parse raw resources
 func (r *AppWrapperReconciler) parseResources(appWrapper *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
 	objects := make([]client.Object, len(appWrapper.Spec.Resources))
-	var err error
 	for i, resource := range appWrapper.Spec.Resources {
+		var err error
 		objects[i], err = r.parseResource(appWrapper, resource.Template.Raw)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return objects, err
+	return objects, nil
 }
 
 // Create wrapped resources
@@ -82,7 +81,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 		obj, err := r.parseResource(appWrapper, resource.Template.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during deletion")
-			continue
+			continue // ignore parsing errors, there no way we created this resource anyway
 		}
 		background := metav1.DeletePropagationBackground
 		if err := r.Delete(ctx, obj, &client.DeleteOptions{PropagationPolicy: &background}); err != nil {
@@ -91,7 +90,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 			}
 			log.Error(err, "Resource deletion error")
 		}
-		count += 1
+		count += 1 // no error deleting resource, resource therefore still exists
 	}
 	return count
 }
@@ -120,11 +119,11 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcad
 }
 
 // Is dispatch too slow?
-func isSlowDispatch(appWrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(2 * time.Minute))
+func isSlowCreation(appWrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(creationTimeout))
 }
 
 // Is requeuing too slow?
-func isSlowRequeuing(appWrapper *mcadv1alpha1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(2 * time.Minute))
+func isSlowDeletion(appWrapper *mcadv1alpha1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(deletionTimeout))
 }
