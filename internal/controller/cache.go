@@ -20,7 +20,7 @@ import (
 	"errors"
 	"time"
 
-	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
+	mcadv1beta1 "tardieu/mcad/api/v1beta1"
 )
 
 // We cache AppWrapper phases because the reconciler cache does not immediately reflect updates.
@@ -41,7 +41,7 @@ import (
 // Cached AppWrapper
 type CachedAppWrapper struct {
 	// AppWrapper phase
-	Phase mcadv1alpha1.AppWrapperPhase
+	Phase mcadv1beta1.AppWrapperPhase
 
 	// Number of conditions
 	Conditions int
@@ -51,17 +51,17 @@ type CachedAppWrapper struct {
 }
 
 // Add AppWrapper to cache
-func (r *AppWrapperReconciler) addCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) {
+func (r *AppWrapperReconciler) addCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
 	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Conditions: len(appWrapper.Status.Conditions)}
 }
 
 // Remove AppWrapper from cache
-func (r *AppWrapperReconciler) deleteCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) {
+func (r *AppWrapperReconciler) deleteCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
 	delete(r.Cache, appWrapper.UID) // remove appWrapper from cache
 }
 
 // Get AppWrapper phase from cache if available
-func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) mcadv1alpha1.AppWrapperPhase {
+func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper) mcadv1beta1.AppWrapperPhase {
 	phase := appWrapper.Status.Phase
 	if cached, ok := r.Cache[appWrapper.UID]; ok && cached.Conditions > len(appWrapper.Status.Conditions) {
 		phase = cached.Phase // use our cached phase if more current than reconciler cache
@@ -70,7 +70,7 @@ func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1alpha1.AppWrappe
 }
 
 // Check whether reconciler cache and our cache appear to be in sync
-func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) error {
+func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapper) error {
 	if cached, ok := r.Cache[appWrapper.UID]; ok {
 		// check number of conditions
 		if cached.Conditions > len(appWrapper.Status.Conditions) {

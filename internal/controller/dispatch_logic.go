@@ -26,7 +26,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
+	mcadv1beta1 "tardieu/mcad/api/v1beta1"
 )
 
 // Refresh and cache cluster capacity available to mcad
@@ -75,13 +75,13 @@ func (r *AppWrapperReconciler) allocatableCapacity(ctx context.Context) (Weights
 // Compute resources reserved by AppWrappers at every priority level
 // Sort queued AppWrappers in dispatch order
 // AppWrappers in output queue must be cloned if mutated
-func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Weights, []*mcadv1alpha1.AppWrapper, error) {
-	appWrappers := &mcadv1alpha1.AppWrapperList{}
+func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
+	appWrappers := &mcadv1beta1.AppWrapperList{}
 	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, nil, err
 	}
-	requests := map[int]Weights{}         // total request per priority level
-	queue := []*mcadv1alpha1.AppWrapper{} // queued appwrappers
+	requests := map[int]Weights{}        // total request per priority level
+	queue := []*mcadv1beta1.AppWrapper{} // queued appwrappers
 	for _, appWrapper := range appWrappers.Items {
 		// get phase from cache if available
 		phase := r.getCachedPhase(&appWrapper)
@@ -108,7 +108,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			// compute max
 			awRequest.Max(podRequest)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
-		} else if phase == mcadv1alpha1.Queued {
+		} else if phase == mcadv1beta1.Queued {
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
 		}
@@ -129,7 +129,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 }
 
 // Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
-func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1alpha1.AppWrapper, bool, error) {
+func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1beta1.AppWrapper, bool, error) {
 	capacity, err := r.allocatableCapacity(ctx)
 	if err != nil {
 		return nil, false, err
@@ -154,7 +154,7 @@ func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1alpha1.
 }
 
 // Aggregated request by AppWrapper
-func aggregatedRequest(appWrapper *mcadv1alpha1.AppWrapper) Weights {
+func aggregatedRequest(appWrapper *mcadv1beta1.AppWrapper) Weights {
 	request := Weights{}
 	for _, r := range appWrapper.Spec.Resources {
 		request.AddProd(r.Replicas, NewWeights(r.Requests))
@@ -177,9 +177,9 @@ func accumulate(w map[int]Weights) {
 }
 
 // Are resources reserved in this phase
-func isActivePhase(phase mcadv1alpha1.AppWrapperPhase) bool {
+func isActivePhase(phase mcadv1beta1.AppWrapperPhase) bool {
 	switch phase {
-	case mcadv1alpha1.Dispatching, mcadv1alpha1.Running, mcadv1alpha1.Failed, mcadv1alpha1.Requeuing:
+	case mcadv1beta1.Dispatching, mcadv1beta1.Running, mcadv1beta1.Failed, mcadv1beta1.Requeuing:
 		return true
 	default:
 		return false

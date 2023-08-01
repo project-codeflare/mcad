@@ -18,7 +18,7 @@ spec:
     - jsonPath: .status.phase
       name: STATUS
       type: string
-    name: v1alpha1
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: AppWrapper object

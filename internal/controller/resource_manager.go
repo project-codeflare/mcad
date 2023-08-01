@@ -27,11 +27,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
+	mcadv1beta1 "tardieu/mcad/api/v1beta1"
 )
 
 // Parse raw resource into client object
-func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1alpha1.AppWrapper, raw []byte) (client.Object, error) {
+func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (client.Object, error) {
 	obj := &unstructured.Unstructured{}
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1alpha1.AppWrapper
 }
 
 // Parse raw resources
-func (r *AppWrapperReconciler) parseResources(appWrapper *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
+func (r *AppWrapperReconciler) parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error) {
 	objects := make([]client.Object, len(appWrapper.Spec.Resources))
 	for i, resource := range appWrapper.Spec.Resources {
 		obj, err := r.parseResource(appWrapper, resource.Template.Raw)
@@ -73,7 +73,7 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []cl
 }
 
 // Delete wrapped resources, ignore errors, return count of pending deletions
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) int {
+func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) int {
 	log := log.FromContext(ctx)
 	count := 0
 	for _, resource := range appWrapper.Spec.Resources {
@@ -95,7 +95,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 }
 
 // Monitor AppWrapper pods
-func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) (*PodCounts, error) {
+func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{uidLabel: string(appWrapper.UID)}); err != nil {
@@ -118,11 +118,11 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcad
 }
 
 // Is dispatch too slow?
-func isSlowCreation(appWrapper *mcadv1alpha1.AppWrapper) bool {
+func isSlowCreation(appWrapper *mcadv1beta1.AppWrapper) bool {
 	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(creationTimeout))
 }
 
 // Is requeuing too slow?
-func isSlowDeletion(appWrapper *mcadv1alpha1.AppWrapper) bool {
+func isSlowDeletion(appWrapper *mcadv1beta1.AppWrapper) bool {
 	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(deletionTimeout))
 }

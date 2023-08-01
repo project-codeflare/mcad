@@ -15,6 +15,6 @@ resources:
   domain: codeflare.dev
   group: mcad
   kind: AppWrapper
-  path: tardieu/mcad/api/v1alpha1
-  version: v1alpha1
+  path: tardieu/mcad/api/v1beta1
+  version: v1beta1
 version: "3"
