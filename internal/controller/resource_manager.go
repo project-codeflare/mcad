@@ -18,9 +18,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -36,8 +37,11 @@ func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1alpha1.AppWrapper
 	if err != nil {
 		return nil, err
 	}
-	obj := into.(client.Object)
-	namespaced, err := r.IsObjectNamespaced(obj)
+	obj, ok := into.(client.Object)
+	if !ok {
+		return nil, errors.New("unexpected list resource")
+	}
+	namespaced, err := r.IsObjectNamespaced(obj) // TODO: verify this works if a random CRD is deployed after mcad
 	if err != nil {
 		return nil, err
 	}
@@ -52,20 +56,20 @@ func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1alpha1.AppWrapper
 func (r *AppWrapperReconciler) parseResources(appWrapper *mcadv1alpha1.AppWrapper) ([]client.Object, error) {
 	objects := make([]client.Object, len(appWrapper.Spec.Resources))
 	for i, resource := range appWrapper.Spec.Resources {
-		var err error
-		objects[i], err = r.parseResource(appWrapper, resource.Template.Raw)
+		obj, err := r.parseResource(appWrapper, resource.Template.Raw)
 		if err != nil {
 			return nil, err
 		}
+		objects[i] = obj
 	}
 	return objects, nil
 }
 
-// Create wrapped resources
+// Create wrapped resources, give up on first error
 func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []client.Object) error {
 	for _, obj := range objects {
 		if err := r.Create(ctx, obj); err != nil {
-			if !errors.IsAlreadyExists(err) { // ignore existing resources
+			if !apierrors.IsAlreadyExists(err) { // ignore existing resources
 				return err
 			}
 		}
@@ -73,7 +77,7 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []cl
 	return nil
 }
 
-// Delete wrapped resources, returning count of pending deletions
+// Delete wrapped resources, ignore errors, return count of pending deletions
 func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1alpha1.AppWrapper) int {
 	log := log.FromContext(ctx)
 	count := 0
@@ -85,7 +89,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 		}
 		background := metav1.DeletePropagationBackground
 		if err := r.Delete(ctx, obj, &client.DeleteOptions{PropagationPolicy: &background}); err != nil {
-			if errors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				continue // ignore missing resources
 			}
 			log.Error(err, "Resource deletion error")
