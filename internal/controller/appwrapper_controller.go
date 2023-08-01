@@ -88,7 +88,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
 		}
 		// abort and requeue reconciliation if reconciler cache is stale
-		if err := r.checkCache(appWrapper); err != nil {
+		if err := r.checkCachedPhase(appWrapper); err != nil {
 			return ctrl.Result{}, err
 		}
 		if appWrapper.Status.Phase != mcadv1alpha1.Queued {
@@ -117,7 +117,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// abort and requeue reconciliation if reconciler cache is stale
-	if err := r.checkCache(appWrapper); err != nil {
+	if err := r.checkCachedPhase(appWrapper); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -134,7 +134,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 		log.Info("Deleted")
-		delete(r.Cache, appWrapper.UID) // remove appWrapper from cache
+
+		r.deleteCachedPhase(appWrapper) // remove appWrapper from cache
 		if isActivePhase(appWrapper.Status.Phase) {
 			r.triggerDispatchNext() // cluster may have more available capacity
 		}
@@ -265,7 +266,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	}
 	log.Info(string(phase))
 	// cache AppWrapper status
-	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Conditions: len(appWrapper.Status.Conditions)}
+	r.addCachedPhase(appWrapper)
 	activeAfter := isActivePhase(phase)
 	if activeBefore && !activeAfter {
 		r.triggerDispatchNext() // cluster may have more available capacity

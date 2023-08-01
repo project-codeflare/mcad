@@ -23,18 +23,18 @@ import (
 	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
 )
 
-// We cache AppWrappers phases because the reconciler cache does not immediately reflect updates.
+// We cache AppWrapper phases because the reconciler cache does not immediately reflect updates.
 // A Get or List call soon after an Update or Status.Update call may not reflect the latest object.
-// See: https://github.com/kubernetes-sigs/controller-runtime/issues/1622
+// See https://github.com/kubernetes-sigs/controller-runtime/issues/1622.
 // Therefore we need to maintain our own cache to make sure new dispatching decisions accurately account
-// for recent dispatching decisions.
-// The cache is populated on phase updates.
+// for recent dispatching decisions. The cache is populated on phase updates.
 // The cache is only meant to be used for AppWrapper List calls when computing available resources.
 // We use the number of conditions to confirm our cached version is more recent than the reconciler cache.
 // We remove cache entries when removing finalizers. TODO: We should purge the cache from stale entries
 // periodically in case a finalizer is deleted  outside of our control.
 // When reconciling an AppWrapper, we proactively detect and abort on conflicts as
 // there is no point working on a stale AppWrapper. We know etcd updates will fail.
+// This conflict detection reduces the probability of an etcd update failure but does not eliminate it.
 // To defend against bugs in the cache implementation and egregious AppWrapper edits,
 // we eventually give up on persistent conflicts and remove the AppWrapper phase from the cache.
 
@@ -50,8 +50,27 @@ type CachedAppWrapper struct {
 	Conflict *time.Time
 }
 
+// Add AppWrapper to cache
+func (r *AppWrapperReconciler) addCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) {
+	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Conditions: len(appWrapper.Status.Conditions)}
+}
+
+// Remove AppWrapper from cache
+func (r *AppWrapperReconciler) deleteCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) {
+	delete(r.Cache, appWrapper.UID) // remove appWrapper from cache
+}
+
+// Get AppWrapper phase from cache if available
+func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) mcadv1alpha1.AppWrapperPhase {
+	phase := appWrapper.Status.Phase
+	if cached, ok := r.Cache[appWrapper.UID]; ok && cached.Conditions > len(appWrapper.Status.Conditions) {
+		phase = cached.Phase // use our cached phase if more current than reconciler cache
+	}
+	return phase
+}
+
 // Check whether reconciler cache and our cache appear to be in sync
-func (r *AppWrapperReconciler) checkCache(appWrapper *mcadv1alpha1.AppWrapper) error {
+func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1alpha1.AppWrapper) error {
 	if cached, ok := r.Cache[appWrapper.UID]; ok {
 		// check number of conditions
 		if cached.Conditions > len(appWrapper.Status.Conditions) {
