@@ -18,10 +18,9 @@ package controller
 
 import (
 	"context"
-	"errors"
 
 	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -33,13 +32,9 @@ import (
 
 // Parse raw resource into client object
 func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1alpha1.AppWrapper, raw []byte) (client.Object, error) {
-	into, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, nil)
-	if err != nil {
+	obj := &unstructured.Unstructured{}
+	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
-	}
-	obj, ok := into.(client.Object)
-	if !ok {
-		return nil, errors.New("unexpected list resource")
 	}
 	namespaced, err := r.IsObjectNamespaced(obj) // TODO: verify this works if a random CRD is deployed after mcad
 	if err != nil {
@@ -69,7 +64,7 @@ func (r *AppWrapperReconciler) parseResources(appWrapper *mcadv1alpha1.AppWrappe
 func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []client.Object) error {
 	for _, obj := range objects {
 		if err := r.Create(ctx, obj); err != nil {
-			if !apierrors.IsAlreadyExists(err) { // ignore existing resources
+			if !errors.IsAlreadyExists(err) { // ignore existing resources
 				return err
 			}
 		}
@@ -89,7 +84,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 		}
 		background := metav1.DeletePropagationBackground
 		if err := r.Delete(ctx, obj, &client.DeleteOptions{PropagationPolicy: &background}); err != nil {
-			if apierrors.IsNotFound(err) {
+			if errors.IsNotFound(err) {
 				continue // ignore missing resources
 			}
 			log.Error(err, "Resource deletion error")
