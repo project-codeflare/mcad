@@ -1,0 +1,93 @@
+/*
+Copyright 2023.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"gopkg.in/inf.v0"
+	v1 "k8s.io/api/core/v1"
+)
+
+// Weights represent a set of resource requests or available resources
+// Quantities are encoded as *inf.Dec to maintain precision and make arithmetic easy
+type Weights map[v1.ResourceName]*inf.Dec
+
+// Converts a ResourceList to Weights
+func NewWeights(r v1.ResourceList) Weights {
+	w := Weights{}
+	for k, v := range r {
+		w[k] = v.AsDec()
+	}
+	return w
+}
+
+// Add weights to receiver
+func (w Weights) Add(r Weights) {
+	for k, v := range r {
+		if w[k] == nil {
+			w[k] = &inf.Dec{}
+		}
+		w[k].Add(w[k], v)
+	}
+}
+
+// Subtract weights from receiver
+func (w Weights) Sub(r Weights) {
+	for k, v := range r {
+		if w[k] == nil {
+			w[k] = &inf.Dec{}
+		}
+		w[k].Sub(w[k], v)
+	}
+}
+
+// Add coefficient * weights to receiver
+func (w Weights) AddProd(coefficient int32, r Weights) {
+	for k, v := range r {
+		if w[k] == nil {
+			w[k] = &inf.Dec{}
+		}
+		tmp := inf.NewDec(int64(coefficient), 0)
+		tmp.Mul(tmp, v)
+		w[k].Add(w[k], tmp)
+	}
+}
+
+// Update receiver to max of receiver and argument in each dimension
+func (w Weights) Max(r Weights) {
+	for k, v := range r {
+		if w[k] == nil {
+			w[k] = &inf.Dec{}
+		}
+		if w[k].Cmp(v) == -1 {
+			w[k].Set(v)
+		}
+	}
+}
+
+// Compare receiver to argument
+// True if receiver is <= argument in every dimension
+func (w Weights) Fits(x Weights) bool {
+	for k, v := range w {
+		if v.Cmp(&inf.Dec{}) <= 0 {
+			continue
+		}
+		if x[k] == nil || v.Cmp(x[k]) == 1 {
+			return false
+		}
+	}
+	return true
+}

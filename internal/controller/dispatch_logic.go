@@ -29,68 +29,72 @@ import (
 	mcadv1alpha1 "tardieu/mcad/api/v1alpha1"
 )
 
-// Refresh and cache count of available gpus
-// Add schedulable gpus, subtract gpus requested by scheduled non-AppWrapper non-terminated pods
-func (r *AppWrapperReconciler) availableGpus(ctx context.Context) (int, error) {
+// Refresh and cache cluster capacity available to mcad
+// Add allocatable capacity for every schedulable node
+// Subtract requests from non-AppWrapper non-terminated pods scheduled on these nodes
+func (r *AppWrapperReconciler) allocatableCapacity(ctx context.Context) (Weights, error) {
 	if !time.Now().After(r.WhenAvailable.Add(time.Minute)) {
-		return r.AvailableGpus, nil
+		return r.Capacity, nil
 	}
-	gpus := 0 // available gpus
-	// add available gpus for each schedulable node
+	capacity := Weights{}
+	// add allocatable capacity for each schedulable node
 	nodes := &v1.NodeList{}
 	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
-		return 0, err
+		return nil, err
 	}
 	for _, node := range nodes.Items {
 		// skip unschedulable nodes
 		if node.Spec.Unschedulable {
 			continue
 		}
-		// add allocatable gpus
-		g := node.Status.Allocatable[nvidiaGpu]
-		gpus += int(g.Value())
-		// subtract gpus used by non-AppWrapper, non-terminated pods on this node
+		// add allocatable capacity on the node
+		capacity.Add(NewWeights(node.Status.Allocatable))
+		// subtract requests from non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		pods := &v1.PodList{}
 		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
-			return 0, err
+			return nil, err
 		}
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[uidLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 				for _, container := range pod.Spec.Containers {
-					g := container.Resources.Requests[nvidiaGpu]
-					gpus -= int(g.Value())
+					capacity.Sub(NewWeights(container.Resources.Requests))
 				}
 			}
 		}
 	}
-	r.AvailableGpus = gpus
+	r.Capacity = capacity
 	r.WhenAvailable = time.Now()
-	return gpus, nil
+	return capacity, nil
 }
 
-// Compute gpus reserved by AppWrappers at every priority level and sort queued AppWrappers
+// Compute resources reserved by AppWrappers at every priority level
+// Sort queued AppWrappers in dispatch order
 // AppWrappers in output queue must be cloned if mutated
-func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int, []*mcadv1alpha1.AppWrapper, error) {
+func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Weights, []*mcadv1alpha1.AppWrapper, error) {
 	appWrappers := &mcadv1alpha1.AppWrapperList{}
 	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, nil, err
 	}
-	gpus := map[int]int{}                 // gpus requested per priority level
+	requests := map[int]Weights{}         // total request per priority level
 	queue := []*mcadv1alpha1.AppWrapper{} // queued appwrappers
 	for _, appWrapper := range appWrappers.Items {
 		phase := appWrapper.Status.Phase
 		if cached, ok := r.Cache[appWrapper.UID]; ok && len(cached.Status.Conditions) > len(appWrapper.Status.Conditions) {
 			phase = cached.Status.Phase // use our cached phase if more current than reconciler cache
 		}
+		// make sure to initialize weights for every known priority level
+		if requests[int(appWrapper.Spec.Priority)] == nil {
+			requests[int(appWrapper.Spec.Priority)] = Weights{}
+		}
 		if isActivePhase(phase) {
-			// use max gpu usage among appWrapper request and non-terminated appWrapper pods
-			awGpus := gpuRequest(&appWrapper)
-			podGpus := 0
+			// use max request among appWrapper request and total request of non-terminated appWrapper pods
+			awRequest := aggregatedRequest(&appWrapper)
+			podRequest := Weights{}
 			pods := &v1.PodList{}
 			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 				client.MatchingLabels{uidLabel: string(appWrapper.UID)}); err != nil {
@@ -99,23 +103,20 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int
 			for _, pod := range pods.Items {
 				if pod.Spec.NodeName != "" && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 					for _, container := range pod.Spec.Containers {
-						g := container.Resources.Requests[nvidiaGpu]
-						podGpus += int(g.Value())
+						podRequest.Add(NewWeights(container.Resources.Requests))
 					}
 				}
 			}
-			if awGpus > podGpus {
-				gpus[int(appWrapper.Spec.Priority)] += awGpus
-			} else {
-				gpus[int(appWrapper.Spec.Priority)] += podGpus
-			}
+			// compute max
+			awRequest.Max(podRequest)
+			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
 		} else if phase == mcadv1alpha1.Queued {
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
 		}
 	}
-	// propagate gpu reservations at all priority levels to all levels below
-	accumulate(gpus)
+	// propagate reservations at all priority levels to all levels below
+	accumulate(requests)
 	// order AppWrapper queue based on priority and creation time
 	sort.Slice(queue, func(i, j int) bool {
 		if queue[i].Spec.Priority > queue[j].Spec.Priority {
@@ -126,48 +127,54 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]int
 		}
 		return queue[i].CreationTimestamp.Before(&queue[j].CreationTimestamp)
 	})
-	return gpus, queue, nil
+	return requests, queue, nil
 }
 
 // Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
 func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1alpha1.AppWrapper, bool, error) {
-	gpus, err := r.availableGpus(ctx)
+	capacity, err := r.allocatableCapacity(ctx)
 	if err != nil {
 		return nil, false, err
 	}
-	reservations, queue, err := r.listAppWrappers(ctx)
+	requests, queue, err := r.listAppWrappers(ctx)
 	if err != nil {
 		return nil, false, err
+	}
+	available := map[int]Weights{}
+	for priority, request := range requests {
+		available[priority] = Weights{}
+		available[priority].Add(capacity)
+		available[priority].Sub(request)
 	}
 	for i, appWrapper := range queue {
-		if gpuRequest(appWrapper) <= gpus-reservations[int(appWrapper.Spec.Priority)] {
+		request := aggregatedRequest(appWrapper)
+		if request.Fits(available[int(appWrapper.Spec.Priority)]) {
 			return appWrapper.DeepCopy(), i == len(queue)-1, nil // deep copy appWrapper
 		}
 	}
 	return nil, false, nil
 }
 
-// Count gpu requested by AppWrapper
-func gpuRequest(appWrapper *mcadv1alpha1.AppWrapper) int {
-	gpus := 0
-	for _, resource := range appWrapper.Spec.Resources {
-		g := resource.Requests[nvidiaGpu]
-		gpus += int(resource.Replicas) * int(g.Value())
+// Aggregated request by AppWrapper
+func aggregatedRequest(appWrapper *mcadv1alpha1.AppWrapper) Weights {
+	request := Weights{}
+	for _, r := range appWrapper.Spec.Resources {
+		request.AddProd(r.Replicas, NewWeights(r.Requests))
 	}
-	return gpus
+	return request
 }
 
-// Propagate gpu reservations at all priority levels to all levels below
-func accumulate(m map[int]int) {
-	keys := make([]int, len(m))
+// Propagate reservations at all priority levels to all levels below
+func accumulate(w map[int]Weights) {
+	keys := make([]int, len(w))
 	i := 0
-	for k := range m {
+	for k := range w {
 		keys[i] = k
 		i += 1
 	}
 	sort.Ints(keys)
 	for i := len(keys) - 1; i > 0; i-- {
-		m[keys[i-1]] += m[keys[i]]
+		w[keys[i-1]].Add(w[keys[i]])
 	}
 }
 

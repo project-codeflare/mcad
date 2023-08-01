@@ -44,7 +44,7 @@ type AppWrapperReconciler struct {
 	Events        chan event.GenericEvent
 	Scheme        *runtime.Scheme
 	Cache         map[types.UID]*mcadv1alpha1.AppWrapper // cache appWrapper updates to improve dispatch accuracy
-	AvailableGpus int                                    // gpus available to mcad
+	Capacity      Weights                                // cluster capacity available to mcad
 	WhenAvailable time.Time                              // when last computed
 }
 
@@ -67,7 +67,8 @@ type PodCounts struct {
 
 //+kubebuilder:rbac:groups=*,resources=*,verbs=*
 
-// Reconcile one AppWrapper
+// Reconcile one AppWrapper or dispatch next AppWrapper
+// Queued AppWrapper are dispatched as part of a special "*/*" reconciliation cycle
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
