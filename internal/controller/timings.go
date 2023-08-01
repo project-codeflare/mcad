@@ -28,6 +28,8 @@ const (
 	// a regular basis (we do) to ensure we detect new capacity (such as new schedulable nodes)
 	clusterCapacityTimeout = time.Minute // how long to cache cluster capacity
 
+	cacheConflictTimeout = 5 * time.Minute // when to give up on a cache conflict
+
 	// Timeouts for the creation and deletion of wrapped resources and pods
 	creationTimeout = 2 * time.Minute // minimum wait before aborting an incomplete resource/pod creation
 	deletionTimeout = 2 * time.Minute // minimum wait before aborting an incomplete resource deletion
@@ -39,4 +41,5 @@ const (
 	deletionDelay = time.Minute // maximum delay before next reconciliation when deleting resources
 	creationDelay = time.Minute // maximum delay before next reconciliation when starting pods
 	dispatchDelay = time.Minute // maximum delay before triggering dispatchNext with queued AppWrappers
+
 )

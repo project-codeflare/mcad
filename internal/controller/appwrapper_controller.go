@@ -43,9 +43,9 @@ type AppWrapperReconciler struct {
 	client.Client
 	Events          chan event.GenericEvent
 	Scheme          *runtime.Scheme
-	Cache           map[types.UID]*mcadv1alpha1.AppWrapper // cache appWrapper updates to improve dispatch accuracy
-	ClusterCapacity Weights                                // cluster capacity available to mcad
-	NextSync        time.Time                              // when to refresh cluster capacity
+	Cache           map[types.UID]*CachedAppWrapper // cache appWrapper updates to improve dispatch accuracy
+	ClusterCapacity Weights                         // cluster capacity available to mcad
+	NextSync        time.Time                       // when to refresh cluster capacity
 }
 
 const (
@@ -64,6 +64,33 @@ type PodCounts struct {
 	Running   int
 	Succeeded int
 }
+
+// Cached AppWrapper status
+type CachedAppWrapper struct {
+	// AppWrapper phase
+	Phase mcadv1alpha1.AppWrapperPhase
+
+	// Number of condition (monotonically increasing, hence a good way to identify the most recent status)
+	Conditions int
+
+	// First conflict detected between our cache and reconciler cache or nil
+	Conflict *time.Time
+}
+
+// We cache AppWrappers phases because the reconciler cache does not immediately reflect updates.
+// A Get or List call soon after an Update or Status.Update call may not reflect the latest object.
+// See: https://github.com/kubernetes-sigs/controller-runtime/issues/1622
+// Therefore we need to maintain our own cache to make sure new dispatching decisions accurately account
+// for recent dispatching decisions.
+// The cache is populated on phase updates.
+// The cache is only meant to be used for AppWrapper List calls when computing available resources.
+// We use the number of conditions to confirm our cached version is more recent than the reconciler cache.
+// We remove cache entries when removing finalizers. TODO: We should purge the cache from stale entries
+// periodically in case a finalizer is deleted  outside of our control.
+// When reconciling an AppWrapper, we proactively detect and abort on conflicts as
+// there is no point working on a stale AppWrapper. We know etcd updates will fail.
+// To defend against bugs in the cache implementation and egregious AppWrapper edits,
+// we eventually give up on persistent conflicts and remove the AppWrapper phase from the cache.
 
 //+kubebuilder:rbac:groups=*,resources=*,verbs=*
 
@@ -87,11 +114,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if appWrapper == nil { // no appWrapper eligible for dispatch
 			return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
 		}
-		// abort and requeue reconciliation if reconciler cache is not updated
+		// abort and requeue reconciliation if reconciler cache is stale
 		if err := r.checkCache(appWrapper); err != nil {
 			return ctrl.Result{}, err
 		}
 		if appWrapper.Status.Phase != mcadv1alpha1.Queued {
+			// this check should be redundant but better be defensive
 			return ctrl.Result{}, errors.New("not queued")
 		}
 		// set dispatching timestamp and status
@@ -115,7 +143,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	// abort and requeue reconciliation if reconciler cache is not updated
+	// abort and requeue reconciliation if reconciler cache is stale
 	if err := r.checkCache(appWrapper); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -263,9 +291,11 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 		return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
 	}
 	log.Info(string(phase))
-	r.Cache[appWrapper.UID] = appWrapper // cache updated appWrapper
-	// this appWrapper is a deep copy of the reconciler cache already (obtained with r.Get)
-	// this appWrapper should not be mutated beyond this point
+	// cache AppWrapper status
+	r.Cache[appWrapper.UID] = &CachedAppWrapper{
+		Phase:           appWrapper.Status.Phase,
+		ResourceVersion: appWrapper.ResourceVersion,
+		Conditions:      len(appWrapper.Status.Conditions)}
 	activeAfter := isActivePhase(phase)
 	if activeBefore && !activeAfter {
 		r.triggerDispatchNext() // cluster may have more available capacity
@@ -293,11 +323,29 @@ func (r *AppWrapperReconciler) triggerDispatchNext() {
 
 // Check whether our cache and reconciler cache appear to be in sync
 func (r *AppWrapperReconciler) checkCache(appWrapper *mcadv1alpha1.AppWrapper) error {
-	// check number of conditions is the same
-	if cached, ok := r.Cache[appWrapper.UID]; ok && len(cached.Status.Conditions) != len(appWrapper.Status.Conditions) {
-		// reconciler cache and our cache are out of sync
-		delete(r.Cache, appWrapper.UID)
-		return errors.New("cache conflict") // force redo
+	if cached, ok := r.Cache[appWrapper.UID]; ok {
+		// check number of conditions
+		if cached.Conditions > len(appWrapper.Status.Conditions) {
+			// reconciler cache appears to be behind
+			if cached.Conflict != nil {
+				if time.Now().After(cached.Conflict.Add(cacheConflictTimeout)) {
+					// this has been going on for a while, assume something is wrong with our cache
+					delete(r.Cache, appWrapper.UID)
+					return errors.New("persistent cache conflict") // force redo
+				}
+			} else {
+				now := time.Now()
+				cached.Conflict = &now // remember when conflict started
+			}
+			return errors.New("stale reconciler cache") // force redo
+		}
+		if cached.Conditions < len(appWrapper.Status.Conditions) || cached.Phase != appWrapper.Status.Phase {
+			// something is wrong with our cache
+			delete(r.Cache, appWrapper.UID)
+			return errors.New("stale phase cache") // force redo
+		}
+		// caches appear to be in sync
+		cached.Conflict = nil // clear conflict timestamp
 	}
 	return nil
 }

@@ -84,8 +84,8 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	queue := []*mcadv1alpha1.AppWrapper{} // queued appwrappers
 	for _, appWrapper := range appWrappers.Items {
 		phase := appWrapper.Status.Phase
-		if cached, ok := r.Cache[appWrapper.UID]; ok && len(cached.Status.Conditions) > len(appWrapper.Status.Conditions) {
-			phase = cached.Status.Phase // use our cached phase if more current than reconciler cache
+		if cached, ok := r.Cache[appWrapper.UID]; ok && cached.Conditions > len(appWrapper.Status.Conditions) {
+			phase = cached.Phase // use our cached phase if more current than reconciler cache
 		}
 		// make sure to initialize weights for every known priority level
 		if requests[int(appWrapper.Spec.Priority)] == nil {
