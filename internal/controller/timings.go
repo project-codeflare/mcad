@@ -31,15 +31,13 @@ const (
 	cacheConflictTimeout = 5 * time.Minute // when to give up on a cache conflict
 
 	// Timeouts for the creation and deletion of wrapped resources and pods
-	creationTimeout = 2 * time.Minute // minimum wait before aborting an incomplete resource/pod creation
-	deletionTimeout = 2 * time.Minute // minimum wait before aborting an incomplete resource deletion
+	creationTimeout = 5 * time.Minute // minimum wait before aborting an incomplete resource/pod creation
+	deletionTimeout = 5 * time.Minute // minimum wait before aborting an incomplete resource deletion
 
 	// RequeueAfter delays
 	// This is the maximum delay before the next reconciliation event but reconciliation
 	// may be triggered earlier due for instance to pod phase changes. Moreover, the reconciliation
 	// itself may be delayed due to the on-going reconciliation of other events.
-	deletionDelay = time.Minute // maximum delay before next reconciliation when deleting resources
-	creationDelay = time.Minute // maximum delay before next reconciliation when starting pods
+	runDelay      = time.Minute // maximum delay before next reconciliation when running pods
 	dispatchDelay = time.Minute // maximum delay before triggering dispatchNext with queued AppWrappers
-
 )

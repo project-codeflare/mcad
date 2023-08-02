@@ -50,7 +50,7 @@ type AppWrapperReconciler struct {
 
 const (
 	namespaceLabel = "mcad.codeflare.dev/namespace" // owner namespace label for wrapped resources
-	nameLabel      = "mcad.codeflare.dev/name"      // owner name label for wrapped resources
+	nameLabel      = "mcad.codeflare.dev"           // owner name label for wrapped resources
 	uidLabel       = "mcad.codeflare.dev/uid"       // owner UID label for wrapped resources
 	finalizer      = "mcad.codeflare.dev/finalizer" // finalizer name
 	nvidiaGpu      = "nvidia.com/gpu"               // GPU resource name
@@ -125,7 +125,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if !appWrapper.DeletionTimestamp.IsZero() {
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			return ctrl.Result{RequeueAfter: deletionDelay}, nil // requeue reconciliation
+			return ctrl.Result{Requeue: true}, nil // requeue reconciliation
 		}
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(appWrapper, finalizer) {
@@ -161,7 +161,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				// give up requeuing and fail instead
 				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
 			} else {
-				return ctrl.Result{RequeueAfter: deletionDelay}, nil // requeue reconciliation
+				return ctrl.Result{Requeue: true}, nil // requeue reconciliation
 			}
 		}
 		// update status to queued
@@ -192,8 +192,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		slow := isSlowCreation(appWrapper)
-		if counts.Failed > 0 || slow && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.MinPods)) {
+		if counts.Failed > 0 || isSlowCreation(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.MinPods)) {
 			// set requeuing or failed status
 			return r.requeueOrFail(ctx, appWrapper)
 		}
@@ -201,10 +200,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			// set succeeded status
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded)
 		}
-		if !slow {
-			return ctrl.Result{RequeueAfter: creationDelay}, nil // check again soon
-		}
-		return ctrl.Result{}, nil // only check again on pod change
+		return ctrl.Result{RequeueAfter: runDelay}, nil // check again soon
 
 	default: // empty phase
 		// add finalizer

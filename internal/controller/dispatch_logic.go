@@ -60,7 +60,7 @@ func (r *AppWrapperReconciler) allocatableCapacity(ctx context.Context) (Weights
 			return nil, err
 		}
 		for _, pod := range pods.Items {
-			if _, ok := pod.GetLabels()[uidLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 				for _, container := range pod.Spec.Containers {
 					capacity.Sub(NewWeights(container.Resources.Requests))
 				}
@@ -95,7 +95,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			podRequest := Weights{}
 			pods := &v1.PodList{}
 			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-				client.MatchingLabels{uidLabel: string(appWrapper.UID)}); err != nil {
+				client.MatchingLabels{nameLabel: appWrapper.Name}); err != nil {
 				return nil, nil, err
 			}
 			for _, pod := range pods.Items {
