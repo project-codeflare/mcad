@@ -1,6 +1,16 @@
-# MCAD
+# MCAD as a Reconciler
 
-MCAD implementation using a reconciler.
+This code is a quick prototype exploring what an implementation of MCAD
+([multi-cluster-app-dispatcher](https://github.com/project-codeflare/multi-cluster-app-dispatcher))
+could look like if utilizing the latest [controller
+runtime](https://github.com/kubernetes-sigs/controller-runtime) and
+[kubebuilder](https://github.com/kubernetes-sigs/kubebuilder). This prototype
+focuses on MCAD core capabilities (queuing and dispatching logic, resource
+management, priorities and preemption, error handling and requeuing) but does
+not implement advanced capabilities such multi-cluster management and quotas.
+
+
+
 
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
@@ -55,7 +65,7 @@ make manifests
 
 ## License
 
-Copyright 2023.
+Copyright IBM Corporation 2023.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
