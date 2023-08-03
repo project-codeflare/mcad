@@ -39,5 +39,5 @@ const (
 	// may be triggered earlier due for instance to pod phase changes. Moreover, the reconciliation
 	// itself may be delayed due to the on-going reconciliation of other events.
 	runDelay      = time.Minute // maximum delay before next reconciliation when running pods
-	dispatchDelay = time.Minute // maximum delay before triggering dispatchNext with queued AppWrappers
+	dispatchDelay = time.Minute // maximum delay before next dispatch attempt with queued AppWrappers
 )
