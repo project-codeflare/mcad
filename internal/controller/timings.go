@@ -23,22 +23,22 @@ import (
 // This file defines all the time constants used in mcad
 
 const (
-	// Cluster capacity is only refreshed when trying to dispatch AppWrappers and only after
-	// the previous measurement has timed out, so it is necessary to trigger dispatch on
-	// a regular basis (we do) to ensure we detect new capacity (such as new schedulable nodes)
-	clusterCapacityTimeout = time.Minute // how long to cache cluster capacity
-
-	cacheConflictTimeout = 5 * time.Minute // when to give up on a cache conflict
-
 	// Timeouts
-	requeuingTimeout   = 2 * time.Minute // minimum wait before aborting Requeuing
-	dispatchingTimeout = 2 * time.Minute // minimum wait before aborting Dispatching
-	runningTimeout     = 5 * time.Minute // minimum wait before aborting Running
+	requeuingTimeout       = 2 * time.Minute // minimum wait before aborting Requeuing
+	dispatchingTimeout     = 2 * time.Minute // minimum wait before aborting Dispatching
+	runningTimeout         = 5 * time.Minute // minimum wait before aborting Running
+	cacheConflictTimeout   = 5 * time.Minute // minimum wait before invalidating the cache
+	clusterCapacityTimeout = time.Minute     // how long to cache cluster capacity
+
+	// Cluster capacity is only refreshed when trying to dispatch AppWrappers and only after
+	// the previous measurement has timed out, so it is necessary to call dispatchNext on
+	// a regular basis (we do) to ensure we detect new capacity (such as new schedulable nodes)
 
 	// RequeueAfter delays
-	// This is the maximum delay before the next reconciliation event but reconciliation
-	// may be triggered earlier due for instance to pod phase changes. Moreover, the reconciliation
-	// itself may be delayed due to the on-going reconciliation of other events.
-	runDelay      = time.Minute // maximum delay before next reconciliation when running pods
-	dispatchDelay = time.Minute // maximum delay before next dispatch attempt with queued AppWrappers
+	runDelay      = time.Minute // maximum delay before next reconciliation of a Running AppWrapper
+	dispatchDelay = time.Minute // maximum delay before next "*/*" reconciliation (dispatchNext)
+
+	// The RequeueAfter delay is the maximum delay before the next reconciliation event.
+	// Reconciliation may be triggered earlier due for instance to pod phase changes.
+	// Reconciliation may be delayed due to the on-going reconciliation of other events.
 )

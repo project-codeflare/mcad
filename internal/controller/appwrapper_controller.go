@@ -68,7 +68,8 @@ type PodCounts struct {
 // Reconcile one AppWrapper or dispatch next AppWrapper
 // Normal reconciliations "namespace/name" implement all phase transitions except for Queued->Dispatching
 // Queued->Dispatching transitions happen as part of a special "*/*" reconciliation
-// In a "*/*" invocation, we first decide which AppWrapper to dispatch then make the transition
+// In a "*/*" reconciliation, we first decide the AppWrapper to dispatch (dispatchNext)
+// We then dispatch this AppWrapper (Queued->Dispatching transition)
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
