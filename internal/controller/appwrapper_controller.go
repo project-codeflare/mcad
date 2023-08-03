@@ -155,7 +155,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case mcadv1beta1.Requeuing:
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			if isSlowDeletion(appWrapper) {
+			if isSlowRequeuing(appWrapper) {
 				// give up requeuing and fail instead
 				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
 			} else {
@@ -167,7 +167,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case mcadv1beta1.Dispatching:
 		// dispatching is taking too long?
-		if isSlowCreation(appWrapper) {
+		if isSlowDispatching(appWrapper) {
 			// set requeuing or failed status
 			return r.requeueOrFail(ctx, appWrapper)
 		}
@@ -190,7 +190,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if counts.Failed > 0 || isSlowCreation(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.MinPods)) {
+		if counts.Failed > 0 || isSlowRunning(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.MinPods)) {
 			// set requeuing or failed status
 			return r.requeueOrFail(ctx, appWrapper)
 		}

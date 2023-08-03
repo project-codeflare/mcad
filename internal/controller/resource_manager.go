@@ -117,12 +117,17 @@ func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcad
 	return counts, nil
 }
 
-// Is dispatch too slow?
-func isSlowCreation(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(creationTimeout))
+// Is requeuing too slow?
+func isSlowRequeuing(appWrapper *mcadv1beta1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(requeuingTimeout))
 }
 
-// Is requeuing too slow?
-func isSlowDeletion(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(deletionTimeout))
+// Is dispatching too slow?
+func isSlowDispatching(appWrapper *mcadv1beta1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(dispatchingTimeout))
+}
+
+// Is running too slow?
+func isSlowRunning(appWrapper *mcadv1beta1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(runningTimeout))
 }

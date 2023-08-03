@@ -30,9 +30,10 @@ const (
 
 	cacheConflictTimeout = 5 * time.Minute // when to give up on a cache conflict
 
-	// Timeouts for the creation and deletion of wrapped resources and pods
-	creationTimeout = 5 * time.Minute // minimum wait before aborting an incomplete resource/pod creation
-	deletionTimeout = 5 * time.Minute // minimum wait before aborting an incomplete resource deletion
+	// Timeouts
+	requeuingTimeout   = 2 * time.Minute // minimum wait before aborting Requeuing
+	dispatchingTimeout = 2 * time.Minute // minimum wait before aborting Dispatching
+	runningTimeout     = 5 * time.Minute // minimum wait before aborting Running
 
 	// RequeueAfter delays
 	// This is the maximum delay before the next reconciliation event but reconciliation
