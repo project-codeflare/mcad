@@ -43,7 +43,9 @@ spec:
                 format: int32
                 type: integer
               minPods:
-                description: Minimum number of pods that need to run and succeed
+                description: 'Minimum number of pods that need to run and succeed
+                  These pods have to be labeled with the AppWrapper name to be accounted
+                  for and monitored by mcad: mcad.codeflare.dev: <appwrapper-name>'
                 format: int32
                 type: integer
               priority:
