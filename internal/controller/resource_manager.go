@@ -43,7 +43,6 @@ func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1beta1.AppWrapper,
 	if namespaced && obj.GetNamespace() == "" {
 		obj.SetNamespace(appWrapper.Namespace) // use AppWrapper namespace as default
 	}
-	obj.SetLabels(map[string]string{nameLabel: appWrapper.Name})
 	return obj, nil
 }
 
