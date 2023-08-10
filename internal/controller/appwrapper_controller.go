@@ -49,10 +49,11 @@ type AppWrapperReconciler struct {
 }
 
 const (
-	nameLabel    = "mcad.codeflare.dev"           // owner name label for wrapped resources
-	finalizer    = "mcad.codeflare.dev/finalizer" // finalizer name
-	nvidiaGpu    = "nvidia.com/gpu"               // GPU resource name
-	specNodeName = ".spec.nodeName"               // key to index pods based on node placement
+	nameLabel      = "mcad.codeflare.dev"           // owner name label for wrapped resources
+	namespaceLabel = "mcad.codeflare.dev/namespace" // owner namespace label for wrapped resources
+	finalizer      = "mcad.codeflare.dev/finalizer" // finalizer name
+	nvidiaGpu      = "nvidia.com/gpu"               // GPU resource name
+	specNodeName   = ".spec.nodeName"               // key to index pods based on node placement
 )
 
 // PodCounts summarize the status of the pods associated with one AppWrapper
@@ -235,8 +236,9 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*v1.Pod)
 	if name, ok := pod.Labels[nameLabel]; ok {
-		// assume the AppWrapper is in the same namespace, if not we rely on polling
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: name}}}
+		if namespace, ok := pod.Labels[namespaceLabel]; ok {
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
+		}
 	}
 	return nil
 }

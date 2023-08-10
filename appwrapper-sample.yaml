@@ -1,6 +1,7 @@
 apiVersion: mcad.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
+  namespace: default
   name: appwrapper-sample
 spec:
   priority: 5
@@ -14,8 +15,10 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
+          namespace: default
           name: appwrapper-sample-1
           labels:
+            mcad.codeflare.dev/namespace: default
             mcad.codeflare.dev: appwrapper-sample
         spec:
           restartPolicy: Never
@@ -35,8 +38,10 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
+          namespace: default
           name: appwrapper-sample-2
           labels:
+            mcad.codeflare.dev/namespace: default
             mcad.codeflare.dev: appwrapper-sample
         spec:
           restartPolicy: Never

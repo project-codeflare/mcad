@@ -97,7 +97,8 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy, client.MatchingLabels{nameLabel: appWrapper.Name}); err != nil {
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
+		client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}

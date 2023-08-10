@@ -95,7 +95,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			podRequest := Weights{}
 			pods := &v1.PodList{}
 			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-				client.MatchingLabels{nameLabel: appWrapper.Name}); err != nil {
+				client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
 				return nil, nil, err
 			}
 			for _, pod := range pods.Items {
