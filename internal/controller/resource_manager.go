@@ -36,13 +36,6 @@ func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1beta1.AppWrapper,
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
 	}
-	namespaced, err := r.IsObjectNamespaced(obj) // TODO: verify this works if a random CRD is deployed after mcad
-	if err != nil {
-		return nil, err
-	}
-	if namespaced && obj.GetNamespace() == "" {
-		obj.SetNamespace(appWrapper.Namespace) // use AppWrapper namespace as default
-	}
 	return obj, nil
 }
 
