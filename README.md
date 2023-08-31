@@ -1,4 +1,4 @@
-# MCAD as a Reconciler
+# MicroMCAD
 
 This code is a quick prototype exploring what an implementation of MCAD
 ([multi-cluster-app-dispatcher](https://github.com/project-codeflare/multi-cluster-app-dispatcher))
