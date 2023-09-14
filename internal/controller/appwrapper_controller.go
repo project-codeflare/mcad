@@ -122,29 +122,32 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// first handle deletion
-	if !appWrapper.DeletionTimestamp.IsZero() {
+	if !appWrapper.DeletionTimestamp.IsZero() && appWrapper.Status.Phase != mcadv1beta1.Deleted {
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			return ctrl.Result{Requeue: true}, nil // requeue reconciliation
 		}
+		if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Deleted); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	// handle all other phases including the default empty phase
+
+	switch appWrapper.Status.Phase {
+	case mcadv1beta1.Deleted:
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(appWrapper, finalizer) {
 			if err := r.Update(ctx, appWrapper); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
-		log.Info("Deleted")
-
 		r.deleteCachedPhase(appWrapper) // remove appWrapper from cache
 		if isActivePhase(appWrapper.Status.Phase) {
 			r.triggerDispatchNext() // cluster may have more available capacity
 		}
 		return ctrl.Result{}, nil
-	}
 
-	// handle all other phases including the default empty phase
-
-	switch appWrapper.Status.Phase {
 	case mcadv1beta1.Succeeded, mcadv1beta1.Failed:
 		// nothing to reconcile
 		return ctrl.Result{}, nil

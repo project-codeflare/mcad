@@ -78,11 +78,9 @@ const (
 	Running AppWrapperPhase = "Running"
 
 	// Succeeded: resource requests ARE NOT reserved
-	// Final state
 	Succeeded AppWrapperPhase = "Succeeded"
 
 	// Failed: resource requests ARE reserved (because failure can be partial and there is no cleanup)
-	// Final state
 	// Entered on:
 	// - parsing error (always)
 	// - Requeuing timeout deleting resources (always)
@@ -93,6 +91,9 @@ const (
 	// Try deleting resources -> Queued or Failed if timeout deleting resources
 	// Entered on Dispatching/Running errors and timeouts (before max retries)
 	Requeuing AppWrapperPhase = "Requeuing"
+
+	// Deleted: resources ARE NOT reserved
+	Deleted AppWrapperPhase = "Deleted"
 )
 
 // AppWrapperResource is the schema for the wrapped resources
