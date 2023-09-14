@@ -26,7 +26,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mcadv1beta1 "tardieu/mcad/api/v1beta1"
+	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
 // Refresh and cache cluster capacity available to mcad

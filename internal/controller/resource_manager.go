@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	mcadv1beta1 "tardieu/mcad/api/v1beta1"
+	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
 // Parse raw resource into client object

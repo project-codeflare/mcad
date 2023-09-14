@@ -1,4 +1,4 @@
-module tardieu/mcad
+module github.com/tardieu/mcad
 
 go 1.20
 

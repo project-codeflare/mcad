@@ -6,7 +6,7 @@ domain: codeflare.dev
 layout:
 - go.kubebuilder.io/v4
 projectName: mcad
-repo: tardieu/mcad
+repo: github.com/tardieu/mcad
 resources:
 - api:
     crdVersion: v1
@@ -15,6 +15,6 @@ resources:
   domain: codeflare.dev
   group: mcad
   kind: AppWrapper
-  path: tardieu/mcad/api/v1beta1
+  path: github.com/tardieu/mcad/api/v1beta1
   version: v1beta1
 version: "3"
