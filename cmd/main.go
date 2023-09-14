@@ -54,6 +54,7 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var mode string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -62,6 +63,7 @@ func main() {
 	opts := zap.Options{
 		Development: true,
 	}
+	flag.StringVar(&mode, "mode", "default", "One of default, dispatcher, runner.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -96,6 +98,7 @@ func main() {
 		Scheme: mgr.GetScheme(),
 		Events: make(chan event.GenericEvent, 1),             // channel to trigger dispatchNext
 		Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+		Mode:   mode,                                         // default, dispatcher, runner
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
 		os.Exit(1)

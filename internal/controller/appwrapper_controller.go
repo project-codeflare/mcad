@@ -46,6 +46,7 @@ type AppWrapperReconciler struct {
 	Cache           map[types.UID]*CachedAppWrapper // cache appWrapper updates to improve dispatch accuracy
 	ClusterCapacity Weights                         // cluster capacity available to mcad
 	NextSync        time.Time                       // when to refresh cluster capacity
+	Mode            string                          // default, dispatcher, runner
 }
 
 const (
@@ -80,6 +81,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// req == "*/*", find the next AppWrapper to dispatch and dispatch this AppWrapper
 	if req.Name == "*" {
+		if r.Mode == "runner" {
+			return ctrl.Result{}, nil
+		}
 		appWrapper, last, err := r.dispatchNext(ctx) // last == is last appWrapper in queue?
 		if err != nil {
 			return ctrl.Result{}, err
@@ -123,6 +127,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// first handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() && appWrapper.Status.Phase != mcadv1beta1.Deleted {
+		if r.Mode == "dispatcher" {
+			return ctrl.Result{}, nil
+		}
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			return ctrl.Result{Requeue: true}, nil // requeue reconciliation
@@ -136,6 +143,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	switch appWrapper.Status.Phase {
 	case mcadv1beta1.Deleted:
+		if r.Mode == "runner" {
+			return ctrl.Result{}, nil
+		}
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(appWrapper, finalizer) {
 			if err := r.Update(ctx, appWrapper); err != nil {
@@ -153,11 +163,17 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Queued:
+		if r.Mode == "runner" {
+			return ctrl.Result{}, nil
+		}
 		// this AppWrapper may not be the head of the queue, trigger dispatch in queue order
 		r.triggerDispatchNext()
 		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Requeuing:
+		if r.Mode == "dispatcher" {
+			return ctrl.Result{}, nil
+		}
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			if isSlowRequeuing(appWrapper) {
@@ -171,6 +187,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued)
 
 	case mcadv1beta1.Dispatching:
+		if r.Mode == "dispatcher" {
+			return ctrl.Result{}, nil
+		}
 		// dispatching is taking too long?
 		if isSlowDispatching(appWrapper) {
 			// set requeuing or failed status
@@ -190,6 +209,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running)
 
 	case mcadv1beta1.Running:
+		if r.Mode == "dispatcher" {
+			return ctrl.Result{}, nil
+		}
 		// check AppWrapper health
 		counts, err := r.monitorPods(ctx, appWrapper)
 		if err != nil {
@@ -206,6 +228,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{RequeueAfter: runDelay}, nil // check again soon
 
 	default: // empty phase
+		if r.Mode == "runner" {
+			return ctrl.Result{}, nil
+		}
 		// add finalizer
 		if controllerutil.AddFinalizer(appWrapper, finalizer) {
 			if err := r.Update(ctx, appWrapper); err != nil {
