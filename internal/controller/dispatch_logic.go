@@ -91,7 +91,7 @@ func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1beta1.A
 		return nil, false, err
 	}
 	if len(capacities.Items) == 0 {
-		return nil, false, nil // no cluster available
+		return nil, false, nil // TODO no cluster available
 	}
 	capacity := NewWeights(capacities.Items[0].Status.Capacity)
 	requests, queue, err := r.listAppWrappers(ctx)

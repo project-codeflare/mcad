@@ -42,7 +42,7 @@ type AppWrapperReconciler struct {
 	client.Client
 	Events chan event.GenericEvent
 	Scheme *runtime.Scheme
-	Cache  map[types.UID]*CachedAppWrapper // cache appWrapper updates to improve dispatch accuracy
+	Cache  map[types.UID]*CachedAppWrapper // cache appWrapper updates for write/read consistency
 	Mode   string                          // default, dispatcher, runner
 }
 
@@ -157,14 +157,10 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// nothing to reconcile
 		return ctrl.Result{}, nil
 
-	case mcadv1beta1.Succeeded:
+	case mcadv1beta1.Succeeded, mcadv1beta1.Queued:
 		if r.Mode == "runner" {
 			return ctrl.Result{}, nil
 		}
-		r.triggerDispatchNext()
-		return ctrl.Result{}, nil
-
-	case mcadv1beta1.Queued:
 		r.triggerDispatchNext()
 		return ctrl.Result{}, nil
 
@@ -255,11 +251,11 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		builder = builder.Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc))
 	}
 	if r.Mode != "runner" {
-		// watch r.Events channel, which we use to trigger dispatchNext
-		// watch for cluster capacity changes
+		// watch for cluster capacity changes and trigger dispatch event
+		// watch for dispatch event (on queued, deleted, succeeded states and cluster capacity changes)
 		builder = builder.
-			WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
-			Watches(&mcadv1beta1.ClusterCapacity{}, handler.EnqueueRequestsFromMapFunc(r.clusterCapacityMapFunc))
+			Watches(&mcadv1beta1.ClusterCapacity{}, handler.EnqueueRequestsFromMapFunc(r.clusterCapacityMapFunc)).
+			WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{})
 	}
 	return builder.Complete(r)
 }
