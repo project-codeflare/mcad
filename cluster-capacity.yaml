@@ -1,0 +1,5 @@
+apiVersion: mcad.codeflare.dev/v1beta1
+kind: ClusterCapacity
+metadata:
+  namespace: default
+  name: kind

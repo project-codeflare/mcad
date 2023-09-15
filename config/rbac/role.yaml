@@ -10,3 +10,29 @@ rules:
   - '*'
   verbs:
   - '*'
+- apiGroups:
+  - mcad.codeflare.dev
+  resources:
+  - clustercapacities
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - mcad.codeflare.dev
+  resources:
+  - clustercapacities/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - mcad.codeflare.dev
+  resources:
+  - clustercapacities/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -19,58 +19,12 @@ package controller
 import (
 	"context"
 	"sort"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
-
-// Refresh and cache cluster capacity available to mcad
-// Add allocatable capacity for every schedulable node
-// Subtract requests from non-AppWrapper non-terminated pods scheduled on these nodes
-func (r *AppWrapperReconciler) allocatableCapacity(ctx context.Context) (Weights, error) {
-	if !time.Now().After(r.NextSync) {
-		return r.ClusterCapacity, nil
-	}
-	capacity := Weights{}
-	// add allocatable capacity for each schedulable node
-	nodes := &v1.NodeList{}
-	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
-		return nil, err
-	}
-	for _, node := range nodes.Items {
-		// skip unschedulable nodes
-		if node.Spec.Unschedulable {
-			continue
-		}
-		// add allocatable capacity on the node
-		capacity.Add(NewWeights(node.Status.Allocatable))
-		// subtract requests from non-AppWrapper, non-terminated pods on this node
-		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
-		if err != nil {
-			return nil, err
-		}
-		pods := &v1.PodList{}
-		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
-			return nil, err
-		}
-		for _, pod := range pods.Items {
-			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-				for _, container := range pod.Spec.Containers {
-					capacity.Sub(NewWeights(container.Resources.Requests))
-				}
-			}
-		}
-	}
-	r.ClusterCapacity = capacity
-	r.NextSync = time.Now().Add(clusterCapacityTimeout)
-	return capacity, nil
-}
 
 // Compute resources reserved by AppWrappers at every priority level
 // Sort queued AppWrappers in dispatch order
@@ -81,7 +35,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 		return nil, nil, err
 	}
 	requests := map[int]Weights{}        // total request per priority level
-	queue := []*mcadv1beta1.AppWrapper{} // queued appwrappers
+	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 	for _, appWrapper := range appWrappers.Items {
 		// get phase from cache if available
 		phase := r.getCachedPhase(&appWrapper)
@@ -91,6 +45,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 		}
 		if isActivePhase(phase) {
 			// use max request among appWrapper request and total request of non-terminated appWrapper pods
+			// TODO pod metrics are not available in dispatcher mode
 			awRequest := aggregatedRequest(&appWrapper)
 			podRequest := Weights{}
 			pods := &v1.PodList{}
@@ -129,11 +84,16 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 }
 
 // Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
+// TODO handle more than one cluster
 func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1beta1.AppWrapper, bool, error) {
-	capacity, err := r.allocatableCapacity(ctx)
-	if err != nil {
+	capacities := &mcadv1beta1.ClusterCapacityList{}
+	if err := r.List(ctx, capacities, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, false, err
 	}
+	if len(capacities.Items) == 0 {
+		return nil, false, nil // no cluster available
+	}
+	capacity := NewWeights(capacities.Items[0].Status.Capacity)
 	requests, queue, err := r.listAppWrappers(ctx)
 	if err != nil {
 		return nil, false, err

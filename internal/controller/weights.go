@@ -19,6 +19,7 @@ package controller
 import (
 	"gopkg.in/inf.v0"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Weights represent a set of resource requests or available resources
@@ -93,4 +94,12 @@ func (w Weights) Fits(r Weights) bool {
 		}
 	}
 	return true
+}
+
+func (w Weights) Resources() v1.ResourceList {
+	resources := v1.ResourceList{}
+	for k, v := range w {
+		resources[k] = *resource.NewDecimalQuantity(*v, resource.DecimalSI)
+	}
+	return resources
 }

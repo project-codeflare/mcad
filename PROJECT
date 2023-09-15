@@ -17,4 +17,13 @@ resources:
   kind: AppWrapper
   path: github.com/tardieu/mcad/api/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: codeflare.dev
+  group: mcad
+  kind: ClusterCapacity
+  path: github.com/tardieu/mcad/api/v1beta1
+  version: v1beta1
 version: "3"

@@ -1,0 +1,12 @@
+apiVersion: mcad.codeflare.dev/v1beta1
+kind: ClusterCapacity
+metadata:
+  labels:
+    app.kubernetes.io/name: clustercapacity
+    app.kubernetes.io/instance: clustercapacity-sample
+    app.kubernetes.io/part-of: mcad
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: mcad
+  name: clustercapacity-sample
+spec:
+  # TODO(user): Add fields here

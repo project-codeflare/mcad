@@ -30,13 +30,14 @@ import (
 // for recent dispatching decisions. The cache is populated on phase updates.
 // The cache is only meant to be used for AppWrapper List calls when computing available resources.
 // We use the number of conditions to confirm our cached version is more recent than the reconciler cache.
-// We remove cache entries when removing finalizers. TODO: We should purge the cache from stale entries
-// periodically in case a finalizer is deleted  outside of our control.
+// We remove cache entries when removing finalizers.
 // When reconciling an AppWrapper, we proactively detect and abort on conflicts as
 // there is no point working on a stale AppWrapper. We know etcd updates will fail.
 // This conflict detection reduces the probability of an etcd update failure but does not eliminate it.
 // To defend against bugs in the cache implementation and egregious AppWrapper edits,
 // we eventually give up on persistent conflicts and remove the AppWrapper phase from the cache.
+
+// TODO garbage collection
 
 // Cached AppWrapper
 type CachedAppWrapper struct {

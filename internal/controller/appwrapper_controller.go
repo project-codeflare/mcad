@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,12 +40,10 @@ import (
 // AppWrapperReconciler reconciles an AppWrapper object
 type AppWrapperReconciler struct {
 	client.Client
-	Events          chan event.GenericEvent
-	Scheme          *runtime.Scheme
-	Cache           map[types.UID]*CachedAppWrapper // cache appWrapper updates to improve dispatch accuracy
-	ClusterCapacity Weights                         // cluster capacity available to mcad
-	NextSync        time.Time                       // when to refresh cluster capacity
-	Mode            string                          // default, dispatcher, runner
+	Events chan event.GenericEvent
+	Scheme *runtime.Scheme
+	Cache  map[types.UID]*CachedAppWrapper // cache appWrapper updates to improve dispatch accuracy
+	Mode   string                          // default, dispatcher, runner
 }
 
 const (
@@ -153,20 +150,21 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 		r.deleteCachedPhase(appWrapper) // remove appWrapper from cache
-		if isActivePhase(appWrapper.Status.Phase) {
-			r.triggerDispatchNext() // cluster may have more available capacity
-		}
+		r.triggerDispatchNext()         // cluster may have more available capacity
 		return ctrl.Result{}, nil
 
-	case mcadv1beta1.Succeeded, mcadv1beta1.Failed:
+	case mcadv1beta1.Failed:
 		// nothing to reconcile
 		return ctrl.Result{}, nil
 
-	case mcadv1beta1.Queued:
+	case mcadv1beta1.Succeeded:
 		if r.Mode == "runner" {
 			return ctrl.Result{}, nil
 		}
-		// this AppWrapper may not be the head of the queue, trigger dispatch in queue order
+		r.triggerDispatchNext()
+		return ctrl.Result{}, nil
+
+	case mcadv1beta1.Queued:
 		r.triggerDispatchNext()
 		return ctrl.Result{}, nil
 
@@ -251,13 +249,19 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
-	// watch AppWrapper pods in addition to AppWrappers so we can react to pod failures and other pod events
-	// watch r.Events channel, which we use to trigger dispatchNext
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&mcadv1beta1.AppWrapper{}).
-		WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
-		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
-		Complete(r)
+	builder := ctrl.NewControllerManagedBy(mgr).For(&mcadv1beta1.AppWrapper{})
+	if r.Mode != "dispatcher" {
+		// watch AppWrapper pods in addition to AppWrappers so we can react to pod failures and other pod events
+		builder = builder.Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc))
+	}
+	if r.Mode != "runner" {
+		// watch r.Events channel, which we use to trigger dispatchNext
+		// watch for cluster capacity changes
+		builder = builder.
+			WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
+			Watches(&mcadv1beta1.ClusterCapacity{}, handler.EnqueueRequestsFromMapFunc(r.clusterCapacityMapFunc))
+	}
+	return builder.Complete(r)
 }
 
 // Map labelled pods to corresponding AppWrappers
@@ -271,11 +275,16 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 	return nil
 }
 
+// Trigger dispatchNext on cluster capacity change
+func (r *AppWrapperReconciler) clusterCapacityMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
+	r.triggerDispatchNext()
+	return nil
+}
+
 // Update AppWrapper status
 func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	now := metav1.Now()
-	activeBefore := isActivePhase(appWrapper.Status.Phase)
 	if phase == mcadv1beta1.Dispatching {
 		now = appWrapper.Status.LastDispatchTime // ensure condition timestamp is consistent with status field
 	} else if phase == mcadv1beta1.Requeuing {
@@ -291,10 +300,6 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	log.Info(string(phase))
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
-	activeAfter := isActivePhase(phase)
-	if activeBefore && !activeAfter {
-		r.triggerDispatchNext() // cluster may have more available capacity
-	}
 	return ctrl.Result{}, nil
 }
 
