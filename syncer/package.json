@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@kubernetes/client-node": "^0.18.1"
+  },
+  "devDependencies": {
+    "standard": "^17.1.0"
+  }
+}
