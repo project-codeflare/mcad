@@ -131,9 +131,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			return ctrl.Result{Requeue: true}, nil // requeue reconciliation
 		}
-		if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Deleted); err != nil {
-			return ctrl.Result{}, err
-		}
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Deleted)
 	}
 
 	// handle all other phases including the default empty phase
