@@ -37,6 +37,9 @@ type AppWrapperSpec struct {
 
 	// Wrapped resources
 	Resources []AppWrapperResource `json:"resources"`
+
+	// Copy of AppWrapper status to enable down-sync
+	DispatcherStatus AppWrapperStatus `json:"dispatcherStatus,omitempty"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper

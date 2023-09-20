@@ -122,6 +122,16 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	// sync status
+	if len(appWrapper.Spec.DispatcherStatus.Conditions) > len(appWrapper.Status.Conditions) {
+		appWrapper.Status = appWrapper.Spec.DispatcherStatus
+		if err := r.Status().Update(ctx, appWrapper); err != nil {
+			return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
+		}
+		r.addCachedPhase(appWrapper)
+		return ctrl.Result{}, nil
+	}
+
 	// first handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() && appWrapper.Status.Phase != mcadv1beta1.Deleted {
 		if r.Mode == "dispatcher" {
@@ -288,7 +298,13 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	condition := mcadv1beta1.AppWrapperCondition{LastTransitionTime: now, Reason: string(phase)}
 	appWrapper.Status.Conditions = append(appWrapper.Status.Conditions, condition)
 	appWrapper.Status.Phase = phase
-	if err := r.Status().Update(ctx, appWrapper); err != nil {
+	if r.Mode == "dispatcher" {
+		// populate DispatcherStatus instead of Status when running in dispatcher mode
+		appWrapper.Spec.DispatcherStatus = appWrapper.Status
+		if err := r.Update(ctx, appWrapper); err != nil {
+			return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
+		}
+	} else if err := r.Status().Update(ctx, appWrapper); err != nil {
 		return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
 	}
 	log.Info(string(phase))

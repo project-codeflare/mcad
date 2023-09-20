@@ -64,7 +64,9 @@ func (r *AppWrapperReconciler) deleteCachedPhase(appWrapper *mcadv1beta1.AppWrap
 // Get AppWrapper phase from cache if available
 func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper) mcadv1beta1.AppWrapperPhase {
 	phase := appWrapper.Status.Phase
-	if cached, ok := r.Cache[appWrapper.UID]; ok && cached.Conditions > len(appWrapper.Status.Conditions) {
+	if cached, ok := r.Cache[appWrapper.UID]; ok &&
+		cached.Conditions > len(appWrapper.Status.Conditions) &&
+		cached.Conditions > len(appWrapper.Spec.DispatcherStatus.Conditions) {
 		phase = cached.Phase // use our cached phase if more current than reconciler cache
 	}
 	return phase
@@ -73,8 +75,18 @@ func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper
 // Check whether reconciler cache and our cache appear to be in sync
 func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapper) error {
 	if cached, ok := r.Cache[appWrapper.UID]; ok {
+		status := appWrapper.Status
+		if len(appWrapper.Spec.DispatcherStatus.Conditions) > len(status.Conditions) {
+			status = appWrapper.Spec.DispatcherStatus // dispatcher status is more up to date
+		}
 		// check number of conditions
-		if cached.Conditions > len(appWrapper.Status.Conditions) {
+		if cached.Conditions < len(status.Conditions) {
+			// our cache is behind, update the cache, this is ok
+			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, Conditions: len(status.Conditions)}
+			return nil
+
+		}
+		if cached.Conditions > len(status.Conditions) {
 			// reconciler cache appears to be behind
 			if cached.Conflict != nil {
 				if time.Now().After(cached.Conflict.Add(cacheConflictTimeout)) {
@@ -88,10 +100,10 @@ func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapp
 			}
 			return errors.New("stale reconciler cache") // force redo
 		}
-		if cached.Conditions < len(appWrapper.Status.Conditions) || cached.Phase != appWrapper.Status.Phase {
-			// something is wrong with our cache
+		if cached.Phase != appWrapper.Status.Phase {
+			// something is wrong with our cache, this should not be happening
 			delete(r.Cache, appWrapper.UID)
-			return errors.New("stale phase cache") // force redo
+			return errors.New("divergent phase cache") // force redo
 		}
 		// caches appear to be in sync
 		cached.Conflict = nil // clear conflict timestamp
