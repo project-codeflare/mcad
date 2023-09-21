@@ -29,7 +29,7 @@ import (
 // Therefore we need to maintain our own cache to make sure new dispatching decisions accurately account
 // for recent dispatching decisions. The cache is populated on phase updates.
 // The cache is only meant to be used for AppWrapper List calls when computing available resources.
-// We use the number of conditions to confirm our cached version is more recent than the reconciler cache.
+// We use the number of transitions to confirm our cached version is more recent than the reconciler cache.
 // We remove cache entries when removing finalizers.
 // When reconciling an AppWrapper, we proactively detect and abort on conflicts as
 // there is no point working on a stale AppWrapper. We know etcd updates will fail.
@@ -44,8 +44,8 @@ type CachedAppWrapper struct {
 	// AppWrapper phase
 	Phase mcadv1beta1.AppWrapperPhase
 
-	// Number of conditions
-	Conditions int
+	// Number of transitions
+	Transitions int
 
 	// First conflict detected between reconciler cache and our cache if not nil
 	Conflict *time.Time
@@ -53,7 +53,7 @@ type CachedAppWrapper struct {
 
 // Add AppWrapper to cache
 func (r *AppWrapperReconciler) addCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
-	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Conditions: len(appWrapper.Status.Conditions)}
+	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Transitions: len(appWrapper.Status.Transitions)}
 }
 
 // Remove AppWrapper from cache
@@ -65,8 +65,8 @@ func (r *AppWrapperReconciler) deleteCachedPhase(appWrapper *mcadv1beta1.AppWrap
 func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper) mcadv1beta1.AppWrapperPhase {
 	phase := appWrapper.Status.Phase
 	if cached, ok := r.Cache[appWrapper.UID]; ok &&
-		cached.Conditions > len(appWrapper.Status.Conditions) &&
-		cached.Conditions > len(appWrapper.Spec.DispatcherStatus.Conditions) {
+		cached.Transitions > len(appWrapper.Status.Transitions) &&
+		cached.Transitions > len(appWrapper.Spec.DispatcherStatus.Transitions) {
 		phase = cached.Phase // use our cached phase if more current than reconciler cache
 	}
 	return phase
@@ -76,17 +76,17 @@ func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper
 func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapper) error {
 	if cached, ok := r.Cache[appWrapper.UID]; ok {
 		status := appWrapper.Status
-		if len(appWrapper.Spec.DispatcherStatus.Conditions) > len(status.Conditions) {
+		if len(appWrapper.Spec.DispatcherStatus.Transitions) > len(status.Transitions) {
 			status = appWrapper.Spec.DispatcherStatus // dispatcher status is more up to date
 		}
-		// check number of conditions
-		if cached.Conditions < len(status.Conditions) {
+		// check number of transitions
+		if cached.Transitions < len(status.Transitions) {
 			// our cache is behind, update the cache, this is ok
-			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, Conditions: len(status.Conditions)}
+			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, Transitions: len(status.Transitions)}
 			return nil
 
 		}
-		if cached.Conditions > len(status.Conditions) {
+		if cached.Transitions > len(status.Transitions) {
 			// reconciler cache appears to be behind
 			if cached.Conflict != nil {
 				if time.Now().After(cached.Conflict.Add(cacheConflictTimeout)) {

@@ -114,7 +114,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// sync status
-	if len(appWrapper.Spec.DispatcherStatus.Conditions) > len(appWrapper.Status.Conditions) {
+	if len(appWrapper.Spec.DispatcherStatus.Transitions) > len(appWrapper.Status.Transitions) {
 		appWrapper.Status = appWrapper.Spec.DispatcherStatus
 		if err := r.Status().Update(ctx, appWrapper); err != nil {
 			return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
@@ -281,13 +281,13 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	log := log.FromContext(ctx)
 	now := metav1.Now()
 	if phase == mcadv1beta1.Dispatching {
-		now = appWrapper.Status.LastDispatchTime // ensure condition timestamp is consistent with status field
+		now = appWrapper.Status.LastDispatchTime // ensure transition time is consistent with status field
 	} else if phase == mcadv1beta1.Requeuing {
-		now = appWrapper.Status.LastRequeuingTime // ensure condition timestamp is consistent with status field
+		now = appWrapper.Status.LastRequeuingTime // ensure transition time is consistent with status field
 	}
-	// log transition as condition
-	condition := mcadv1beta1.AppWrapperCondition{LastTransitionTime: now, Reason: string(phase)}
-	appWrapper.Status.Conditions = append(appWrapper.Status.Conditions, condition)
+	// log transition
+	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase}
+	appWrapper.Status.Transitions = append(appWrapper.Status.Transitions, transition)
 	appWrapper.Status.Phase = phase
 	if r.Mode == "dispatcher" {
 		// populate DispatcherStatus instead of Status when running in dispatcher mode

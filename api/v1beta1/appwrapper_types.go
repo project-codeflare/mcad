@@ -38,7 +38,7 @@ type AppWrapperSpec struct {
 	// Wrapped resources
 	Resources []AppWrapperResource `json:"resources"`
 
-	// Copy of AppWrapper status to enable down-sync
+	// Dispatcher status
 	DispatcherStatus AppWrapperStatus `json:"dispatcherStatus,omitempty"`
 }
 
@@ -56,8 +56,8 @@ type AppWrapperStatus struct {
 	// How many times requeued
 	Requeued int32 `json:"requeued,omitempty"`
 
-	// Conditions
-	Conditions []AppWrapperCondition `json:"conditions,omitempty"`
+	// Transitions
+	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
 }
 
 // AppWrapperPhase is the label for the AppWrapper status
@@ -68,29 +68,29 @@ type AppWrapperPhase string
 // - object creation: empty "" phase
 // - object deletion: any phase with deletion timestamp set
 const (
-	// Queued: resource requests ARE NOT reserved
+	// Queued: resources ARE NOT reserved
 	// Decide to dispatch -> Dispatching
 	Queued AppWrapperPhase = "Queued"
 
-	// Dispatching: resource requests ARE reserved (resource creation in progress)
+	// Dispatching: resources ARE reserved (resource creation in progress)
 	// Create wrapped resources -> Running or Failed (parsing error) or Failed/Requeuing (timeout creating resources)
 	Dispatching AppWrapperPhase = "Dispatching"
 
-	// Running: resource requests ARE reserved
+	// Running: resources ARE reserved
 	// Monitor pods -> Succeeded or Failed/Requeuing (pod failed or min pod running/non-running pod timeout)
 	Running AppWrapperPhase = "Running"
 
-	// Succeeded: resource requests ARE NOT reserved
+	// Succeeded: resources ARE NOT reserved
 	Succeeded AppWrapperPhase = "Succeeded"
 
-	// Failed: resource requests ARE reserved (because failure can be partial and there is no cleanup)
+	// Failed: resources ARE reserved (because failure can be partial and there is no cleanup)
 	// Entered on:
 	// - parsing error (always)
 	// - Requeuing timeout deleting resources (always)
 	// - Dispatching/Running errors and timeouts (after max retries)
 	Failed AppWrapperPhase = "Failed"
 
-	// Requeuing: resource requests ARE reserved (wrapped resource deletion in progress)
+	// Requeuing: resources ARE reserved (resource deletion in progress)
 	// Try deleting resources -> Queued or Failed if timeout deleting resources
 	// Entered on Dispatching/Running errors and timeouts (before max retries)
 	Requeuing AppWrapperPhase = "Requeuing"
@@ -111,13 +111,13 @@ type AppWrapperResource struct {
 	Template runtime.RawExtension `json:"template"`
 }
 
-// AppWrapper condition
-type AppWrapperCondition struct {
+// AppWrapper transition
+type AppWrapperTransition struct {
 	// Timestamp
-	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+	Time metav1.Time `json:"time"`
 
-	// Condition
-	Reason string `json:"reason"`
+	// Phase
+	Phase AppWrapperPhase `json:"phase"`
 }
 
 //+kubebuilder:object:root=true
