@@ -21,12 +21,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ClusterCapacitySpec defines the desired state of ClusterCapacity
-type ClusterCapacitySpec struct {
+// ClusterInfoSpec defines the desired state of ClusterInfo
+type ClusterInfoSpec struct {
 }
 
-// ClusterCapacityStatus defines the observed state of ClusterCapacity
-type ClusterCapacityStatus struct {
+// ClusterInfoStatus defines the observed state of ClusterInfo
+type ClusterInfoStatus struct {
 	// Capacity available on the cluster
 	Capacity v1.ResourceList `json:"capacity"`
 }
@@ -34,24 +34,24 @@ type ClusterCapacityStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// ClusterCapacity is the Schema for the clustercapacities API
-type ClusterCapacity struct {
+// ClusterInfo is the Schema for the clusterinfoes API
+type ClusterInfo struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterCapacitySpec   `json:"spec,omitempty"`
-	Status ClusterCapacityStatus `json:"status,omitempty"`
+	Spec   ClusterInfoSpec   `json:"spec,omitempty"`
+	Status ClusterInfoStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ClusterCapacityList contains a list of ClusterCapacity
-type ClusterCapacityList struct {
+// ClusterInfoList contains a list of ClusterInfo
+type ClusterInfoList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterCapacity `json:"items"`
+	Items           []ClusterInfo `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterCapacity{}, &ClusterCapacityList{})
+	SchemeBuilder.Register(&ClusterInfo{}, &ClusterInfoList{})
 }

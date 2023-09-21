@@ -24,11 +24,11 @@ import (
 
 const (
 	// Timeouts
-	requeuingTimeout       = 2 * time.Minute // minimum wait before aborting Requeuing
-	dispatchingTimeout     = 2 * time.Minute // minimum wait before aborting Dispatching
-	runningTimeout         = 5 * time.Minute // minimum wait before aborting Running
-	cacheConflictTimeout   = 5 * time.Minute // minimum wait before invalidating the cache
-	clusterCapacityTimeout = time.Minute     // how long to cache cluster capacity
+	requeuingTimeout     = 2 * time.Minute // minimum wait before aborting Requeuing
+	dispatchingTimeout   = 2 * time.Minute // minimum wait before aborting Dispatching
+	runningTimeout       = 5 * time.Minute // minimum wait before aborting Running
+	cacheConflictTimeout = 5 * time.Minute // minimum wait before invalidating the cache
+	clusterInfoTimeout   = time.Minute     // how long to cache cluster capacity
 
 	// Cluster capacity is only refreshed when trying to dispatch AppWrappers and only after
 	// the previous measurement has timed out, so it is necessary to call dispatchNext on

@@ -262,7 +262,7 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// watch for cluster capacity changes and trigger dispatch event
 		// watch for dispatch event (on queued, deleted, succeeded states and cluster capacity changes)
 		builder = builder.
-			Watches(&mcadv1beta1.ClusterCapacity{}, handler.EnqueueRequestsFromMapFunc(r.clusterCapacityMapFunc)).
+			Watches(&mcadv1beta1.ClusterInfo{}, handler.EnqueueRequestsFromMapFunc(r.clusterInfoMapFunc)).
 			WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{})
 	}
 	return builder.Complete(r)
@@ -280,7 +280,7 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 }
 
 // Trigger dispatchNext on cluster capacity change
-func (r *AppWrapperReconciler) clusterCapacityMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *AppWrapperReconciler) clusterInfoMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	r.triggerDispatchNext()
 	return nil
 }

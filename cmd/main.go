@@ -112,12 +112,12 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
 		os.Exit(1)
 	}
-	if err = (&controller.ClusterCapacityReconciler{
+	if err = (&controller.ClusterInfoReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Mode:   mode, // default, dispatcher, runner
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterCapacity")
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterInfo")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

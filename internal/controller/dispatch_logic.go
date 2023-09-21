@@ -86,7 +86,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 // Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
 // TODO handle more than one cluster
 func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1beta1.AppWrapper, bool, error) {
-	capacities := &mcadv1beta1.ClusterCapacityList{}
+	capacities := &mcadv1beta1.ClusterInfoList{}
 	if err := r.List(ctx, capacities, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, false, err
 	}

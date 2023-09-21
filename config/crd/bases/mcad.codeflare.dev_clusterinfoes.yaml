@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: clustercapacities.mcad.codeflare.dev
+  name: clusterinfoes.mcad.codeflare.dev
 spec:
   group: mcad.codeflare.dev
   names:
-    kind: ClusterCapacity
-    listKind: ClusterCapacityList
-    plural: clustercapacities
-    singular: clustercapacity
+    kind: ClusterInfo
+    listKind: ClusterInfoList
+    plural: clusterinfoes
+    singular: clusterinfo
   scope: Namespaced
   versions:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: ClusterCapacity is the Schema for the clustercapacities API
+        description: ClusterInfo is the Schema for the clusterinfoes API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -32,10 +32,10 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterCapacitySpec defines the desired state of ClusterCapacity
+            description: ClusterInfoSpec defines the desired state of ClusterInfo
             type: object
           status:
-            description: ClusterCapacityStatus defines the observed state of ClusterCapacity
+            description: ClusterInfoStatus defines the observed state of ClusterInfo
             properties:
               capacity:
                 additionalProperties:

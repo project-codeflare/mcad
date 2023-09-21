@@ -13,7 +13,7 @@ rules:
 - apiGroups:
   - mcad.codeflare.dev
   resources:
-  - clustercapacities
+  - clusterinfoes
   verbs:
   - create
   - delete
@@ -25,13 +25,13 @@ rules:
 - apiGroups:
   - mcad.codeflare.dev
   resources:
-  - clustercapacities/finalizers
+  - clusterinfoes/finalizers
   verbs:
   - update
 - apiGroups:
   - mcad.codeflare.dev
   resources:
-  - clustercapacities/status
+  - clusterinfoes/status
   verbs:
   - get
   - patch

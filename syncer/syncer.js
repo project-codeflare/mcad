@@ -59,25 +59,25 @@ class Client {
     return res.body
   }
 
-  async getClusterCapacity () {
+  async getClusterInfo () {
     const res = await this.client.getNamespacedCustomObject(
       'mcad.codeflare.dev',
       'v1beta1',
       'default',
-      'clustercapacities',
+      'clusterinfoes',
       'kind'
     )
     return res.body
   }
 
-  async updateClusterCapacityStatus (capacity) {
+  async updateClusterInfoStatus (info) {
     const res = await this.client.replaceNamespacedCustomObjectStatus(
       'mcad.codeflare.dev',
       'v1beta1',
       'default',
-      'clustercapacities',
-      capacity.metadata.name,
-      capacity
+      'clusterinfoes',
+      info.metadata.name,
+      info
     )
     return res.body
   }
@@ -87,11 +87,11 @@ const hub = new Client('kind-hub')
 const spoke = new Client('kind-spoke')
 
 async function sync () {
-  // upsync cluster capacity
-  const hubCapacity = await hub.getClusterCapacity()
-  const spokeCapacity = await spoke.getClusterCapacity()
-  hubCapacity.status = spokeCapacity.status
-  await hub.updateClusterCapacityStatus(hubCapacity)
+  // upsync cluster info
+  const hubInfo = await hub.getClusterInfo()
+  const spokeInfo = await spoke.getClusterInfo()
+  hubInfo.status = spokeInfo.status
+  await hub.updateClusterInfoStatus(hubInfo)
 
   // sync appwrappers
   const hubAWs = await hub.listAppWrappers()

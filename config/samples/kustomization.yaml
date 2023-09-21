@@ -1,5 +1,5 @@
 ## Append samples of your project ##
 resources:
 - mcad_v1beta1_appwrapper.yaml
-- mcad_v1beta1_clustercapacity.yaml
+- mcad_v1beta1_clusterinfo.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

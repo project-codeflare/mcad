@@ -30,27 +30,27 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
-// ClusterCapacityReconciler reconciles a ClusterCapacity object
-type ClusterCapacityReconciler struct {
+// ClusterInfoReconciler reconciles a ClusterInfo object
+type ClusterInfoReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	NextSync time.Time // when to refresh cluster capacity
 	Mode     string    // default, dispatcher, runner
 }
 
-//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clustercapacities,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clustercapacities/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clustercapacities/finalizers,verbs=update
+//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clusterinfoes,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clusterinfoes/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clusterinfoes/finalizers,verbs=update
 
-func (r *ClusterCapacityReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO check ClusterCapacity id matches cluster id
+	// TODO check ClusterInfo id matches cluster id
 
 	if !time.Now().After(r.NextSync) {
 		return ctrl.Result{Requeue: true}, nil
 	}
-	cc := &mcadv1beta1.ClusterCapacity{}
+	cc := &mcadv1beta1.ClusterInfo{}
 	if err := r.Get(ctx, req.NamespacedName, cc); err != nil {
 		panic(err)
 	}
@@ -89,16 +89,16 @@ func (r *ClusterCapacityReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if err := r.Status().Update(ctx, cc); err != nil {
 		return ctrl.Result{}, err
 	}
-	r.NextSync = time.Now().Add(clusterCapacityTimeout)
-	return ctrl.Result{RequeueAfter: clusterCapacityTimeout}, nil
+	r.NextSync = time.Now().Add(clusterInfoTimeout)
+	return ctrl.Result{RequeueAfter: clusterInfoTimeout}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ClusterCapacityReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClusterInfoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.Mode == "dispatcher" {
 		return nil
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&mcadv1beta1.ClusterCapacity{}).
+		For(&mcadv1beta1.ClusterInfo{}).
 		Complete(r)
 }
