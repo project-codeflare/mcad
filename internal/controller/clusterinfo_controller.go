@@ -35,7 +35,6 @@ type ClusterInfoReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	NextSync time.Time // when to refresh cluster capacity
-	Mode     string    // default, dispatcher, runner
 }
 
 //+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clusterinfoes,verbs=get;list;watch;create;update;patch;delete
@@ -95,9 +94,6 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterInfoReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if r.Mode == "dispatcher" {
-		return nil
-	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1beta1.ClusterInfo{}).
 		Complete(r)

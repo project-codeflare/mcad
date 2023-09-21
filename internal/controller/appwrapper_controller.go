@@ -58,51 +58,21 @@ const (
 // Reconcile one AppWrapper or dispatch next AppWrapper
 // Normal reconciliations "namespace/name" implement all phase transitions except for Queued->Dispatching
 // Queued->Dispatching transitions happen as part of a special "*/*" reconciliation
-// In a "*/*" reconciliation, we first decide the AppWrapper to dispatch (dispatchNext)
-// We then dispatch this AppWrapper (Queued->Dispatching transition)
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	// log.Info("Reconcile")
 
-	// handle dispatching first
-
-	// req == "*/*", find the next AppWrapper to dispatch and dispatch this AppWrapper
-	if req.Name == "*" {
+	// req == "*/*", attempt to select and dispatch one appWrapper
+	if req.Namespace == "*" && req.Name == "*" {
 		if r.Mode == "runner" {
 			return ctrl.Result{}, nil
 		}
-		appWrapper, last, err := r.selectForDispatch(ctx) // last == is last appWrapper in queue?
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if appWrapper == nil { // no appWrapper eligible for dispatch
-			return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
-		}
-		// abort and requeue reconciliation if reconciler cache is stale
-		if err := r.checkCachedPhase(appWrapper); err != nil {
-			return ctrl.Result{}, err
-		}
-		if appWrapper.Status.Phase != mcadv1beta1.Queued {
-			// this check should be redundant but better be defensive
-			return ctrl.Result{}, errors.New("not queued")
-		}
-		// set dispatching timestamp and status
-		appWrapper.Status.LastDispatchTime = metav1.Now()
-		if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
-			return ctrl.Result{}, err
-		}
-		if last {
-			return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
-		}
-		return ctrl.Result{Requeue: true}, nil // requeue to continue to dispatch queued appWrappers
+		return r.dispatch(ctx)
 	}
 
-	// normal reconciliation starts here
-
-	appWrapper := &mcadv1beta1.AppWrapper{}
-
 	// get deep copy of AppWrapper object in reconciler cache
+	appWrapper := &mcadv1beta1.AppWrapper{}
 	if err := r.Get(ctx, req.NamespacedName, appWrapper); err != nil {
 		// no such AppWrapper, nothing to reconcile, not an error
 		return ctrl.Result{}, nil
@@ -113,7 +83,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	// sync status
+	// overwrite status with dispatcher status if more recent
 	if len(appWrapper.Spec.DispatcherStatus.Transitions) > len(appWrapper.Status.Transitions) {
 		appWrapper.Status = appWrapper.Spec.DispatcherStatus
 		if err := r.Status().Update(ctx, appWrapper); err != nil {
@@ -123,7 +93,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	// first handle deletion
+	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() && appWrapper.Status.Phase != mcadv1beta1.Deleted {
 		if r.Mode == "dispatcher" {
 			return ctrl.Result{}, nil
@@ -136,7 +106,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// handle all other phases including the default empty phase
-
 	switch appWrapper.Status.Phase {
 	case mcadv1beta1.Deleted:
 		if r.Mode == "runner" {
@@ -270,7 +239,7 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 	return nil
 }
 
-// Trigger dispatchNext on cluster capacity change
+// Trigger dispatch on cluster capacity change
 func (r *AppWrapperReconciler) clusterInfoMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	r.triggerDispatch()
 	return nil
@@ -320,4 +289,32 @@ func (r *AppWrapperReconciler) triggerDispatch() {
 	case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Namespace: "*", Name: "*"}}}:
 	default:
 	}
+}
+
+// Attempt to select and dispatch one appWrapper
+func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error) {
+	appWrapper, last, err := r.selectForDispatch(ctx) // last == is last appWrapper in queue?
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if appWrapper == nil { // no appWrapper eligible for dispatch
+		return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
+	}
+	// abort and requeue reconciliation if reconciler cache is stale
+	if err := r.checkCachedPhase(appWrapper); err != nil {
+		return ctrl.Result{}, err
+	}
+	if appWrapper.Status.Phase != mcadv1beta1.Queued {
+		// this check should be redundant but better be defensive
+		return ctrl.Result{}, errors.New("not queued")
+	}
+	// set dispatching timestamp and status
+	appWrapper.Status.LastDispatchTime = metav1.Now()
+	if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
+		return ctrl.Result{}, err
+	}
+	if last {
+		return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
+	}
+	return ctrl.Result{Requeue: true}, nil // requeue to continue to dispatch queued appWrappers
 }

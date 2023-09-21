@@ -30,13 +30,9 @@ const (
 	cacheConflictTimeout = 5 * time.Minute // minimum wait before invalidating the cache
 	clusterInfoTimeout   = time.Minute     // how long to cache cluster capacity
 
-	// Cluster capacity is only refreshed when trying to dispatch AppWrappers and only after
-	// the previous measurement has timed out, so it is necessary to call dispatchNext on
-	// a regular basis (we do) to ensure we detect new capacity (such as new schedulable nodes)
-
 	// RequeueAfter delays
 	runDelay      = time.Minute // maximum delay before next reconciliation of a Running AppWrapper
-	dispatchDelay = time.Minute // maximum delay before next "*/*" reconciliation (dispatchNext)
+	dispatchDelay = time.Minute // maximum delay before next "*/*" reconciliation (dispatch)
 
 	// The RequeueAfter delay is the maximum delay before the next reconciliation event.
 	// Reconciliation may be triggered earlier due for instance to pod phase changes.
