@@ -30,8 +30,16 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
+// PodCounts summarize the status of the pods associated with one AppWrapper
+type PodCounts struct {
+	Failed    int
+	Other     int
+	Running   int
+	Succeeded int
+}
+
 // Parse raw resource into client object
-func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (client.Object, error) {
+func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (client.Object, error) {
 	obj := &unstructured.Unstructured{}
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
@@ -40,10 +48,10 @@ func (r *AppWrapperReconciler) parseResource(appWrapper *mcadv1beta1.AppWrapper,
 }
 
 // Parse raw resources
-func (r *AppWrapperReconciler) parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error) {
+func parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error) {
 	objects := make([]client.Object, len(appWrapper.Spec.Resources))
 	for i, resource := range appWrapper.Spec.Resources {
-		obj, err := r.parseResource(appWrapper, resource.Template.Raw)
+		obj, err := parseResource(appWrapper, resource.Template.Raw)
 		if err != nil {
 			return nil, err
 		}
@@ -69,7 +77,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 	log := log.FromContext(ctx)
 	count := 0
 	for _, resource := range appWrapper.Spec.Resources {
-		obj, err := r.parseResource(appWrapper, resource.Template.Raw)
+		obj, err := parseResource(appWrapper, resource.Template.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during deletion")
 			continue // ignore parsing errors, there no way we created this resource anyway
@@ -86,8 +94,8 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 	return count
 }
 
-// Monitor AppWrapper pods
-func (r *AppWrapperReconciler) monitorPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
+// Count AppWrapper pods
+func (r *AppWrapperReconciler) countPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,

@@ -24,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -54,14 +53,6 @@ const (
 	specNodeName   = ".spec.nodeName"               // key to index pods based on node placement
 )
 
-// PodCounts summarize the status of the pods associated with one AppWrapper
-type PodCounts struct {
-	Failed    int
-	Other     int
-	Running   int
-	Succeeded int
-}
-
 //+kubebuilder:rbac:groups=*,resources=*,verbs=*
 
 // Reconcile one AppWrapper or dispatch next AppWrapper
@@ -81,7 +72,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if r.Mode == "runner" {
 			return ctrl.Result{}, nil
 		}
-		appWrapper, last, err := r.dispatchNext(ctx) // last == is last appWrapper in queue?
+		appWrapper, last, err := r.selectForDispatch(ctx) // last == is last appWrapper in queue?
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -158,7 +149,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 		r.deleteCachedPhase(appWrapper) // remove appWrapper from cache
-		r.triggerDispatchNext()         // cluster may have more available capacity
+		r.triggerDispatch()             // cluster may have more available capacity
 		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Failed:
@@ -169,7 +160,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if r.Mode == "runner" {
 			return ctrl.Result{}, nil
 		}
-		r.triggerDispatchNext()
+		r.triggerDispatch()
 		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Requeuing:
@@ -198,7 +189,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return r.requeueOrFail(ctx, appWrapper)
 		}
 		// create wrapped resources
-		objects, err := r.parseResources(appWrapper)
+		objects, err := parseResources(appWrapper)
 		if err != nil {
 			log.Error(err, "Resource parsing error during creation")
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
@@ -215,7 +206,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, nil
 		}
 		// check AppWrapper health
-		counts, err := r.monitorPods(ctx, appWrapper)
+		counts, err := r.countPods(ctx, appWrapper)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -281,7 +272,7 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 
 // Trigger dispatchNext on cluster capacity change
 func (r *AppWrapperReconciler) clusterInfoMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
-	r.triggerDispatchNext()
+	r.triggerDispatch()
 	return nil
 }
 
@@ -324,7 +315,7 @@ func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mc
 }
 
 // Trigger dispatch
-func (r *AppWrapperReconciler) triggerDispatchNext() {
+func (r *AppWrapperReconciler) triggerDispatch() {
 	select {
 	case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Namespace: "*", Name: "*"}}}:
 	default:

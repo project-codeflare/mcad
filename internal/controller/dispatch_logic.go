@@ -46,7 +46,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 		if isActivePhase(phase) {
 			// use max request among appWrapper request and total request of non-terminated appWrapper pods
 			// TODO pod metrics are not available in dispatcher mode
-			awRequest := aggregatedRequest(&appWrapper)
+			awRequest := aggregateRequests(&appWrapper)
 			podRequest := Weights{}
 			pods := &v1.PodList{}
 			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
@@ -69,7 +69,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 		}
 	}
 	// propagate reservations at all priority levels to all levels below
-	accumulate(requests)
+	assertPriorities(requests)
 	// order AppWrapper queue based on priority and creation time
 	sort.Slice(queue, func(i, j int) bool {
 		if queue[i].Spec.Priority > queue[j].Spec.Priority {
@@ -85,15 +85,15 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 
 // Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
 // TODO handle more than one cluster
-func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1beta1.AppWrapper, bool, error) {
-	capacities := &mcadv1beta1.ClusterInfoList{}
-	if err := r.List(ctx, capacities, client.UnsafeDisableDeepCopy); err != nil {
+func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, bool, error) {
+	clusters := &mcadv1beta1.ClusterInfoList{}
+	if err := r.List(ctx, clusters, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, false, err
 	}
-	if len(capacities.Items) == 0 {
+	if len(clusters.Items) == 0 {
 		return nil, false, nil // TODO no cluster available
 	}
-	capacity := NewWeights(capacities.Items[0].Status.Capacity)
+	capacity := NewWeights(clusters.Items[0].Status.Capacity)
 	requests, queue, err := r.listAppWrappers(ctx)
 	if err != nil {
 		return nil, false, err
@@ -105,7 +105,7 @@ func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1beta1.A
 		available[priority].Sub(request)
 	}
 	for i, appWrapper := range queue {
-		request := aggregatedRequest(appWrapper)
+		request := aggregateRequests(appWrapper)
 		if request.Fits(available[int(appWrapper.Spec.Priority)]) {
 			return appWrapper.DeepCopy(), i == len(queue)-1, nil // deep copy appWrapper
 		}
@@ -114,7 +114,7 @@ func (r *AppWrapperReconciler) dispatchNext(ctx context.Context) (*mcadv1beta1.A
 }
 
 // Aggregated request by AppWrapper
-func aggregatedRequest(appWrapper *mcadv1beta1.AppWrapper) Weights {
+func aggregateRequests(appWrapper *mcadv1beta1.AppWrapper) Weights {
 	request := Weights{}
 	for _, r := range appWrapper.Spec.Resources {
 		request.AddProd(r.Replicas, NewWeights(r.Requests))
@@ -123,7 +123,7 @@ func aggregatedRequest(appWrapper *mcadv1beta1.AppWrapper) Weights {
 }
 
 // Propagate reservations at all priority levels to all levels below
-func accumulate(w map[int]Weights) {
+func assertPriorities(w map[int]Weights) {
 	keys := make([]int, len(w))
 	i := 0
 	for k := range w {

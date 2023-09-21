@@ -97,7 +97,7 @@ func (w Weights) Fits(r Weights) bool {
 }
 
 // Converts Weights to a ResourceList
-func (w Weights) Resources() v1.ResourceList {
+func (w Weights) AsResources() v1.ResourceList {
 	resources := v1.ResourceList{}
 	for k, v := range w {
 		resources[k] = *resource.NewDecimalQuantity(*v, resource.DecimalSI)

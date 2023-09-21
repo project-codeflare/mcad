@@ -50,8 +50,8 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if !time.Now().After(r.NextSync) {
 		return ctrl.Result{Requeue: true}, nil
 	}
-	cc := &mcadv1beta1.ClusterInfo{}
-	if err := r.Get(ctx, req.NamespacedName, cc); err != nil {
+	cluster := &mcadv1beta1.ClusterInfo{}
+	if err := r.Get(ctx, req.NamespacedName, cluster); err != nil {
 		panic(err)
 	}
 	capacity := Weights{}
@@ -85,8 +85,8 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 		}
 	}
-	cc.Status.Capacity = capacity.Resources()
-	if err := r.Status().Update(ctx, cc); err != nil {
+	cluster.Status.Capacity = capacity.AsResources()
+	if err := r.Status().Update(ctx, cluster); err != nil {
 		return ctrl.Result{}, err
 	}
 	r.NextSync = time.Now().Add(clusterInfoTimeout)
