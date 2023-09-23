@@ -64,8 +64,8 @@ class Client {
       'mcad.codeflare.dev',
       'v1beta1',
       'default',
-      'clusterinfoes',
-      'kind'
+      'clusterinfo',
+      'self'
     )
     return res.body
   }
@@ -75,7 +75,7 @@ class Client {
       'mcad.codeflare.dev',
       'v1beta1',
       'default',
-      'clusterinfoes',
+      'clusterinfo',
       info.metadata.name,
       info
     )

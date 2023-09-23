@@ -1,4 +1,4 @@
-# permissions for end users to view clusterinfoes.
+# permissions for end users to view clusterinfo.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -14,7 +14,7 @@ rules:
 - apiGroups:
   - mcad.codeflare.dev
   resources:
-  - clusterinfoes
+  - clusterinfo
   verbs:
   - get
   - list
@@ -22,6 +22,6 @@ rules:
 - apiGroups:
   - mcad.codeflare.dev
   resources:
-  - clusterinfoes/status
+  - clusterinfo/status
   verbs:
   - get

@@ -36,8 +36,9 @@ type ClusterInfoStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:path=clusterinfo
 
-// ClusterInfo is the Schema for the clusterinfoes API
+// ClusterInfo is the Schema for the clusterinfo API
 type ClusterInfo struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

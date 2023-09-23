@@ -25,5 +25,6 @@ resources:
   group: mcad
   kind: ClusterInfo
   path: github.com/tardieu/mcad/api/v1beta1
+  plural: clusterinfo
   version: v1beta1
 version: "3"
