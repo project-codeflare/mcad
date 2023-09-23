@@ -28,7 +28,7 @@ type ClusterInfoSpec struct {
 // ClusterInfoStatus defines the observed state of ClusterInfo
 type ClusterInfoStatus struct {
 	// Capacity available on the cluster
-	Capacity v1.ResourceList `json:"capacity"`
+	Capacity v1.ResourceList `json:"capacity,omitempty"`
 }
 
 //+kubebuilder:object:root=true
