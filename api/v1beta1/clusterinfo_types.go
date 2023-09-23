@@ -29,6 +29,9 @@ type ClusterInfoSpec struct {
 type ClusterInfoStatus struct {
 	// Capacity available on the cluster
 	Capacity v1.ResourceList `json:"capacity,omitempty"`
+
+	// When last updated
+	Time metav1.Time `json:"time,omitempty"`
 }
 
 //+kubebuilder:object:root=true

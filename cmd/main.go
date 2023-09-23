@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -56,6 +57,8 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var mode string
+	var namespace string
+	var name string
 	var context string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -66,6 +69,8 @@ func main() {
 		Development: true,
 	}
 	flag.StringVar(&mode, "mode", "default", "One of default, dispatcher, runner.")
+	flag.StringVar(&namespace, "clusterinfo-namespace", "default", "The namespace of the ClusterInfo object.")
+	flag.StringVar(&name, "clusterinfo-name", "self", "The name of the ClusterInfo object.")
 	flag.StringVar(&context, "kube-context", "", "The Kubernetes context.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -114,9 +119,15 @@ func main() {
 	}
 
 	if mode != "dispatcher" {
+		if msgs := validation.IsQualifiedName(namespace + "/" + name); len(msgs) > 0 {
+			setupLog.Error(err, "invalid ClusterInfo namespace/name", "controller", "ClusterInfo")
+			os.Exit(1)
+		}
 		if err = (&controller.ClusterInfoReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:    mgr.GetClient(),
+			Scheme:    mgr.GetScheme(),
+			Namespace: namespace,
+			Name:      name,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterInfo")
 			os.Exit(1)

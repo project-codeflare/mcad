@@ -21,6 +21,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,31 +34,60 @@ import (
 // ClusterInfoReconciler reconciles a ClusterInfo object
 type ClusterInfoReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	NextSync time.Time // when to refresh cluster capacity
+	Scheme    *runtime.Scheme
+	Namespace string
+	Name      string
 }
 
-//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clusterinfoes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clusterinfoes/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=mcad.codeflare.dev,resources=clusterinfoes/finalizers,verbs=update
-
+// Reconcile ClusterInfo object
 func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO check ClusterInfo id matches cluster id
+	// only reconcile cluster info for this cluster
+	if req.Namespace != r.Namespace || req.Name != r.Name {
+		return ctrl.Result{}, nil
+	}
+	// get cluster info if it already exists
+	clusterInfo := &mcadv1beta1.ClusterInfo{ObjectMeta: metav1.ObjectMeta{Namespace: r.Namespace, Name: r.Name}}
+	update := false
+	if err := r.Client.Get(ctx, req.NamespacedName, clusterInfo); err == nil {
+		// do not update if too early
+		now := time.Now()
+		expiration := clusterInfo.Status.Time.Add(clusterInfoTimeout)
+		if expiration.After(now) {
+			// requeue to update after timeout
+			return ctrl.Result{RequeueAfter: expiration.Sub(now)}, nil
+		}
+		update = true // cluster info already exists
+	}
+	// compute available capacity
+	capacity, err := r.computeCapacity(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	clusterInfo.Status.Capacity = capacity
+	clusterInfo.Status.Time = metav1.Now()
+	if update {
+		// update status of existing cluster info object
+		if err := r.Status().Update(ctx, clusterInfo); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else {
+		// create new cluster info object
+		if err := r.Create(ctx, clusterInfo); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	return ctrl.Result{RequeueAfter: clusterInfoTimeout}, nil
+}
 
-	if !time.Now().After(r.NextSync) {
-		return ctrl.Result{Requeue: true}, nil
-	}
-	cluster := &mcadv1beta1.ClusterInfo{}
-	if err := r.Get(ctx, req.NamespacedName, cluster); err != nil {
-		panic(err)
-	}
+// Compute available cluster capacity
+func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.ResourceList, error) {
 	capacity := Weights{}
 	// add allocatable capacity for each schedulable node
 	nodes := &v1.NodeList{}
 	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
-		return ctrl.Result{}, err
+		return nil, err
 	}
 	for _, node := range nodes.Items {
 		// skip unschedulable nodes
@@ -69,12 +99,12 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		// subtract requests from non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
-			return ctrl.Result{}, err
+			return nil, err
 		}
 		pods := &v1.PodList{}
 		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
-			return ctrl.Result{}, err
+			return nil, err
 		}
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
@@ -84,12 +114,7 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 		}
 	}
-	cluster.Status.Capacity = capacity.AsResources()
-	if err := r.Status().Update(ctx, cluster); err != nil {
-		return ctrl.Result{}, err
-	}
-	r.NextSync = time.Now().Add(clusterInfoTimeout)
-	return ctrl.Result{RequeueAfter: clusterInfoTimeout}, nil
+	return capacity.AsResources(), nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -46,8 +46,10 @@ spec:
                   x-kubernetes-int-or-string: true
                 description: Capacity available on the cluster
                 type: object
-            required:
-            - capacity
+              time:
+                description: When last updated
+                format: date-time
+                type: string
             type: object
         type: object
     served: true
