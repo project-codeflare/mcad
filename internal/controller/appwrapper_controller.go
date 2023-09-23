@@ -293,7 +293,7 @@ func (r *AppWrapperReconciler) triggerDispatch() {
 
 // Attempt to select and dispatch one appWrapper
 func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error) {
-	appWrapper, last, err := r.selectForDispatch(ctx) // last == is last appWrapper in queue?
+	appWrapper, err := r.selectForDispatch(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -312,9 +312,6 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 	appWrapper.Status.LastDispatchTime = metav1.Now()
 	if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
 		return ctrl.Result{}, err
-	}
-	if last {
-		return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
 	}
 	return ctrl.Result{Requeue: true}, nil // requeue to continue to dispatch queued appWrappers
 }

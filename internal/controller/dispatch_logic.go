@@ -20,7 +20,6 @@ import (
 	"context"
 	"sort"
 
-	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
@@ -44,24 +43,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			requests[int(appWrapper.Spec.Priority)] = Weights{}
 		}
 		if isActivePhase(phase) {
-			// use max request among appWrapper request and total request of non-terminated appWrapper pods
-			// TODO pod metrics are not available in dispatcher mode
 			awRequest := aggregateRequests(&appWrapper)
-			podRequest := Weights{}
-			pods := &v1.PodList{}
-			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-				client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
-				return nil, nil, err
-			}
-			for _, pod := range pods.Items {
-				if pod.Spec.NodeName != "" && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-					for _, container := range pod.Spec.Containers {
-						podRequest.Add(NewWeights(container.Resources.Requests))
-					}
-				}
-			}
-			// compute max
-			awRequest.Max(podRequest)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
 		} else if phase == mcadv1beta1.Queued {
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
@@ -85,18 +67,18 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 
 // Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
 // TODO handle more than one cluster
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, bool, error) {
+func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
 	clusters := &mcadv1beta1.ClusterInfoList{}
 	if err := r.List(ctx, clusters, client.UnsafeDisableDeepCopy); err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if len(clusters.Items) == 0 {
-		return nil, false, nil // TODO no cluster available
+		return nil, nil // TODO no cluster available
 	}
 	capacity := NewWeights(clusters.Items[0].Status.Capacity)
 	requests, queue, err := r.listAppWrappers(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	available := map[int]Weights{}
 	for priority, request := range requests {
@@ -104,13 +86,13 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 		available[priority].Add(capacity)
 		available[priority].Sub(request)
 	}
-	for i, appWrapper := range queue {
+	for _, appWrapper := range queue {
 		request := aggregateRequests(appWrapper)
 		if request.Fits(available[int(appWrapper.Spec.Priority)]) {
-			return appWrapper.DeepCopy(), i == len(queue)-1, nil // deep copy appWrapper
+			return appWrapper.DeepCopy(), nil // deep copy appWrapper
 		}
 	}
-	return nil, false, nil
+	return nil, nil
 }
 
 // Aggregated request by AppWrapper
