@@ -26,7 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
@@ -119,7 +122,11 @@ func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.Resourc
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterInfoReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// make sure to call reconciler at least once in case the cluster info object does not exists yet
+	events := make(chan event.GenericEvent, 1)
+	events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Namespace: r.Namespace, Name: r.Name}}}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1beta1.ClusterInfo{}).
+		WatchesRawSource(&source.Channel{Source: events}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
