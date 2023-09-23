@@ -40,6 +40,9 @@ type AppWrapperSpec struct {
 
 	// Dispatcher status
 	DispatcherStatus AppWrapperStatus `json:"dispatcherStatus,omitempty"`
+
+	// Target cluster
+	TargetCluster string `json:"targetCluster,omitempty"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper

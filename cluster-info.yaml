@@ -2,4 +2,4 @@ apiVersion: mcad.codeflare.dev/v1beta1
 kind: ClusterInfo
 metadata:
   namespace: default
-  name: kind
+  name: self

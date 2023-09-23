@@ -7,6 +7,7 @@ spec:
   priority: 5
   minPods: 2
   maxRetries: 5
+  targetCluster: self
   resources:
     - requests:
         nvidia.com/gpu: 8

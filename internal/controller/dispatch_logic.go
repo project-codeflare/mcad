@@ -28,7 +28,7 @@ import (
 // Compute resources reserved by AppWrappers at every priority level
 // Sort queued AppWrappers in dispatch order
 // AppWrappers in output queue must be cloned if mutated
-func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
+func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
 	appWrappers := &mcadv1beta1.AppWrapperList{}
 	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, nil, err
@@ -36,6 +36,9 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	requests := map[int]Weights{}        // total request per priority level
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 	for _, appWrapper := range appWrappers.Items {
+		if appWrapper.Spec.TargetCluster != cluster {
+			continue
+		}
 		// get phase from cache if available
 		phase := r.getCachedPhase(&appWrapper)
 		// make sure to initialize weights for every known priority level
@@ -72,24 +75,23 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 	if err := r.List(ctx, clusters, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, err
 	}
-	if len(clusters.Items) == 0 {
-		return nil, nil // TODO no cluster available
-	}
-	capacity := NewWeights(clusters.Items[0].Status.Capacity)
-	requests, queue, err := r.listAppWrappers(ctx)
-	if err != nil {
-		return nil, err
-	}
-	available := map[int]Weights{}
-	for priority, request := range requests {
-		available[priority] = Weights{}
-		available[priority].Add(capacity)
-		available[priority].Sub(request)
-	}
-	for _, appWrapper := range queue {
-		request := aggregateRequests(appWrapper)
-		if request.Fits(available[int(appWrapper.Spec.Priority)]) {
-			return appWrapper.DeepCopy(), nil // deep copy appWrapper
+	for _, cluster := range clusters.Items {
+		capacity := NewWeights(cluster.Status.Capacity)
+		requests, queue, err := r.listAppWrappers(ctx, cluster.Name)
+		if err != nil {
+			return nil, err
+		}
+		available := map[int]Weights{}
+		for priority, request := range requests {
+			available[priority] = Weights{}
+			available[priority].Add(capacity)
+			available[priority].Sub(request)
+		}
+		for _, appWrapper := range queue {
+			request := aggregateRequests(appWrapper)
+			if request.Fits(available[int(appWrapper.Spec.Priority)]) {
+				return appWrapper.DeepCopy(), nil // deep copy appWrapper
+			}
 		}
 	}
 	return nil, nil

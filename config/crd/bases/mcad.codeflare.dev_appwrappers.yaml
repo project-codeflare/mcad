@@ -116,6 +116,9 @@ spec:
                   - template
                   type: object
                 type: array
+              targetCluster:
+                description: Target cluster
+                type: string
             required:
             - resources
             type: object
