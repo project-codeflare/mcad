@@ -5,9 +5,6 @@ const k8s = require('@kubernetes/client-node')
 // hardcoded constants
 const group = 'workload.codeflare.dev'
 const version = 'v1beta1'
-const namespace = 'default'
-
-// kind must be plural
 
 class Client {
   constructor (context) {
@@ -17,7 +14,7 @@ class Client {
     this.client = config.makeApiClient(k8s.CustomObjectsApi)
   }
 
-  async list (kind) {
+  async list (kind, namespace) {
     const res = await this.client.listNamespacedCustomObject(
       group,
       version,
@@ -30,30 +27,19 @@ class Client {
     const res = await this.client.createNamespacedCustomObject(
       group,
       version,
-      namespace,
+      obj.metadata.namespace,
       kind,
       obj)
     return res.body
   }
 
-  async get (kind, name) {
-    const res = await this.client.getNamespacedCustomObject(
-      group,
-      version,
-      namespace,
-      kind,
-      name
-    )
-    return res.body
-  }
-
-  async delete (kind, name) {
+  async delete (kind, obj) {
     const res = await this.client.deleteNamespacedCustomObject(
       group,
       version,
-      namespace,
+      obj.metadata.namespace,
       kind,
-      name)
+      obj.metadata.name)
     return res.body
   }
 
@@ -61,7 +47,7 @@ class Client {
     const res = await this.client.replaceNamespacedCustomObject(
       group,
       version,
-      namespace,
+      obj.metadata.namespace,
       kind,
       obj.metadata.name,
       obj)
@@ -72,7 +58,7 @@ class Client {
     const res = await this.client.replaceNamespacedCustomObjectStatus(
       group,
       version,
-      namespace,
+      obj.metadata.namespace,
       kind,
       obj.metadata.name,
       obj)
@@ -80,10 +66,10 @@ class Client {
   }
 }
 
-// upsync kind
-async function upsync (hub, spoke, kind) {
-  const hubObjs = await hub.list(kind)
-  const spokeObjs = await spoke.list(kind)
+// upsync kind (must be plural)
+async function upsync (hub, spoke, kind, namespace) {
+  const hubObjs = await hub.list(kind, namespace)
+  const spokeObjs = await spoke.list(kind, namespace)
 
   for (let spokeObj of spokeObjs) {
     let hubObj = hubObjs.find(hubObj => spokeObj.metadata.name === hubObj.metadata.name)
@@ -100,10 +86,10 @@ async function upsync (hub, spoke, kind) {
   }
 }
 
-// downsync kind
-async function downsync (hub, spoke, kind) {
-  const hubObjs = await hub.list(kind)
-  const spokeObjs = await spoke.list(kind)
+// downsync kind (must be plural)
+async function downsync (hub, spoke, kind, namespace) {
+  const hubObjs = await hub.list(kind, namespace)
+  const spokeObjs = await spoke.list(kind, namespace)
 
   for (let hubObj of hubObjs) {
     // downsync creation
@@ -121,7 +107,7 @@ async function downsync (hub, spoke, kind) {
     // delete orphans
     if (!hubObj) {
       console.log('finalizing deletion of', spokeObj.metadata.name, 'on spoke')
-      spokeObj = await spoke.delete(kind, spokeObj.metadata.name)
+      spokeObj = await spoke.delete(kind, spokeObj)
       if (spokeObj.metadata.finalizers) {
         delete spokeObj.metadata.finalizers
         spokeObj = await spoke.update(kind, spokeObj)
@@ -137,28 +123,24 @@ async function downsync (hub, spoke, kind) {
     // downsync deletion
     if (hubObj.metadata.deletionTimestamp && !spokeObj.metadata.deletionTimestamp) {
       console.log('requesting deletion of', spokeObj.metadata.name, 'on spoke')
-      spokeObj = await spoke.delete(kind, spokeObj.metadata.name)
+      spokeObj = await spoke.delete(kind, spokeObj)
     }
   }
 }
 
-async function sync () {
-  const hub = new Client(process.argv[2])
-  const spoke = new Client(process.argv[3])
-
-  await upsync(hub, spoke, 'clusterinfo')
-  await downsync(hub, spoke, 'appwrappers')
-}
-
 async function main () {
-  if (process.argv.length < 4) {
-    console.error('usage: node syncer.js <hub-context> <spoke-context>')
+  if (process.argv.length < 5) {
+    console.error('usage: node syncer.js <hub-context> <spoke-context> <namespace>')
     process.exit(1)
   }
+  const hub = new Client(process.argv[2])
+  const spoke = new Client(process.argv[3])
+  const namespace = process.argv[4]
 
   while (true) {
     try {
-      await sync()
+      await upsync(hub, spoke, 'clusterinfo', namespace)
+      await downsync(hub, spoke, 'appwrappers', namespace)
     } catch (e) {
       console.error(e.stack)
       console.error(e.body.message)
