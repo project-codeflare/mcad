@@ -1,11 +1,11 @@
+const process = require('process')
+
 const k8s = require('@kubernetes/client-node')
 
 // hardcoded constants
 const group = 'workload.codeflare.dev'
 const version = 'v1beta1'
 const namespace = 'default'
-const hubName = 'kind-hub'
-const spokeName = 'kind-spoke'
 
 // kind must be plural
 
@@ -143,14 +143,19 @@ async function downsync (hub, spoke, kind) {
 }
 
 async function sync () {
-  const hub = new Client(hubName)
-  const spoke = new Client(spokeName)
+  const hub = new Client(process.argv[2])
+  const spoke = new Client(process.argv[3])
 
   await upsync(hub, spoke, 'clusterinfo')
   await downsync(hub, spoke, 'appwrappers')
 }
 
 async function main () {
+  if (process.argv.length < 4) {
+    console.error('usage: node syncer.js <hub-context> <spoke-context>')
+    process.exit(1)
+  }
+
   while (true) {
     try {
       await sync()
