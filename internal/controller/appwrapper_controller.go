@@ -46,11 +46,11 @@ type AppWrapperReconciler struct {
 }
 
 const (
-	nameLabel      = "mcad.codeflare.dev"           // owner name label for wrapped resources
-	namespaceLabel = "mcad.codeflare.dev/namespace" // owner namespace label for wrapped resources
-	finalizer      = "mcad.codeflare.dev/finalizer" // finalizer name
-	nvidiaGpu      = "nvidia.com/gpu"               // GPU resource name
-	specNodeName   = ".spec.nodeName"               // key to index pods based on node placement
+	nameLabel      = "workload.codeflare.dev"           // owner name label for wrapped resources
+	namespaceLabel = "workload.codeflare.dev/namespace" // owner namespace label for wrapped resources
+	finalizer      = "workload.codeflare.dev/finalizer" // finalizer name
+	nvidiaGpu      = "nvidia.com/gpu"                   // GPU resource name
+	specNodeName   = ".spec.nodeName"                   // key to index pods based on node placement
 )
 
 //+kubebuilder:rbac:groups=*,resources=*,verbs=*

@@ -13,7 +13,7 @@ resources:
     namespaced: true
   controller: true
   domain: codeflare.dev
-  group: mcad
+  group: workload
   kind: AppWrapper
   path: github.com/tardieu/mcad/api/v1beta1
   version: v1beta1
@@ -22,7 +22,7 @@ resources:
     namespaced: true
   controller: true
   domain: codeflare.dev
-  group: mcad
+  group: workload
   kind: ClusterInfo
   path: github.com/tardieu/mcad/api/v1beta1
   plural: clusterinfo

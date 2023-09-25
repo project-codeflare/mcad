@@ -10,7 +10,7 @@ class Client {
 
   async listAppWrappers () {
     const res = await this.client.listNamespacedCustomObject(
-      'mcad.codeflare.dev',
+      'workload.codeflare.dev',
       'v1beta1',
       'default',
       'appwrappers')
@@ -19,7 +19,7 @@ class Client {
 
   async createAppWrapper (aw) {
     const res = await this.client.createNamespacedCustomObject(
-      'mcad.codeflare.dev',
+      'workload.codeflare.dev',
       'v1beta1',
       'default',
       'appwrappers',
@@ -29,7 +29,7 @@ class Client {
 
   async deleteAppWrapper (aw) {
     const res = await this.client.deleteNamespacedCustomObject(
-      'mcad.codeflare.dev',
+      'workload.codeflare.dev',
       'v1beta1',
       'default',
       'appwrappers',
@@ -39,7 +39,7 @@ class Client {
 
   async updateAppWrapper (aw) {
     const res = await this.client.replaceNamespacedCustomObject(
-      'mcad.codeflare.dev',
+      'workload.codeflare.dev',
       'v1beta1',
       'default',
       'appwrappers',
@@ -50,7 +50,7 @@ class Client {
 
   async updateAppWrapperStatus (aw) {
     const res = await this.client.replaceNamespacedCustomObjectStatus(
-      'mcad.codeflare.dev',
+      'workload.codeflare.dev',
       'v1beta1',
       'default',
       'appwrappers',
@@ -61,7 +61,7 @@ class Client {
 
   async getClusterInfo () {
     const res = await this.client.getNamespacedCustomObject(
-      'mcad.codeflare.dev',
+      'workload.codeflare.dev',
       'v1beta1',
       'default',
       'clusterinfo',
@@ -72,7 +72,7 @@ class Client {
 
   async updateClusterInfoStatus (info) {
     const res = await this.client.replaceNamespacedCustomObjectStatus(
-      'mcad.codeflare.dev',
+      'workload.codeflare.dev',
       'v1beta1',
       'default',
       'clusterinfo',

@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: appwrappers.mcad.codeflare.dev
+  name: appwrappers.workload.codeflare.dev
 spec:
-  group: mcad.codeflare.dev
+  group: workload.codeflare.dev
   names:
     kind: AppWrapper
     listKind: AppWrapperList
@@ -81,7 +81,7 @@ spec:
               minPods:
                 description: 'Minimum number of pods that need to run and succeed
                   These pods have to be labeled with the AppWrapper name to be accounted
-                  for and monitored by mcad: mcad.codeflare.dev: <appWrapper-name>'
+                  for and monitored by mcad: workload.codeflare.dev: <appWrapper-name>'
                 format: int32
                 type: integer
               priority:

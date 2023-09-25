@@ -29,7 +29,7 @@ type AppWrapperSpec struct {
 
 	// Minimum number of pods that need to run and succeed
 	// These pods have to be labeled with the AppWrapper name to be accounted for and monitored by mcad:
-	//   mcad.codeflare.dev: <appWrapper-name>
+	//   workload.codeflare.dev: <appWrapper-name>
 	MinPods int32 `json:"minPods,omitempty"`
 
 	// Max requeuings
