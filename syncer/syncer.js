@@ -75,9 +75,9 @@ async function upsync (hub, spoke, kind, namespace) {
     let hubObj = hubObjs.find(hubObj => spokeObj.metadata.name === hubObj.metadata.name)
     // upsync creation
     if (!hubObj) {
-      spokeObj = JSON.parse(JSON.stringify(spokeObj)) // deep copy
-      delete spokeObj.metadata.resourceVersion
-      hubObj = await hub.create(kind, spokeObj)
+      hubObj = JSON.parse(JSON.stringify(spokeObj)) // deep copy
+      delete hubObj.metadata.resourceVersion
+      hubObj = await hub.create(kind, hubObj)
     }
     // upsync status
     hubObj.status = spokeObj.status
