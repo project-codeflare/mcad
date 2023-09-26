@@ -42,7 +42,14 @@ type AppWrapperSpec struct {
 	DispatcherStatus AppWrapperStatus `json:"dispatcherStatus,omitempty"`
 
 	// Target cluster
-	TargetCluster string `json:"targetCluster,omitempty"`
+	TargetCluster   string `json:"targetCluster,omitempty"`
+	Sustainable     bool   `json:"sustainable,omitempty"`
+	CPU             int32  `json:"cpu,omitempty"`
+	RunTime         int32  `json:"runTime,omitempty"`
+	RemainTime      int32  `json:"remainTime,omitempty"`
+	Deadline        int32  `json:"deadline,omitempty"`
+	Suspend         bool   `json:"suspend,omitempty"`
+	NumOfPreemption int32  `json:"numOfPreemption,omitempty"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper
