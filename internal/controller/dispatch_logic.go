@@ -36,7 +36,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context, cluster stri
 	requests := map[int]Weights{}        // total request per priority level
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 	for _, appWrapper := range appWrappers.Items {
-		if appWrapper.Spec.TargetCluster != cluster {
+		if appWrapper.Spec.Scheduling.ClusterScheduling.PolicyResult.TargetCluster.Name != cluster {
 			continue
 		}
 		// get phase from cache if available
@@ -100,8 +100,10 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 // Aggregated request by AppWrapper
 func aggregateRequests(appWrapper *mcadv1beta1.AppWrapper) Weights {
 	request := Weights{}
-	for _, r := range appWrapper.Spec.Resources {
-		request.AddProd(r.Replicas, NewWeights(r.Requests))
+	for _, r := range appWrapper.Spec.Resources.GenericItems {
+		for _, cpr := range r.CustomPodResources {
+			request.AddProd(cpr.Replicas, NewWeights(cpr.Requests))
+		}
 	}
 	return request
 }

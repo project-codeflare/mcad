@@ -48,9 +48,9 @@ func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (client.Objec
 
 // Parse raw resources
 func parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error) {
-	objects := make([]client.Object, len(appWrapper.Spec.Resources))
-	for i, resource := range appWrapper.Spec.Resources {
-		obj, err := parseResource(appWrapper, resource.Template.Raw)
+	objects := make([]client.Object, len(appWrapper.Spec.Resources.GenericItems))
+	for i, resource := range appWrapper.Spec.Resources.GenericItems {
+		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
 			return nil, err
 		}
@@ -75,8 +75,8 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []cl
 func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) int {
 	log := log.FromContext(ctx)
 	count := 0
-	for _, resource := range appWrapper.Spec.Resources {
-		obj, err := parseResource(appWrapper, resource.Template.Raw)
+	for _, resource := range appWrapper.Spec.Resources.GenericItems {
+		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during deletion")
 			continue // ignore parsing errors, there no way we created this resource anyway

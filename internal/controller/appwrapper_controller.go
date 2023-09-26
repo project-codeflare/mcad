@@ -179,11 +179,11 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if counts.Failed > 0 || isSlowRunning(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.MinPods)) {
+		if counts.Failed > 0 || isSlowRunning(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.Scheduling.MinAvailable)) {
 			// set requeuing or failed status
 			return r.requeueOrFail(ctx, appWrapper)
 		}
-		if appWrapper.Spec.MinPods > 0 && counts.Succeeded >= int(appWrapper.Spec.MinPods) && counts.Running == 0 && counts.Other == 0 {
+		if appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded >= int(appWrapper.Spec.Scheduling.MinAvailable) && counts.Running == 0 && counts.Other == 0 {
 			// set succeeded status
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded)
 		}
@@ -275,7 +275,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 
 // Set requeuing or failed status depending on retry count
 func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (ctrl.Result, error) {
-	if appWrapper.Status.Requeued < appWrapper.Spec.MaxRetries {
+	if appWrapper.Status.Requeued < appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings {
 		appWrapper.Status.Requeued += 1
 		appWrapper.Status.LastRequeuingTime = metav1.Now()
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Requeuing)
