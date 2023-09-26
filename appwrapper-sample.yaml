@@ -5,14 +5,21 @@ metadata:
   name: appwrapper-sample
 spec:
   priority: 5
-  minPods: 2
-  maxRetries: 5
-  targetCluster: self
+  schedulingSpec:
+    minAvailable: 2
+    requeuing:
+      maxNumRequeuings: 5
+    clusterScheduling:
+      policyResult:
+        targetCluster:
+          name: self
   resources:
-    - requests:
-        nvidia.com/gpu: 8
-      replicas: 1
-      template:
+    GenericItems:
+    - custompodresources:
+      - requests:
+          nvidia.com/gpu: 8
+        replicas: 1
+      generictemplate:
         apiVersion: v1
         kind: Pod
         metadata:
@@ -32,10 +39,11 @@ spec:
                   nvidia.com/gpu: 8
                 limits:
                   nvidia.com/gpu: 8
-    - requests:
-        nvidia.com/gpu: 4
-      replicas: 1
-      template:
+    - custompodresources:
+      - requests:
+          nvidia.com/gpu: 4
+        replicas: 1
+      generictemplate:
         apiVersion: v1
         kind: Pod
         metadata:

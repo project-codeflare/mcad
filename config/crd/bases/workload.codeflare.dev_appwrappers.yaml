@@ -74,51 +74,84 @@ spec:
                       type: object
                     type: array
                 type: object
-              maxRetries:
-                description: Max requeuings
-                format: int32
-                type: integer
-              minPods:
-                description: 'Minimum number of pods that need to run and succeed
-                  These pods have to be labeled with the AppWrapper name to be accounted
-                  for and monitored by mcad: workload.codeflare.dev: <appWrapper-name>'
-                format: int32
-                type: integer
               priority:
                 description: Priority
                 format: int32
                 type: integer
               resources:
                 description: Wrapped resources
-                items:
-                  description: AppWrapperResource is the schema for the wrapped resources
-                  properties:
-                    replicas:
-                      description: Replica count
-                      format: int32
-                      type: integer
-                    requests:
-                      additionalProperties:
-                        anyOf:
-                        - type: integer
-                        - type: string
-                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                        x-kubernetes-int-or-string: true
-                      description: Resource requests per replica
+                properties:
+                  GenericItems:
+                    description: GenericItems
+                    items:
+                      description: GenericItems is the schema for the wrapped resources
+                      properties:
+                        custompodresources:
+                          description: CustomPodResources
+                          items:
+                            properties:
+                              replicas:
+                                description: Replica count
+                                format: int32
+                                type: integer
+                              requests:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: Resource requests per replica
+                                type: object
+                            required:
+                            - replicas
+                            - requests
+                            type: object
+                          type: array
+                        generictemplate:
+                          description: Resource template
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                      required:
+                      - generictemplate
                       type: object
-                    template:
-                      description: Resource template
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                  required:
-                  - replicas
-                  - requests
-                  - template
-                  type: object
-                type: array
-              targetCluster:
-                description: Target cluster
-                type: string
+                    type: array
+                required:
+                - GenericItems
+                type: object
+              schedulingSpec:
+                description: Scheduling specification
+                properties:
+                  clusterScheduling:
+                    description: Cluster specification
+                    properties:
+                      policyResult:
+                        properties:
+                          targetCluster:
+                            properties:
+                              name:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        type: object
+                    type: object
+                  minAvailable:
+                    description: 'Minimum number of pods that need to run and succeed
+                      These pods have to be labeled with the AppWrapper name to be
+                      accounted for and monitored by mcad: workload.codeflare.dev:
+                      <appWrapper-name>'
+                    format: int32
+                    type: integer
+                  requeuing:
+                    description: Requeuing specification
+                    properties:
+                      maxNumRequeuings:
+                        description: Max requeuings
+                        format: int32
+                        type: integer
+                    type: object
+                type: object
             required:
             - resources
             type: object

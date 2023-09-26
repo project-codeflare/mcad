@@ -27,22 +27,44 @@ type AppWrapperSpec struct {
 	// Priority
 	Priority int32 `json:"priority,omitempty"`
 
-	// Minimum number of pods that need to run and succeed
-	// These pods have to be labeled with the AppWrapper name to be accounted for and monitored by mcad:
-	//   workload.codeflare.dev: <appWrapper-name>
-	MinPods int32 `json:"minPods,omitempty"`
-
-	// Max requeuings
-	MaxRetries int32 `json:"maxRetries,omitempty"`
+	// Scheduling specification
+	Scheduling SchedulingSpec `json:"schedulingSpec,omitempty"`
 
 	// Wrapped resources
-	Resources []AppWrapperResource `json:"resources"`
+	Resources AppWrapperResources `json:"resources"`
 
 	// Dispatcher status
 	DispatcherStatus AppWrapperStatus `json:"dispatcherStatus,omitempty"`
+}
 
-	// Target cluster
-	TargetCluster string `json:"targetCluster,omitempty"`
+type SchedulingSpec struct {
+	// Minimum number of pods that need to run and succeed
+	// These pods have to be labeled with the AppWrapper name to be accounted for and monitored by mcad:
+	//   workload.codeflare.dev: <appWrapper-name>
+	MinAvailable int32 `json:"minAvailable,omitempty"`
+
+	// Requeuing specification
+	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
+
+	// Cluster specification
+	ClusterScheduling ClusterSchedulingSpec `json:"clusterScheduling,omitempty"`
+}
+
+type RequeuingSpec struct {
+	// Max requeuings
+	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
+}
+
+type ClusterSchedulingSpec struct {
+	PolicyResult ClusterDecision `json:"policyResult,omitempty"`
+}
+
+type ClusterDecision struct {
+	TargetCluster ClusterReference `json:"targetCluster,omitempty"`
+}
+
+type ClusterReference struct {
+	Name string `json:"name"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper
@@ -102,16 +124,30 @@ const (
 	Deleted AppWrapperPhase = "Deleted"
 )
 
-// AppWrapperResource is the schema for the wrapped resources
-type AppWrapperResource struct {
+// AppWrapperResource
+type AppWrapperResources struct {
+	// GenericItems
+	GenericItems []GenericItem `json:"GenericItems"`
+}
+
+// GenericItems is the schema for the wrapped resources
+type GenericItem struct {
+	// Replica count
+	// Replicas int32 `json:"replicas"`
+
+	// CustomPodResources
+	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
+
+	// Resource template
+	GenericTemplate runtime.RawExtension `json:"generictemplate"`
+}
+
+type CustomPodResource struct {
 	// Replica count
 	Replicas int32 `json:"replicas"`
 
 	// Resource requests per replica
 	Requests v1.ResourceList `json:"requests"`
-
-	// Resource template
-	Template runtime.RawExtension `json:"template"`
 }
 
 // AppWrapper transition
