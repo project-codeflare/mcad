@@ -106,7 +106,9 @@ const (
 	Requeuing AppWrapperPhase = "Requeuing"
 
 	// Deleted: resources ARE NOT reserved
-	Deleted AppWrapperPhase = "Deleted"
+	Deleted    AppWrapperPhase = "Deleted"
+	Hold       AppWrapperPhase = "Hold"
+	Suspending AppWrapperPhase = "Suspending"
 )
 
 // AppWrapperResource is the schema for the wrapped resources
