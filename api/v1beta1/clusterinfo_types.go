@@ -31,7 +31,8 @@ type ClusterInfoStatus struct {
 	Capacity v1.ResourceList `json:"capacity,omitempty"`
 
 	// When last updated
-	Time metav1.Time `json:"time,omitempty"`
+	Time   metav1.Time `json:"time,omitempty"`
+	Carbon []float32   `json:"carbon,omitempty"`
 }
 
 //+kubebuilder:object:root=true
