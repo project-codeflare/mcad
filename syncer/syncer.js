@@ -87,11 +87,19 @@ async function upsync (hub, spoke, kind, namespace) {
 }
 
 // downsync kind (must be plural)
-async function downsync (hub, spoke, kind, namespace) {
+async function downsync (hub, spoke, kind, namespace, spokeName) {
   const hubObjs = await hub.list(kind, namespace)
   const spokeObjs = await spoke.list(kind, namespace)
 
   for (let hubObj of hubObjs) {
+    // HACK: ignore appwrappers targeting another spoke
+    if (!hubObj.spec.schedulingSpec ||
+      !hubObj.spec.schedulingSpec.clusterScheduling ||
+      !hubObj.spec.schedulingSpec.clusterScheduling.policyResult ||
+      !hubObj.spec.schedulingSpec.clusterScheduling.policyResult.targetCluster ||
+      hubObj.spec.schedulingSpec.clusterScheduling.policyResult.targetCluster.name != spokeName) {
+      continue
+    }
     // downsync creation
     if (!spokeObjs.find(spokeObj => spokeObj.metadata.name === hubObj.metadata.name)) {
       console.log('creating', hubObj.metadata.name, 'on spoke')
@@ -129,18 +137,19 @@ async function downsync (hub, spoke, kind, namespace) {
 }
 
 async function main () {
-  if (process.argv.length < 5) {
-    console.error('usage: node syncer.js <hub-context> <spoke-context> <namespace>')
+  if (process.argv.length < 6) {
+    console.error('usage: node syncer.js <hub-context> <spoke-context> <namespace> <spoke-name>')
     process.exit(1)
   }
   const hub = new Client(process.argv[2])
   const spoke = new Client(process.argv[3])
   const namespace = process.argv[4]
+  const spokeName = process.argv[5]
 
   while (true) {
     try {
       await upsync(hub, spoke, 'clusterinfo', namespace)
-      await downsync(hub, spoke, 'appwrappers', namespace)
+      await downsync(hub, spoke, 'appwrappers', namespace, spokeName)
     } catch (e) {
       console.error(e.stack)
       console.error(e.body.message)
