@@ -93,11 +93,7 @@ async function downsync (hub, spoke, kind, namespace, spokeName) {
 
   for (let hubObj of hubObjs) {
     // HACK: ignore appwrappers targeting another spoke
-    if (!hubObj.spec.schedulingSpec ||
-      !hubObj.spec.schedulingSpec.clusterScheduling ||
-      !hubObj.spec.schedulingSpec.clusterScheduling.policyResult ||
-      !hubObj.spec.schedulingSpec.clusterScheduling.policyResult.targetCluster ||
-      hubObj.spec.schedulingSpec.clusterScheduling.policyResult.targetCluster.name != spokeName) {
+    if (hubObj.spec.schedulingSpec?.clusterScheduling?.policyResult?.targetCluster?.name != spokeName) {
       continue
     }
     // downsync creation
