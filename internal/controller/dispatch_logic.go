@@ -28,7 +28,7 @@ import (
 // Compute resources reserved by AppWrappers at every priority level
 // Sort queued AppWrappers in dispatch order
 // AppWrappers in output queue must be cloned if mutated
-func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
+func (r *Dispatcher) listAppWrappers(ctx context.Context, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
 	appWrappers := &mcadv1beta1.AppWrapperList{}
 	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, nil, err
@@ -69,8 +69,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context, cluster stri
 }
 
 // Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
-// TODO handle more than one cluster
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
+func (r *Dispatcher) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
 	clusters := &mcadv1beta1.ClusterInfoList{}
 	if err := r.List(ctx, clusters, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, err

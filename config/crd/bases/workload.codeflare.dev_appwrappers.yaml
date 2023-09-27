@@ -15,8 +15,11 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.dispatcherStatus.phase
+      name: DISPATCHER
+      type: string
     - jsonPath: .status.phase
-      name: STATUS
+      name: RUNNER
       type: string
     name: v1beta1
     schema:
@@ -41,14 +44,6 @@ spec:
               dispatcherStatus:
                 description: Dispatcher status
                 properties:
-                  lastDispatchTime:
-                    description: When last dispatched
-                    format: date-time
-                    type: string
-                  lastRequeuingTime:
-                    description: When last requeued
-                    format: date-time
-                    type: string
                   phase:
                     description: Phase
                     type: string
@@ -158,21 +153,9 @@ spec:
           status:
             description: AppWrapperStatus defines the observed state of AppWrapper
             properties:
-              lastDispatchTime:
-                description: When last dispatched
-                format: date-time
-                type: string
-              lastRequeuingTime:
-                description: When last requeued
-                format: date-time
-                type: string
               phase:
                 description: Phase
                 type: string
-              requeued:
-                description: How many times requeued
-                format: int32
-                type: integer
               transitions:
                 description: Transitions
                 items:

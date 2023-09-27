@@ -29,14 +29,6 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
-// PodCounts summarize the status of the pods associated with one AppWrapper
-type PodCounts struct {
-	Failed    int
-	Other     int
-	Running   int
-	Succeeded int
-}
-
 // Parse raw resource into client object
 func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (client.Object, error) {
 	obj := &unstructured.Unstructured{}
@@ -60,7 +52,7 @@ func parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error)
 }
 
 // Create wrapped resources, give up on first error
-func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []client.Object) error {
+func (r *Runner) createResources(ctx context.Context, objects []client.Object) error {
 	for _, obj := range objects {
 		if err := r.Create(ctx, obj); err != nil {
 			if !errors.IsAlreadyExists(err) { // ignore existing resources
@@ -72,7 +64,7 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []cl
 }
 
 // Delete wrapped resources, ignore errors, return count of pending deletions
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) int {
+func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) int {
 	log := log.FromContext(ctx)
 	count := 0
 	for _, resource := range appWrapper.Spec.Resources.GenericItems {
@@ -94,7 +86,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 }
 
 // Count AppWrapper pods
-func (r *AppWrapperReconciler) countPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
+func (r *Runner) countPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
@@ -115,19 +107,4 @@ func (r *AppWrapperReconciler) countPods(ctx context.Context, appWrapper *mcadv1
 		}
 	}
 	return counts, nil
-}
-
-// Is requeuing too slow?
-func isSlowRequeuing(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(requeuingTimeout))
-}
-
-// Is dispatching too slow?
-func isSlowDispatching(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(dispatchingTimeout))
-}
-
-// Is running too slow?
-func isSlowRunning(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastDispatchTime.Add(runningTimeout))
 }

@@ -34,7 +34,7 @@ type AppWrapperSpec struct {
 	Resources AppWrapperResources `json:"resources"`
 
 	// Dispatcher status
-	DispatcherStatus AppWrapperStatus `json:"dispatcherStatus,omitempty"`
+	DispatcherStatus AppWrapperDispatcherStatus `json:"dispatcherStatus,omitempty"`
 }
 
 type SchedulingSpec struct {
@@ -67,16 +67,9 @@ type ClusterReference struct {
 	Name string `json:"name"`
 }
 
-// AppWrapperStatus defines the observed state of AppWrapper
-type AppWrapperStatus struct {
+type AppWrapperDispatcherStatus struct {
 	// Phase
 	Phase AppWrapperPhase `json:"phase,omitempty"`
-
-	// When last dispatched
-	LastDispatchTime metav1.Time `json:"lastDispatchTime,omitempty"`
-
-	// When last requeued
-	LastRequeuingTime metav1.Time `json:"lastRequeuingTime,omitempty"`
 
 	// How many times requeued
 	Requeued int32 `json:"requeued,omitempty"`
@@ -85,43 +78,26 @@ type AppWrapperStatus struct {
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
 }
 
-// AppWrapperPhase is the label for the AppWrapper status
+// AppWrapperStatus defines the observed state of AppWrapper
+type AppWrapperStatus struct {
+	// Phase
+	Phase AppWrapperPhase `json:"phase,omitempty"`
+
+	// Transitions
+	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
+}
+
 type AppWrapperPhase string
 
-// AppWrapper phases
-// There are also two pseudo phases:
-// - object creation: empty "" phase
-// - object deletion: any phase with deletion timestamp set
 const (
-	// Queued: resources ARE NOT reserved
-	// Decide to dispatch -> Dispatching
-	Queued AppWrapperPhase = "Queued"
-
-	// Dispatching: resources ARE reserved (resource creation in progress)
-	// Create wrapped resources -> Running or Failed (parsing error) or Failed/Requeuing (timeout creating resources)
+	Empty       AppWrapperPhase = ""
+	Queued      AppWrapperPhase = "Queued"
 	Dispatching AppWrapperPhase = "Dispatching"
-
-	// Running: resources ARE reserved
-	// Monitor pods -> Succeeded or Failed/Requeuing (pod failed or min pod running/non-running pod timeout)
-	Running AppWrapperPhase = "Running"
-
-	// Succeeded: resources ARE NOT reserved
-	Succeeded AppWrapperPhase = "Succeeded"
-
-	// Failed: resources ARE reserved (because failure can be partial and there is no cleanup)
-	// Entered on:
-	// - parsing error (always)
-	// - Requeuing timeout deleting resources (always)
-	// - Dispatching/Running errors and timeouts (after max retries)
-	Failed AppWrapperPhase = "Failed"
-
-	// Requeuing: resources ARE reserved (resource deletion in progress)
-	// Try deleting resources -> Queued or Failed if timeout deleting resources
-	// Entered on Dispatching/Running errors and timeouts (before max retries)
-	Requeuing AppWrapperPhase = "Requeuing"
-
-	// Deleted: resources ARE NOT reserved
-	Deleted AppWrapperPhase = "Deleted"
+	Running     AppWrapperPhase = "Running"
+	Succeeded   AppWrapperPhase = "Succeeded"
+	Errored     AppWrapperPhase = "Errored"   // runner-only, can be requeued
+	Failed      AppWrapperPhase = "Failed"    // cannot be requeued
+	Requeuing   AppWrapperPhase = "Requeuing" // dispatcher only
 )
 
 // AppWrapperResource
@@ -132,9 +108,6 @@ type AppWrapperResources struct {
 
 // GenericItems is the schema for the wrapped resources
 type GenericItem struct {
-	// Replica count
-	// Replicas int32 `json:"replicas"`
-
 	// CustomPodResources
 	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
 
@@ -161,7 +134,8 @@ type AppWrapperTransition struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="STATUS",type="string",JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="DISPATCHER",type="string",JSONPath=`.spec.dispatcherStatus.phase`
+//+kubebuilder:printcolumn:name="RUNNER",type="string",JSONPath=`.status.phase`
 
 // AppWrapper object
 type AppWrapper struct {
