@@ -1,13 +1,15 @@
 # MicroMCAD
 
-This code is a quick prototype exploring what an implementation of MCAD
+This repository contains a prototype MCAD implementation
 ([multi-cluster-app-dispatcher](https://github.com/project-codeflare/multi-cluster-app-dispatcher))
-could look like if utilizing the latest [controller
+using recent versions of [controller
 runtime](https://github.com/kubernetes-sigs/controller-runtime) and
 [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder). This prototype
-focuses on MCAD core capabilities (queuing and dispatching logic, resource
-management, priorities and preemption, error handling and requeuing) but does
-not implement advanced capabilities such multi-cluster management and quotas.
+does not implement quotas.
+
+Multi-cluster support assumes the use of [KubeStellar](https://kubestellar.io)
+syncers. A simple [syncer.js](syncer/syncer.js) is provided as possible
+substitute for development.
 
 ## Getting Started
 
