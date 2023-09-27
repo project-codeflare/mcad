@@ -78,11 +78,12 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	case mcadv1beta1.Dispatching:
 		if appWrapper.Status.Phase == mcadv1beta1.Dispatching {
-			// Runner is ready to dispatch
+			// runner is ready to dispatch
 			return r.update(ctx, appWrapper, mcadv1beta1.Running)
 		}
 		if isSlowDispatching(appWrapper) {
-			// set requeuing or failed status
+			// runner has not acknowledged the job
+			// requeue or fail if max retries exhausted
 			return r.requeueOrFail(ctx, appWrapper)
 		} else {
 			// requeue reconciliation
@@ -95,6 +96,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.update(ctx, appWrapper, mcadv1beta1.Queued)
 		}
 		if isSlowRequeuing(appWrapper) {
+			// runner has not completed deletion
 			// give up requeuing and fail instead
 			return r.update(ctx, appWrapper, mcadv1beta1.Failed)
 		} else {
@@ -116,10 +118,12 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.requeueOrFail(ctx, appWrapper)
 		}
 		if appWrapper.Status.Phase == mcadv1beta1.Running {
+			// let the runner monitor the running job
 			return ctrl.Result{}, nil
 		}
 		if isSlowDispatching(appWrapper) {
-			// set requeuing or failed status
+			// runner has not completed creation
+			// requeue or fail if max retries exhausted
 			return r.requeueOrFail(ctx, appWrapper)
 		} else {
 			// requeue reconciliation
