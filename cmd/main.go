@@ -107,20 +107,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.AppWrapperReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Events: make(chan event.GenericEvent, 1),             // channel to trigger dispatch
-		Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
-		Mode:   mode,                                         // default, dispatcher, runner
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
-		os.Exit(1)
-	}
-
 	if mode != "dispatcher" {
 		if msgs := validation.IsQualifiedName(namespace + "/" + name); len(msgs) > 0 {
-			setupLog.Error(err, "invalid ClusterInfo namespace/name", "controller", "ClusterInfo")
+			setupLog.Error(err, "invalid ClusterInfo namespace/name")
+			os.Exit(1)
+		}
+		if err = (&controller.Runner{
+			AppWrapperReconciler: controller.AppWrapperReconciler{
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+				Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create AppWrapper runner")
 			os.Exit(1)
 		}
 		if err = (&controller.ClusterInfoReconciler{
@@ -129,7 +128,21 @@ func main() {
 			Namespace: namespace,
 			Name:      name,
 		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "ClusterInfo")
+			setupLog.Error(err, "unable to create ClusterInfo controller")
+			os.Exit(1)
+		}
+	}
+
+	if mode != "runner" {
+		if err = (&controller.Dispatcher{
+			AppWrapperReconciler: controller.AppWrapperReconciler{
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+				Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+			},
+			Events: make(chan event.GenericEvent, 1), // channel to trigger dispatch
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create AppWrapper dispatcher")
 			os.Exit(1)
 		}
 	}

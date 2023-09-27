@@ -25,10 +25,10 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
-// Compute resources reserved by AppWrappers at every priority level
+// Compute resources reserved by AppWrappers at every priority level for the specified cluster
 // Sort queued AppWrappers in dispatch order
 // AppWrappers in output queue must be cloned if mutated
-func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
+func (r *Dispatcher) listAppWrappers(ctx context.Context, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
 	appWrappers := &mcadv1beta1.AppWrapperList{}
 	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, nil, err
@@ -37,18 +37,20 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context, cluster stri
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 	for _, appWrapper := range appWrappers.Items {
 		if appWrapper.Spec.Scheduling.ClusterScheduling.PolicyResult.TargetCluster.Name != cluster {
-			continue
+			continue // skip AppWrappers targeting other clusters or no cluster
 		}
-		// get phase from cache if available
+		// get phase from cache if available as reconciler cache may be lagging
 		phase := r.getCachedPhase(&appWrapper)
 		// make sure to initialize weights for every known priority level
 		if requests[int(appWrapper.Spec.Priority)] == nil {
 			requests[int(appWrapper.Spec.Priority)] = Weights{}
 		}
 		if isActivePhase(phase) {
+			// discount resource requested by AppWrapper
 			awRequest := aggregateRequests(&appWrapper)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
 		} else if phase == mcadv1beta1.Queued {
+			// add AppWrapper to queue
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
 		}
@@ -68,9 +70,9 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context, cluster stri
 	return requests, queue, nil
 }
 
-// Find next AppWrapper to dispatch in queue order, return true AppWrapper is last in queue
-// TODO handle more than one cluster
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
+// Find next AppWrapper to dispatch in queue order
+func (r *Dispatcher) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
+	// iterate over clusters
 	clusters := &mcadv1beta1.ClusterInfoList{}
 	if err := r.List(ctx, clusters, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, err
@@ -81,12 +83,16 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 		if err != nil {
 			return nil, err
 		}
+		// compute available cluster capacity at each priority level
+		// available cluster capacity = total capacity reported in cluster info - capacity reserved by AppWrappers
 		available := map[int]Weights{}
 		for priority, request := range requests {
+			// copy capacity before subtracting request
 			available[priority] = Weights{}
 			available[priority].Add(capacity)
 			available[priority].Sub(request)
 		}
+		// return first AppWrapper that fits if any
 		for _, appWrapper := range queue {
 			request := aggregateRequests(appWrapper)
 			if request.Fits(available[int(appWrapper.Spec.Priority)]) {
@@ -94,6 +100,7 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 			}
 		}
 	}
+	// no queued AppWrapper fits
 	return nil, nil
 }
 
@@ -125,9 +132,9 @@ func assertPriorities(w map[int]Weights) {
 // Are resources reserved in this phase
 func isActivePhase(phase mcadv1beta1.AppWrapperPhase) bool {
 	switch phase {
-	case mcadv1beta1.Dispatching, mcadv1beta1.Running, mcadv1beta1.Failed, mcadv1beta1.Requeuing:
+	case mcadv1beta1.Dispatching, mcadv1beta1.Running, mcadv1beta1.Errored, mcadv1beta1.Failed, mcadv1beta1.Requeuing:
 		return true
 	default:
-		return false
+		return false // Queued, Empty, Succeeded
 	}
 }
