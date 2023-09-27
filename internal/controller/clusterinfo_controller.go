@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
@@ -44,24 +43,25 @@ type ClusterInfoReconciler struct {
 
 // Reconcile ClusterInfo object
 func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
 	// only reconcile cluster info for this cluster
 	if req.Namespace != r.Namespace || req.Name != r.Name {
 		return ctrl.Result{}, nil
 	}
 	// get cluster info if it already exists
 	clusterInfo := &mcadv1beta1.ClusterInfo{ObjectMeta: metav1.ObjectMeta{Namespace: r.Namespace, Name: r.Name}}
-	update := false
 	if err := r.Client.Get(ctx, req.NamespacedName, clusterInfo); err == nil {
-		// do not update if too early
+		// do not recompute cluster capacity if old value has not expired yet
 		now := time.Now()
 		expiration := clusterInfo.Status.Time.Add(clusterInfoTimeout)
 		if expiration.After(now) {
-			// requeue to update after timeout
+			// requeue to update after expiration
 			return ctrl.Result{RequeueAfter: expiration.Sub(now)}, nil
 		}
-		update = true // cluster info already exists
+	} else {
+		// create new cluster info object
+		if err := r.Create(ctx, clusterInfo); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 	// compute available capacity
 	capacity, err := r.computeCapacity(ctx)
@@ -70,16 +70,9 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	clusterInfo.Status.Capacity = capacity
 	clusterInfo.Status.Time = metav1.Now()
-	if update {
-		// update status of existing cluster info object
-		if err := r.Status().Update(ctx, clusterInfo); err != nil {
-			return ctrl.Result{}, err
-		}
-	} else {
-		// create new cluster info object
-		if err := r.Create(ctx, clusterInfo); err != nil {
-			return ctrl.Result{}, err
-		}
+	// update cluster info status
+	if err := r.Status().Update(ctx, clusterInfo); err != nil {
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: clusterInfoTimeout}, nil
 }

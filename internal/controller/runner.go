@@ -111,6 +111,7 @@ func (r *Runner) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
+	// watch pods
 	return ctrl.NewControllerManagedBy(mgr).For(&mcadv1beta1.AppWrapper{}).
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)

@@ -65,8 +65,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 					return ctrl.Result{}, err
 				}
 			}
-			r.deleteCachedPhase(appWrapper) // remove appWrapper from cache
-			r.triggerDispatch()             // cluster may have more available capacity
+			r.triggerDispatch() // cluster may have more available capacity
 		}
 		return ctrl.Result{}, nil
 	}
@@ -74,26 +73,32 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// handle other phases
 	switch appWrapper.Spec.DispatcherStatus.Phase {
 	case mcadv1beta1.Succeeded, mcadv1beta1.Queued:
+		// cluster may have more available capacity
 		r.triggerDispatch()
 
 	case mcadv1beta1.Dispatching:
 		if appWrapper.Status.Phase == mcadv1beta1.Dispatching {
+			// Runner is ready to dispatch
 			return r.update(ctx, appWrapper, mcadv1beta1.Running)
 		}
 
 	case mcadv1beta1.Requeuing:
 		if appWrapper.Status.Phase == mcadv1beta1.Empty {
+			// Runner has deleted/never created the wrapped resources
 			return r.update(ctx, appWrapper, mcadv1beta1.Queued)
 		}
 
 	case mcadv1beta1.Running:
 		if appWrapper.Status.Phase == mcadv1beta1.Succeeded {
+			// ack success
 			return r.update(ctx, appWrapper, mcadv1beta1.Succeeded)
 		}
 		if appWrapper.Status.Phase == mcadv1beta1.Failed {
+			// ack failure
 			return r.update(ctx, appWrapper, mcadv1beta1.Failed)
 		}
 		if appWrapper.Status.Phase == mcadv1beta1.Errored {
+			// requeue or fail if max retries exhausted
 			return r.requeueOrFail(ctx, appWrapper)
 		}
 
@@ -112,6 +117,8 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Dispatcher) SetupWithManager(mgr ctrl.Manager) error {
+	// watch clusterinfo
+	// watch for triggerDispatch events
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1beta1.AppWrapper{}).
 		Watches(&mcadv1beta1.ClusterInfo{}, handler.EnqueueRequestsFromMapFunc(r.clusterInfoMapFunc)).
@@ -156,6 +163,7 @@ func (r *Dispatcher) triggerDispatch() {
 	select {
 	case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Namespace: "*", Name: "*"}}}:
 	default:
+		// do not block if event is already in channel
 	}
 }
 

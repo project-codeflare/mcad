@@ -27,7 +27,7 @@ import (
 
 //+kubebuilder:rbac:groups=*,resources=*,verbs=*
 
-// Dispatcher reconciles an AppWrapper object
+// The super type of Dispatcher and Runner reconcilers
 type AppWrapperReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -53,14 +53,8 @@ type PodCounts struct {
 // We cache AppWrapper phases because the reconciler cache does not immediately reflect updates.
 // A Get or List call soon after an Update or Status.Update call may not reflect the latest object.
 // See https://github.com/kubernetes-sigs/controller-runtime/issues/1622.
-// Therefore we need to maintain our own cache to make sure new dispatching decisions accurately account
-// for recent dispatching decisions. The cache is populated on phase updates.
-// The cache is only meant to be used for AppWrapper List calls when computing available resources.
 // We use the number of transitions to confirm our cached version is more recent than the reconciler cache.
-// We remove cache entries when removing finalizers.
-// When reconciling an AppWrapper, we proactively detect and abort on conflicts as
-// there is no point working on a stale AppWrapper. We know etcd updates will fail.
-// This conflict detection reduces the probability of an etcd update failure but does not eliminate it.
+// When reconciling an AppWrapper, we proactively detect and abort on conflicts.
 // To defend against bugs in the cache implementation and egregious AppWrapper edits,
 // we eventually give up on persistent conflicts and remove the AppWrapper phase from the cache.
 

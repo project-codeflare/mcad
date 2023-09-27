@@ -23,23 +23,19 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
+// Cache AppWrapper.Spec.DispatcherStatus
+
 // Add AppWrapper to cache
 func (r *Dispatcher) addCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
 	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Spec.DispatcherStatus.Phase, Transitions: len(appWrapper.Spec.DispatcherStatus.Transitions)}
 }
 
-// Remove AppWrapper from cache
-func (r *Dispatcher) deleteCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
-	delete(r.Cache, appWrapper.UID) // remove appWrapper from cache
-}
-
 // Get AppWrapper phase from cache if available
 func (r *Dispatcher) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper) mcadv1beta1.AppWrapperPhase {
-	phase := appWrapper.Spec.DispatcherStatus.Phase
 	if cached, ok := r.Cache[appWrapper.UID]; ok && cached.Transitions > len(appWrapper.Spec.DispatcherStatus.Transitions) {
-		phase = cached.Phase // use our cached phase if more current than reconciler cache
+		return cached.Phase // use our cached phase if more current than reconciler cache
 	}
-	return phase
+	return appWrapper.Spec.DispatcherStatus.Phase
 }
 
 // Check whether reconciler cache and our cache appear to be in sync
@@ -50,8 +46,8 @@ func (r *Dispatcher) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapper) error 
 		if cached.Transitions < len(status.Transitions) {
 			// our cache is behind, update the cache, this is ok
 			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, Transitions: len(status.Transitions)}
+			cached.Conflict = nil // clear conflict timestamp
 			return nil
-
 		}
 		if cached.Transitions > len(status.Transitions) {
 			// reconciler cache appears to be behind

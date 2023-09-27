@@ -23,6 +23,8 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
+// Cache AppWrapper.Status
+
 // Add AppWrapper to cache
 func (r *Runner) addCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
 	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Transitions: len(appWrapper.Status.Transitions)}
@@ -36,8 +38,8 @@ func (r *Runner) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapper) error {
 		if cached.Transitions < len(status.Transitions) {
 			// our cache is behind, update the cache, this is ok
 			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, Transitions: len(status.Transitions)}
+			cached.Conflict = nil // clear conflict timestamp
 			return nil
-
 		}
 		if cached.Transitions > len(status.Transitions) {
 			// reconciler cache appears to be behind

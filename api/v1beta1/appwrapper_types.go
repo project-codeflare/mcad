@@ -51,10 +51,11 @@ type SchedulingSpec struct {
 }
 
 type RequeuingSpec struct {
-	// Max requeuings
+	// Max requeuings permitted
 	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 }
 
+// Where to run
 type ClusterSchedulingSpec struct {
 	PolicyResult ClusterDecision `json:"policyResult,omitempty"`
 }
@@ -67,6 +68,7 @@ type ClusterReference struct {
 	Name string `json:"name"`
 }
 
+// Status from the dispatcher perspective
 type AppWrapperDispatcherStatus struct {
 	// Phase
 	Phase AppWrapperPhase `json:"phase,omitempty"`
@@ -74,30 +76,48 @@ type AppWrapperDispatcherStatus struct {
 	// How many times requeued
 	Requeued int32 `json:"requeued,omitempty"`
 
-	// Transitions
+	// Transition log
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
 }
 
-// AppWrapperStatus defines the observed state of AppWrapper
+// Status from the runner perspective
 type AppWrapperStatus struct {
 	// Phase
 	Phase AppWrapperPhase `json:"phase,omitempty"`
 
-	// Transitions
+	// Transition log
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
 }
 
+// AppWrapperPhase is the label for the AppWrapper status
 type AppWrapperPhase string
 
 const (
-	Empty       AppWrapperPhase = ""
-	Queued      AppWrapperPhase = "Queued"
+	// no resource reservation
+	Empty AppWrapperPhase = ""
+
+	// no resource reservation
+	Queued AppWrapperPhase = "Queued" // dispatcher-only phase
+
+	// resources are reserved
 	Dispatching AppWrapperPhase = "Dispatching"
-	Running     AppWrapperPhase = "Running"
-	Succeeded   AppWrapperPhase = "Succeeded"
-	Errored     AppWrapperPhase = "Errored"   // runner-only, can be requeued
-	Failed      AppWrapperPhase = "Failed"    // cannot be requeued
-	Requeuing   AppWrapperPhase = "Requeuing" // dispatcher only
+
+	// resources are reserved
+	Running AppWrapperPhase = "Running"
+
+	// no resource reservation even if pods may still exist in completed state
+	Succeeded AppWrapperPhase = "Succeeded"
+
+	// resources are reserved as errors may be partial
+	// AppWrapper may be requeued
+	Errored AppWrapperPhase = "Errored" // runner-only phase
+
+	// resources are reserved as failures may be partial
+	// AppWrapper may not be requeued
+	Failed AppWrapperPhase = "Failed"
+
+	// resources are reserved
+	Requeuing AppWrapperPhase = "Requeuing" // dispatcher-only phase
 )
 
 // AppWrapperResource
@@ -108,13 +128,14 @@ type AppWrapperResources struct {
 
 // GenericItems is the schema for the wrapped resources
 type GenericItem struct {
-	// CustomPodResources
+	// Replica count and resource requests
 	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
 
 	// Resource template
 	GenericTemplate runtime.RawExtension `json:"generictemplate"`
 }
 
+// Replica count and resource requests
 type CustomPodResource struct {
 	// Replica count
 	Replicas int32 `json:"replicas"`
@@ -123,7 +144,7 @@ type CustomPodResource struct {
 	Requests v1.ResourceList `json:"requests"`
 }
 
-// AppWrapper transition
+// Phase transition
 type AppWrapperTransition struct {
 	// Timestamp
 	Time metav1.Time `json:"time"`
@@ -142,7 +163,9 @@ type AppWrapper struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AppWrapperSpec   `json:"spec"`
+	Spec AppWrapperSpec `json:"spec"`
+
+	// AppWrapper status
 	Status AppWrapperStatus `json:"status,omitempty"`
 }
 
