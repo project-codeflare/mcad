@@ -55,9 +55,15 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		(!appWrapper.DeletionTimestamp.IsZero() || appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing) {
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			return ctrl.Result{Requeue: true}, nil // requeue reconciliation
+			// requeue reconciliation
+			return ctrl.Result{Requeue: true}, nil
 		}
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
+	}
+
+	// propagate failed phase from dispatcher to runner
+	if appWrapper.Status.Phase != mcadv1beta1.Failed && appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Failed {
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
 	}
 
 	// handle other phases
@@ -75,6 +81,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				return ctrl.Result{}, err
 			}
 			// set running status only after successfully requesting the creation of all resources
+			appWrapper.Status.LastRunningTime = metav1.Now()
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running)
 		}
 
@@ -84,7 +91,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if counts.Failed > 0 {
+		if counts.Failed > 0 || isSlowRunning(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.Scheduling.MinAvailable)) {
 			// set errored status
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored)
 		}
@@ -143,4 +150,9 @@ func (r *Runner) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWr
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
 	return ctrl.Result{}, nil
+}
+
+// Is running too slow?
+func isSlowRunning(appWrapper *mcadv1beta1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.LastRunningTime.Add(runningTimeout))
 }

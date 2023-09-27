@@ -81,11 +81,25 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// Runner is ready to dispatch
 			return r.update(ctx, appWrapper, mcadv1beta1.Running)
 		}
+		if isSlowDispatching(appWrapper) {
+			// set requeuing or failed status
+			return r.requeueOrFail(ctx, appWrapper)
+		} else {
+			// requeue reconciliation
+			return ctrl.Result{Requeue: true}, nil
+		}
 
 	case mcadv1beta1.Requeuing:
 		if appWrapper.Status.Phase == mcadv1beta1.Empty {
 			// Runner has deleted/never created the wrapped resources
 			return r.update(ctx, appWrapper, mcadv1beta1.Queued)
+		}
+		if isSlowRequeuing(appWrapper) {
+			// give up requeuing and fail instead
+			return r.update(ctx, appWrapper, mcadv1beta1.Failed)
+		} else {
+			// requeue reconciliation
+			return ctrl.Result{Requeue: true}, nil
 		}
 
 	case mcadv1beta1.Running:
@@ -100,6 +114,16 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if appWrapper.Status.Phase == mcadv1beta1.Errored {
 			// requeue or fail if max retries exhausted
 			return r.requeueOrFail(ctx, appWrapper)
+		}
+		if appWrapper.Status.Phase == mcadv1beta1.Running {
+			return ctrl.Result{}, nil
+		}
+		if isSlowDispatching(appWrapper) {
+			// set requeuing or failed status
+			return r.requeueOrFail(ctx, appWrapper)
+		} else {
+			// requeue reconciliation
+			return ctrl.Result{Requeue: true}, nil
 		}
 
 	case mcadv1beta1.Empty:
@@ -153,6 +177,7 @@ func (r *Dispatcher) update(ctx context.Context, appWrapper *mcadv1beta1.AppWrap
 func (r *Dispatcher) requeueOrFail(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (ctrl.Result, error) {
 	if appWrapper.Spec.DispatcherStatus.Requeued < appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings {
 		appWrapper.Spec.DispatcherStatus.Requeued += 1
+		appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
 		return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
 	}
 	return r.update(ctx, appWrapper, mcadv1beta1.Failed)
@@ -185,8 +210,20 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 		return ctrl.Result{}, errors.New("not queued")
 	}
 	// set dispatching status
+	appWrapper.Spec.DispatcherStatus.LastDispatchingTime = metav1.Now()
 	if _, err := r.update(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
 		return ctrl.Result{}, err
 	}
-	return ctrl.Result{Requeue: true}, nil // requeue to continue to dispatch queued appWrappers
+	// requeue to continue to dispatch queued appWrappers
+	return ctrl.Result{Requeue: true}, nil
+}
+
+// Is requeuing too slow?
+func isSlowRequeuing(appWrapper *mcadv1beta1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Spec.DispatcherStatus.LastRequeuingTime.Add(requeuingTimeout))
+}
+
+// Is dispatching too slow?
+func isSlowDispatching(appWrapper *mcadv1beta1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Spec.DispatcherStatus.LastDispatchingTime.Add(dispatchingTimeout))
 }
