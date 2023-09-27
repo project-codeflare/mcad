@@ -92,7 +92,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	case mcadv1beta1.Requeuing:
 		if appWrapper.Status.Phase == mcadv1beta1.Empty {
-			// Runner has deleted/never created the wrapped resources
+			// runner has deleted/never created the wrapped resources
 			return r.update(ctx, appWrapper, mcadv1beta1.Queued)
 		}
 		if isSlowRequeuing(appWrapper) {
