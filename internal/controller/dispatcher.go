@@ -176,7 +176,6 @@ func (r *Dispatcher) update(ctx context.Context, appWrapper *mcadv1beta1.AppWrap
 	// log transition
 	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase}
 	appWrapper.Spec.DispatcherStatus.Transitions = append(appWrapper.Spec.DispatcherStatus.Transitions, transition)
-
 	if (appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Dispatching ||
 		appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Running ||
 		appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing) &&
