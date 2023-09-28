@@ -77,6 +77,10 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.triggerDispatch()
 
 	case mcadv1beta1.Dispatching:
+		if len(appWrapper.Spec.DispatchingGates) > 0 {
+			appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
+			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
+		}
 		if appWrapper.Status.Phase == mcadv1beta1.Dispatching {
 			// runner is ready to dispatch
 			return r.update(ctx, appWrapper, mcadv1beta1.Running)
@@ -116,6 +120,10 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if appWrapper.Status.Phase == mcadv1beta1.Errored {
 			// requeue or fail if max retries exhausted
 			return r.requeueOrFail(ctx, appWrapper)
+		}
+		if len(appWrapper.Spec.DispatchingGates) > 0 {
+			appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
+			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
 		}
 		if appWrapper.Status.Phase == mcadv1beta1.Running {
 			// let the runner monitor the running job

@@ -77,6 +77,12 @@ spec:
                       type: object
                     type: array
                 type: object
+              dispatchingGates:
+                description: Dispatching gates
+                items:
+                  description: Dispatching gate
+                  type: string
+                type: array
               priority:
                 description: Priority
                 format: int32
@@ -155,6 +161,9 @@ spec:
                         format: int32
                         type: integer
                     type: object
+                type: object
+              sustainable:
+                description: Sustainable specification
                 type: object
             required:
             - resources
