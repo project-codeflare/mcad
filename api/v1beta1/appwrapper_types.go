@@ -35,7 +35,16 @@ type AppWrapperSpec struct {
 
 	// Dispatcher status
 	DispatcherStatus AppWrapperDispatcherStatus `json:"dispatcherStatus,omitempty"`
+
+	// Sustainable specification
+	Sustainable SustainableSpec `json:"sustainable,omitempty"`
+
+	// Dispatching gates
+	DispatchingGates []DispatchingGate `json:"dispatchingGates,omitempty"`
 }
+
+// Dispatching gate
+type DispatchingGate string
 
 type SchedulingSpec struct {
 	// Minimum number of pods that need to run and succeed
@@ -66,6 +75,10 @@ type ClusterDecision struct {
 
 type ClusterReference struct {
 	Name string `json:"name"`
+}
+
+type SustainableSpec struct {
+	// TODO
 }
 
 // Status from the dispatcher perspective

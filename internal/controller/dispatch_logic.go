@@ -49,7 +49,7 @@ func (r *Dispatcher) listAppWrappers(ctx context.Context, cluster string) (map[i
 			// discount resource requested by AppWrapper
 			awRequest := aggregateRequests(&appWrapper)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
-		} else if phase == mcadv1beta1.Queued {
+		} else if phase == mcadv1beta1.Queued && len(appWrapper.Spec.DispatchingGates) == 0 {
 			// add AppWrapper to queue
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
