@@ -97,6 +97,9 @@ type AppWrapperDispatcherStatus struct {
 
 	// Transition log
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
+
+	// Total time dispatched (excluding current leg)
+	DispatchedNanos int64 `json:"dispatchedNanos,omitempty"`
 }
 
 // Status from the runner perspective
