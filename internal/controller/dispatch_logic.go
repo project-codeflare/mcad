@@ -132,7 +132,7 @@ func assertPriorities(w map[int]Weights) {
 // Are resources reserved in this phase
 func isActivePhase(phase mcadv1beta1.AppWrapperPhase) bool {
 	switch phase {
-	case mcadv1beta1.Dispatching, mcadv1beta1.Running, mcadv1beta1.Errored, mcadv1beta1.Failed, mcadv1beta1.Requeuing:
+	case mcadv1beta1.Dispatching, mcadv1beta1.Running, mcadv1beta1.Failed, mcadv1beta1.Requeuing:
 		return true
 	default:
 		return false // Queued, Empty, Succeeded

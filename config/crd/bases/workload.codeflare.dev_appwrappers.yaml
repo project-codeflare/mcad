@@ -44,6 +44,10 @@ spec:
               dispatcherStatus:
                 description: Dispatcher status
                 properties:
+                  dispatchedNanos:
+                    description: Total time dispatched (excluding current leg)
+                    format: int64
+                    type: integer
                   lastDispatchingTime:
                     description: When last dispatched
                     format: date-time
