@@ -103,7 +103,7 @@ type AppWrapperDispatcherStatus struct {
 }
 
 // Status from the runner perspective
-type AppWrapperStatus struct {
+type AppWrapperRunnerStatus struct {
 	// Phase
 	Phase AppWrapperPhase `json:"phase,omitempty"`
 
@@ -112,6 +112,12 @@ type AppWrapperStatus struct {
 
 	// Transition log
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
+}
+
+// Status
+type AppWrapperStatus struct {
+	// Runner status
+	RunnerStatus AppWrapperRunnerStatus `json:"runnerStatus,omitempty"`
 }
 
 // AppWrapperPhase is the label for the AppWrapper status
@@ -181,7 +187,7 @@ type AppWrapperTransition struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="DISPATCHER",type="string",JSONPath=`.spec.dispatcherStatus.phase`
-//+kubebuilder:printcolumn:name="RUNNER",type="string",JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="RUNNER",type="string",JSONPath=`.status.runnerStatus.phase`
 
 // AppWrapper object
 type AppWrapper struct {

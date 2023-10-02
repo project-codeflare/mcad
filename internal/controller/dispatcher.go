@@ -59,7 +59,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
-		if appWrapper.Status.Phase == mcadv1beta1.Empty {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Empty {
 			// remove finalizer
 			if controllerutil.RemoveFinalizer(appWrapper, finalizer) {
 				if err := r.Update(ctx, appWrapper); err != nil {
@@ -82,7 +82,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
 			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
 		}
-		if appWrapper.Status.Phase == mcadv1beta1.Dispatching {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Dispatching {
 			// runner is ready to dispatch
 			return r.update(ctx, appWrapper, mcadv1beta1.Running)
 		}
@@ -96,7 +96,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 
 	case mcadv1beta1.Requeuing:
-		if appWrapper.Status.Phase == mcadv1beta1.Empty {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Empty {
 			// runner has deleted/never created the wrapped resources
 			return r.update(ctx, appWrapper, mcadv1beta1.Queued)
 		}
@@ -110,15 +110,15 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 
 	case mcadv1beta1.Running:
-		if appWrapper.Status.Phase == mcadv1beta1.Succeeded {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Succeeded {
 			// ack success
 			return r.update(ctx, appWrapper, mcadv1beta1.Succeeded)
 		}
-		if appWrapper.Status.Phase == mcadv1beta1.Failed {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Failed {
 			// ack failure
 			return r.update(ctx, appWrapper, mcadv1beta1.Failed)
 		}
-		if appWrapper.Status.Phase == mcadv1beta1.Errored {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Errored {
 			// requeue or fail if max retries exhausted
 			return r.requeueOrFail(ctx, appWrapper)
 		}
@@ -126,7 +126,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
 			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
 		}
-		if appWrapper.Status.Phase == mcadv1beta1.Running {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Running {
 			// let the runner monitor the running job
 			return ctrl.Result{}, nil
 		}

@@ -51,7 +51,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	}
 
 	// handle deletion
-	if appWrapper.Status.Phase != mcadv1beta1.Empty &&
+	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty &&
 		(!appWrapper.DeletionTimestamp.IsZero() || appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing) {
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
@@ -62,12 +62,12 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	}
 
 	// propagate failed phase from dispatcher to runner
-	if appWrapper.Status.Phase != mcadv1beta1.Failed && appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Failed {
+	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Failed && appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Failed {
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
 	}
 
 	// handle other phases
-	switch appWrapper.Status.Phase {
+	switch appWrapper.Status.RunnerStatus.Phase {
 	case mcadv1beta1.Dispatching:
 		if appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Running {
 			// parse wrapped resources
@@ -81,7 +81,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				return ctrl.Result{}, err
 			}
 			// set running status only after successfully requesting the creation of all resources
-			appWrapper.Status.LastRunningTime = metav1.Now()
+			appWrapper.Status.RunnerStatus.LastRunningTime = metav1.Now()
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running)
 		}
 
@@ -141,8 +141,8 @@ func (r *Runner) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWr
 	now := metav1.Now()
 	// log transition
 	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase}
-	appWrapper.Status.Transitions = append(appWrapper.Status.Transitions, transition)
-	appWrapper.Status.Phase = phase
+	appWrapper.Status.RunnerStatus.Transitions = append(appWrapper.Status.RunnerStatus.Transitions, transition)
+	appWrapper.Status.RunnerStatus.Phase = phase
 	if err := r.Status().Update(ctx, appWrapper); err != nil {
 		return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
 	}
@@ -154,5 +154,5 @@ func (r *Runner) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWr
 
 // Is running too slow?
 func isSlowRunning(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastRunningTime.Add(runningTimeout))
+	return metav1.Now().After(appWrapper.Status.RunnerStatus.LastRunningTime.Add(runningTimeout))
 }

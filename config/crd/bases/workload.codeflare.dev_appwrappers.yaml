@@ -18,7 +18,7 @@ spec:
     - jsonPath: .spec.dispatcherStatus.phase
       name: DISPATCHER
       type: string
-    - jsonPath: .status.phase
+    - jsonPath: .status.runnerStatus.phase
       name: RUNNER
       type: string
     name: v1beta1
@@ -175,30 +175,34 @@ spec:
           status:
             description: AppWrapper status
             properties:
-              lastRunningTime:
-                description: When last running
-                format: date-time
-                type: string
-              phase:
-                description: Phase
-                type: string
-              transitions:
-                description: Transition log
-                items:
-                  description: Phase transition
-                  properties:
-                    phase:
-                      description: Phase
-                      type: string
-                    time:
-                      description: Timestamp
-                      format: date-time
-                      type: string
-                  required:
-                  - phase
-                  - time
-                  type: object
-                type: array
+              runnerStatus:
+                description: Runner status
+                properties:
+                  lastRunningTime:
+                    description: When last running
+                    format: date-time
+                    type: string
+                  phase:
+                    description: Phase
+                    type: string
+                  transitions:
+                    description: Transition log
+                    items:
+                      description: Phase transition
+                      properties:
+                        phase:
+                          description: Phase
+                          type: string
+                        time:
+                          description: Timestamp
+                          format: date-time
+                          type: string
+                      required:
+                      - phase
+                      - time
+                      type: object
+                    type: array
+                type: object
             type: object
         required:
         - spec

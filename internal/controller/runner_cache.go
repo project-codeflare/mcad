@@ -27,13 +27,13 @@ import (
 
 // Add AppWrapper to cache
 func (r *Runner) addCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
-	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Transitions: len(appWrapper.Status.Transitions)}
+	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.RunnerStatus.Phase, Transitions: len(appWrapper.Status.RunnerStatus.Transitions)}
 }
 
 // Check whether reconciler cache and our cache appear to be in sync
 func (r *Runner) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapper) error {
 	if cached, ok := r.Cache[appWrapper.UID]; ok {
-		status := appWrapper.Status
+		status := appWrapper.Status.RunnerStatus
 		// check number of transitions
 		if cached.Transitions < len(status.Transitions) {
 			// our cache is behind, update the cache, this is ok
