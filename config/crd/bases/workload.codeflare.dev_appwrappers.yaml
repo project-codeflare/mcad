@@ -91,6 +91,13 @@ spec:
                 description: Priority
                 format: int32
                 type: integer
+              priorityslope:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Priority slope
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
               resources:
                 description: Wrapped resources
                 properties:
@@ -99,11 +106,23 @@ spec:
                     items:
                       description: GenericItems is the schema for the wrapped resources
                       properties:
+                        completionstatus:
+                          description: Completion status (TODO)
+                          type: string
                         custompodresources:
                           description: Replica count and resource requests
                           items:
                             description: Replica count and resource requests
                             properties:
+                              limits:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: Limits per replica
+                                type: object
                               replicas:
                                 description: Replica count
                                 format: int32
@@ -118,6 +137,7 @@ spec:
                                 description: Resource requests per replica
                                 type: object
                             required:
+                            - limits
                             - replicas
                             - requests
                             type: object
@@ -126,8 +146,12 @@ spec:
                           description: Resource template
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
+                        replicas:
+                          format: int32
+                          type: integer
                       required:
                       - generictemplate
+                      - replicas
                       type: object
                     type: array
                 required:
