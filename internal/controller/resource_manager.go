@@ -71,10 +71,9 @@ func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.Ap
 		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during deletion")
-			continue // ignore parsing errors, there no way we created this resource anyway
+			continue // ignore parsing errors, there is no way we created this resource anyway
 		}
-		background := metav1.DeletePropagationBackground
-		if err := r.Delete(ctx, obj, &client.DeleteOptions{PropagationPolicy: &background}); err != nil {
+		if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			if errors.IsNotFound(err) {
 				continue // ignore missing resources
 			}
@@ -83,6 +82,30 @@ func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.Ap
 		count += 1 // no error deleting resource, resource therefore still exists
 	}
 	return count
+}
+
+// Forcefully delete wrapped resources and pods
+func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) {
+	log := log.FromContext(ctx)
+	// forcefully delete matching pods
+	pod := &v1.Pod{}
+	if err := r.DeleteAllOf(ctx, pod, client.GracePeriodSeconds(0),
+		client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
+		log.Error(err, "Error during forceful pod deletion")
+	}
+	for _, resource := range appWrapper.Spec.Resources.GenericItems {
+		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
+		if err != nil {
+			log.Error(err, "Resource parsing error during forceful deletion")
+			continue // ignore parsing errors, there is no way we created this resource anyway
+		}
+		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil {
+			if errors.IsNotFound(err) {
+				continue // ignore missing resources
+			}
+			log.Error(err, "Forceful resource deletion error")
+		}
+	}
 }
 
 // Count AppWrapper pods

@@ -178,6 +178,10 @@ spec:
               runnerStatus:
                 description: Runner status
                 properties:
+                  lastRequeuingTime:
+                    description: When last requeued
+                    format: date-time
+                    type: string
                   lastRunningTime:
                     description: When last running
                     format: date-time
