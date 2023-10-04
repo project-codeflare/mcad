@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -26,6 +27,9 @@ import (
 type AppWrapperSpec struct {
 	// Priority
 	Priority int32 `json:"priority,omitempty"`
+
+	// Priority slope
+	DoNotUsePrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
 
 	// Scheduling specification
 	Scheduling SchedulingSpec `json:"schedulingSpec,omitempty"`
@@ -162,8 +166,13 @@ type AppWrapperResources struct {
 
 // GenericItems is the schema for the wrapped resources
 type GenericItem struct {
+	DoNotUseReplicas int32 `json:"replicas"`
+
 	// Replica count and resource requests
 	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
+
+	// Completion status (TODO)
+	CompletionStatus string `json:"completionstatus,omitempty"`
 
 	// Resource template
 	GenericTemplate runtime.RawExtension `json:"generictemplate"`
@@ -176,6 +185,9 @@ type CustomPodResource struct {
 
 	// Resource requests per replica
 	Requests v1.ResourceList `json:"requests"`
+
+	// Limits per replica
+	DoNotUseLimits v1.ResourceList `json:"limits"`
 }
 
 // Phase transition
