@@ -110,6 +110,9 @@ type AppWrapperRunnerStatus struct {
 	// When last running
 	LastRunningTime metav1.Time `json:"lastRunningTime,omitempty"`
 
+	// When last requeued
+	LastRequeuingTime metav1.Time `json:"lastRequeuingTime,omitempty"`
+
 	// Transition log
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
 }
@@ -148,7 +151,7 @@ const (
 	Failed AppWrapperPhase = "Failed"
 
 	// resources are reserved
-	Requeuing AppWrapperPhase = "Requeuing" // dispatcher-only phase
+	Requeuing AppWrapperPhase = "Requeuing"
 )
 
 // AppWrapperResource

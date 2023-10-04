@@ -135,6 +135,7 @@ func (in *AppWrapperResources) DeepCopy() *AppWrapperResources {
 func (in *AppWrapperRunnerStatus) DeepCopyInto(out *AppWrapperRunnerStatus) {
 	*out = *in
 	in.LastRunningTime.DeepCopyInto(&out.LastRunningTime)
+	in.LastRequeuingTime.DeepCopyInto(&out.LastRequeuingTime)
 	if in.Transitions != nil {
 		in, out := &in.Transitions, &out.Transitions
 		*out = make([]AppWrapperTransition, len(*in))

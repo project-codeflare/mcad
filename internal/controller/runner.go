@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,8 +52,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	}
 
 	// handle deletion
-	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty &&
-		(!appWrapper.DeletionTimestamp.IsZero() || appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing) {
+	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty && !appWrapper.DeletionTimestamp.IsZero() {
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			// requeue reconciliation
@@ -66,8 +66,25 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
 	}
 
+	// propagate requeuing phase from dispatcher to runner
+	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Requeuing && appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing {
+		appWrapper.Status.RunnerStatus.LastRequeuingTime = metav1.Now()
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Requeuing)
+	}
+
 	// handle other phases
 	switch appWrapper.Status.RunnerStatus.Phase {
+	case mcadv1beta1.Requeuing:
+		// delete wrapped resources
+		if r.deleteResources(ctx, appWrapper) != 0 {
+			if time.Now().After(appWrapper.Status.RunnerStatus.LastRequeuingTime.Add(time.Minute)) {
+				r.forceDelete(ctx, appWrapper)
+			}
+			// requeue reconciliation
+			return ctrl.Result{Requeue: true}, nil
+		}
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
+
 	case mcadv1beta1.Dispatching:
 		if appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Running {
 			// parse wrapped resources
