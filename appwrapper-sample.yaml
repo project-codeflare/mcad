@@ -1,7 +1,6 @@
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  namespace: default
   name: appwrapper-sample
 spec:
   priority: 5
@@ -23,7 +22,7 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: default
+          namespace: <OWNER>
           name: appwrapper-sample-1
           labels:
             workload.codeflare.dev/namespace: default
@@ -47,7 +46,7 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: default
+          namespace: <OWNER>
           name: appwrapper-sample-2
           labels:
             workload.codeflare.dev/namespace: default
