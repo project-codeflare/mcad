@@ -67,7 +67,9 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	}
 
 	// propagate requeuing phase from dispatcher to runner
-	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Requeuing && appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing {
+	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Requeuing &&
+		appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty &&
+		appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing {
 		appWrapper.Status.RunnerStatus.LastRequeuingTime = metav1.Now()
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Requeuing)
 	}
@@ -95,7 +97,8 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 			}
 			// create wrapped resources
 			if err := r.createResources(ctx, objects); err != nil {
-				return ctrl.Result{}, err
+				log.Error(err, "Resource creation error")
+				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored)
 			}
 			// set running status only after successfully requesting the creation of all resources
 			appWrapper.Status.RunnerStatus.LastRunningTime = metav1.Now()

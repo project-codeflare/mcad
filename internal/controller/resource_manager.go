@@ -18,10 +18,13 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/discovery"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -96,7 +99,7 @@ func parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error)
 func (r *Runner) createResources(ctx context.Context, objects []client.Object) error {
 	for _, obj := range objects {
 		if err := r.Create(ctx, obj); err != nil {
-			if !errors.IsAlreadyExists(err) { // ignore existing resources
+			if !apierrors.IsAlreadyExists(err) { // ignore existing resources
 				return err
 			}
 		}
@@ -162,8 +165,9 @@ func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.Ap
 			continue // ignore parsing errors, there is no way we created this resource anyway
 		}
 		if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-			if errors.IsNotFound(err) {
-				continue // ignore missing resources
+			var derr *discovery.ErrGroupDiscoveryFailed
+			if apierrors.IsNotFound(err) || errors.As(err, &derr) {
+				continue // ignore missing resources and api resources
 			}
 			log.Error(err, "Resource deletion error")
 		}
@@ -188,7 +192,7 @@ func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWra
 			continue // ignore parsing errors, there is no way we created this resource anyway
 		}
 		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil {
-			if errors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				continue // ignore missing resources
 			}
 			log.Error(err, "Forceful resource deletion error")
