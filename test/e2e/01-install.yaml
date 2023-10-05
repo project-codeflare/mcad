@@ -1,0 +1,27 @@
+apiVersion: workload.codeflare.dev/v1beta1
+kind: AppWrapper
+metadata:
+  name: aw-01
+spec:
+  schedulingSpec:
+    clusterScheduling:
+      policyResult:
+        targetCluster:
+          name: self
+  resources:
+    GenericItems:
+    - generictemplate:
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          namespace: <APPWRAPPER_NAMESPACE>
+          name: <APPWRAPPER_NAME>-pod-01
+          labels:
+            workload.codeflare.dev/namespace: <APPWRAPPER_NAMESPACE>
+            workload.codeflare.dev: <APPWRAPPER_NAME>
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: busybox
+              image: busybox
+              command: ["sh", "-c", "sleep 1"]

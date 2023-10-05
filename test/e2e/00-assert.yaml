@@ -1,0 +1,10 @@
+apiVersion: workload.codeflare.dev/v1beta1
+kind: AppWrapper
+metadata:
+  name: aw-00
+spec:
+  dispatcherStatus:
+    phase: Running
+status:
+  runnerStatus:
+    phase: Running
