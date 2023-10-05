@@ -31,34 +31,40 @@ import (
 )
 
 const appWrapperNamespacePlaceholder = "<APPWRAPPER_NAMESPACE>"
+const appWrapperNamePlaceholder = "<APPWRAPPER_NAME>"
 
-// replace appWrapperNamespacePlaceholder with namespace
-func fixNamespaceInMap(namespace string, m map[string]interface{}) {
+// replace placeholders in map with AppWrapper metadata
+func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
 	for k, v := range m {
 		switch v := v.(type) {
 		case string:
-			if v == appWrapperNamespacePlaceholder {
-				m[k] = namespace
+			if strings.HasPrefix(v, appWrapperNamespacePlaceholder) {
+				m[k] = strings.Replace(v, appWrapperNamespacePlaceholder, appWrapper.Namespace, 1)
+			} else if strings.HasPrefix(v, appWrapperNamePlaceholder) {
+				m[k] = strings.Replace(v, appWrapperNamePlaceholder, appWrapper.Name, 1)
 			}
 		case map[string]interface{}:
-			fixNamespaceInMap(namespace, v)
+			fixMap(appWrapper, v)
 		case []interface{}:
-			fixNamespaceInArray(namespace, v)
+			fixArray(appWrapper, v)
 		}
 	}
 }
 
-func fixNamespaceInArray(namespace string, a []interface{}) {
+// replace placeholders in array with AppWrapper metadata
+func fixArray(appWrapper *mcadv1beta1.AppWrapper, a []interface{}) {
 	for k, v := range a {
 		switch v := v.(type) {
 		case string:
-			if v == appWrapperNamespacePlaceholder {
-				a[k] = namespace
+			if strings.HasPrefix(v, appWrapperNamespacePlaceholder) {
+				a[k] = strings.Replace(v, appWrapperNamespacePlaceholder, appWrapper.Namespace, 1)
+			} else if strings.HasPrefix(v, appWrapperNamePlaceholder) {
+				a[k] = strings.Replace(v, appWrapperNamePlaceholder, appWrapper.Name, 1)
 			}
 		case map[string]interface{}:
-			fixNamespaceInMap(namespace, v)
+			fixMap(appWrapper, v)
 		case []interface{}:
-			fixNamespaceInArray(namespace, v)
+			fixArray(appWrapper, v)
 		}
 	}
 }
@@ -69,7 +75,7 @@ func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (*unstructure
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
 	}
-	fixNamespaceInMap(appWrapper.Namespace, obj.UnstructuredContent())
+	fixMap(appWrapper, obj.UnstructuredContent())
 	return obj, nil
 }
 

@@ -23,10 +23,10 @@ spec:
         kind: Pod
         metadata:
           namespace: <APPWRAPPER_NAMESPACE>
-          name: appwrapper-sample-1
+          name: <APPWRAPPER_NAME>-1
           labels:
             workload.codeflare.dev/namespace: <APPWRAPPER_NAMESPACE>
-            workload.codeflare.dev: appwrapper-sample
+            workload.codeflare.dev: <APPWRAPPER_NAME>
         spec:
           restartPolicy: Never
           containers:
@@ -47,10 +47,10 @@ spec:
         kind: Pod
         metadata:
           namespace: <APPWRAPPER_NAMESPACE>
-          name: appwrapper-sample-2
+          name: <APPWRAPPER_NAME>-2
           labels:
             workload.codeflare.dev/namespace: <APPWRAPPER_NAMESPACE>
-            workload.codeflare.dev: appwrapper-sample
+            workload.codeflare.dev: <APPWRAPPER_NAME>
         spec:
           restartPolicy: Never
           containers:
