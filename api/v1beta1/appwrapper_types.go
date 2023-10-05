@@ -171,7 +171,7 @@ type GenericItem struct {
 	// Replica count and resource requests
 	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
 
-	// Completion status (TODO)
+	// A comma-separated list of keywords to match against condition types
 	CompletionStatus string `json:"completionstatus,omitempty"`
 
 	// Resource template

@@ -108,11 +108,17 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		// check for failure conditions
 		if counts.Failed > 0 || isSlowRunning(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.Scheduling.MinAvailable)) {
 			// set errored status
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored)
 		}
-		if appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded >= int(appWrapper.Spec.Scheduling.MinAvailable) && counts.Running == 0 && counts.Other == 0 {
+		// check for successful completion by looking at pods and wrapped resources
+		done, err := r.checkCompletion(ctx, appWrapper, counts)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if done {
 			// set succeeded status
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded)
 		}

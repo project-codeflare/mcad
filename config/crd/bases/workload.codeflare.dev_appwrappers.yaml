@@ -107,7 +107,8 @@ spec:
                       description: GenericItems is the schema for the wrapped resources
                       properties:
                         completionstatus:
-                          description: Completion status (TODO)
+                          description: A comma-separated list of keywords to match
+                            against condition types
                           type: string
                         custompodresources:
                           description: Replica count and resource requests
