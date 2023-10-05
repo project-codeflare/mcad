@@ -30,15 +30,46 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
+const appWrapperNamespacePlaceholder = "<APPWRAPPER_NAMESPACE>"
+
+// replace appWrapperNamespacePlaceholder with namespace
+func fixNamespaceInMap(namespace string, m map[string]interface{}) {
+	for k, v := range m {
+		switch v := v.(type) {
+		case string:
+			if v == appWrapperNamespacePlaceholder {
+				m[k] = namespace
+			}
+		case map[string]interface{}:
+			fixNamespaceInMap(namespace, v)
+		case []interface{}:
+			fixNamespaceInArray(namespace, v)
+		}
+	}
+}
+
+func fixNamespaceInArray(namespace string, a []interface{}) {
+	for k, v := range a {
+		switch v := v.(type) {
+		case string:
+			if v == appWrapperNamespacePlaceholder {
+				a[k] = namespace
+			}
+		case map[string]interface{}:
+			fixNamespaceInMap(namespace, v)
+		case []interface{}:
+			fixNamespaceInArray(namespace, v)
+		}
+	}
+}
+
 // Parse raw resource into client object
 func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
 	}
-	if obj.GetNamespace() == "<OWNER>" {
-		obj.SetNamespace(appWrapper.Namespace)
-	}
+	fixNamespaceInMap(appWrapper.Namespace, obj.UnstructuredContent())
 	return obj, nil
 }
 
