@@ -36,6 +36,9 @@ func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (*unstructure
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
 	}
+	if obj.GetNamespace() == "<OWNER>" {
+		obj.SetNamespace(appWrapper.Namespace)
+	}
 	return obj, nil
 }
 
