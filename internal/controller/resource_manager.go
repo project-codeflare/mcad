@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -30,7 +31,7 @@ import (
 )
 
 // Parse raw resource into client object
-func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (client.Object, error) {
+func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
@@ -61,6 +62,53 @@ func (r *Runner) createResources(ctx context.Context, objects []client.Object) e
 		}
 	}
 	return nil
+}
+
+// Check completion by looking at pods and wrapped resources
+func (r *Runner) checkCompletion(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, counts *PodCounts) (bool, error) {
+	if counts.Running > 0 ||
+		counts.Other > 0 ||
+		appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
+		return false, nil
+	}
+	custom := false // at least one resource with completionstatus spec?
+	for _, resource := range appWrapper.Spec.Resources.GenericItems {
+		// skip resources without a completionstatus spec
+		if resource.CompletionStatus != "" {
+			custom = true
+			obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
+			if err != nil {
+				return false, err
+			}
+			if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+				return false, err
+			}
+			unstruct := obj.UnstructuredContent()
+			done := false // at least one condition matching completionstatus spec?
+			// check for a condition with status True and a type than contains one of the specified completion status key
+			if status, ok := unstruct["status"].(map[string]interface{}); ok {
+				if conditions, ok := status["conditions"].([]interface{}); ok {
+					keys := strings.Split(resource.CompletionStatus, ",")
+					for _, condition := range conditions {
+						if c, ok := condition.(map[string]interface{}); ok {
+							if t, ok := c["type"].(string); ok && c["status"] == "True" {
+								for _, k := range keys {
+									if strings.Contains(t, k) {
+										done = true
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if !done {
+				return false, nil
+			}
+		}
+	}
+	return custom || appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded >= int(appWrapper.Spec.Scheduling.MinAvailable), nil
 }
 
 // Delete wrapped resources, ignore errors, return count of pending deletions
