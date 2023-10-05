@@ -25,5 +25,5 @@ Dockerfile.cross
 *.swo
 *~
 
-
 node_modules/
+kubeconfig
