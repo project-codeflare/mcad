@@ -166,7 +166,7 @@ type AppWrapperResources struct {
 
 // GenericItems is the schema for the wrapped resources
 type GenericItem struct {
-	DoNotUseReplicas int32 `json:"replicas"`
+	DoNotUseReplicas int32 `json:"replicas,omitempty"`
 
 	// Replica count and resource requests
 	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
@@ -187,7 +187,7 @@ type CustomPodResource struct {
 	Requests v1.ResourceList `json:"requests"`
 
 	// Limits per replica
-	DoNotUseLimits v1.ResourceList `json:"limits"`
+	DoNotUseLimits v1.ResourceList `json:"limits,omitempty"`
 }
 
 // Phase transition

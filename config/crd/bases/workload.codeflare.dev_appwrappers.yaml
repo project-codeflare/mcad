@@ -137,7 +137,6 @@ spec:
                                 description: Resource requests per replica
                                 type: object
                             required:
-                            - limits
                             - replicas
                             - requests
                             type: object
@@ -151,7 +150,6 @@ spec:
                           type: integer
                       required:
                       - generictemplate
-                      - replicas
                       type: object
                     type: array
                 required:
