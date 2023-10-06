@@ -58,7 +58,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			// requeue reconciliation
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 		// set empty status
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
@@ -91,7 +91,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				r.forceDelete(ctx, appWrapper)
 			}
 			// requeue reconciliation
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
 
@@ -150,7 +150,8 @@ func (r *Runner) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	// watch pods
-	return ctrl.NewControllerManagedBy(mgr).For(&mcadv1beta1.AppWrapper{}).
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&mcadv1beta1.AppWrapper{}).
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)
 }
@@ -160,7 +161,9 @@ func (r *Runner) podMapFunc(ctx context.Context, obj client.Object) []reconcile.
 	pod := obj.(*v1.Pod)
 	if name, ok := pod.Labels[nameLabel]; ok {
 		if namespace, ok := pod.Labels[namespaceLabel]; ok {
-			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
+			if pod.Status.Phase == v1.PodSucceeded {
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
+			}
 		}
 	}
 	return nil

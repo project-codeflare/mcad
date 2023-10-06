@@ -67,7 +67,6 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				}
 			}
 		}
-		r.triggerDispatch() // cluster may have more available capacity
 		return ctrl.Result{}, nil
 	}
 
@@ -84,16 +83,14 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// runner is ready to dispatch
 			return r.update(ctx, appWrapper, mcadv1beta1.Running)
 		}
-		// requeue reconciliation
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Requeuing:
 		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Empty {
 			// runner has deleted/never created the wrapped resources
 			return r.update(ctx, appWrapper, mcadv1beta1.Queued)
 		}
-		// requeue reconciliation
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Running:
 		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Succeeded {
@@ -116,12 +113,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	case mcadv1beta1.Empty:
 		// add finalizer
-		if controllerutil.AddFinalizer(appWrapper, finalizer) {
-			if err := r.Update(ctx, appWrapper); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		// set queued status only after adding finalizer
+		controllerutil.AddFinalizer(appWrapper, finalizer)
 		return r.update(ctx, appWrapper, mcadv1beta1.Queued)
 	}
 	return ctrl.Result{}, nil
@@ -192,26 +184,26 @@ func (r *Dispatcher) triggerDispatch() {
 
 // Attempt to select and dispatch one appWrapper
 func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
-	appWrapper, err := r.selectForDispatch(ctx)
-	if err != nil {
-		return ctrl.Result{}, err
+	for {
+		appWrapper, err := r.selectForDispatch(ctx)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if appWrapper == nil { // no appWrapper eligible for dispatch
+			return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
+		}
+		// abort and requeue reconciliation if reconciler cache is stale
+		if err := r.checkCachedPhase(appWrapper); err != nil {
+			return ctrl.Result{}, err
+		}
+		if appWrapper.Spec.DispatcherStatus.Phase != mcadv1beta1.Queued {
+			// this check should be redundant but better be defensive
+			return ctrl.Result{}, errors.New("not queued")
+		}
+		// set dispatching status
+		appWrapper.Spec.DispatcherStatus.LastDispatchingTime = metav1.Now()
+		if _, err := r.update(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
-	if appWrapper == nil { // no appWrapper eligible for dispatch
-		return ctrl.Result{RequeueAfter: dispatchDelay}, nil // retry to dispatch later
-	}
-	// abort and requeue reconciliation if reconciler cache is stale
-	if err := r.checkCachedPhase(appWrapper); err != nil {
-		return ctrl.Result{}, err
-	}
-	if appWrapper.Spec.DispatcherStatus.Phase != mcadv1beta1.Queued {
-		// this check should be redundant but better be defensive
-		return ctrl.Result{}, errors.New("not queued")
-	}
-	// set dispatching status
-	appWrapper.Spec.DispatcherStatus.LastDispatchingTime = metav1.Now()
-	if _, err := r.update(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
-		return ctrl.Result{}, err
-	}
-	// requeue to continue to dispatch queued appWrappers
-	return ctrl.Result{Requeue: true}, nil
 }
