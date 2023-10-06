@@ -60,7 +60,7 @@ type SchedulingSpec struct {
 	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
 
 	// Cluster specification
-	ClusterScheduling ClusterSchedulingSpec `json:"clusterScheduling,omitempty"`
+	ClusterScheduling *ClusterSchedulingSpec `json:"clusterScheduling,omitempty"`
 }
 
 type RequeuingSpec struct {

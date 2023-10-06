@@ -69,8 +69,8 @@ func main() {
 		Development: true,
 	}
 	flag.StringVar(&mode, "mode", "default", "One of default, dispatcher, runner.")
-	flag.StringVar(&namespace, "clusterinfo-namespace", "default", "The namespace of the ClusterInfo object.")
-	flag.StringVar(&name, "clusterinfo-name", "self", "The name of the ClusterInfo object.")
+	flag.StringVar(&namespace, "clusterinfo-namespace", "default", "The namespace of the ClusterInfo object")
+	flag.StringVar(&name, "clusterinfo-name", controller.DefaultClusterName, "The name of the ClusterInfo object.")
 	flag.StringVar(&context, "kube-context", "", "The Kubernetes context.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()

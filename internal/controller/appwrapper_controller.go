@@ -35,11 +35,12 @@ type AppWrapperReconciler struct {
 }
 
 const (
-	nameLabel      = "workload.codeflare.dev"           // owner name label for wrapped resources
-	namespaceLabel = "workload.codeflare.dev/namespace" // owner namespace label for wrapped resources
-	finalizer      = "workload.codeflare.dev/finalizer" // finalizer name
-	nvidiaGpu      = "nvidia.com/gpu"                   // GPU resource name
-	specNodeName   = ".spec.nodeName"                   // key to index pods based on node placement
+	nameLabel          = "workload.codeflare.dev"           // owner name label for wrapped resources
+	namespaceLabel     = "workload.codeflare.dev/namespace" // owner namespace label for wrapped resources
+	finalizer          = "workload.codeflare.dev/finalizer" // finalizer name
+	nvidiaGpu          = "nvidia.com/gpu"                   // GPU resource name
+	specNodeName       = ".spec.nodeName"                   // key to index pods based on node placement
+	DefaultClusterName = "self"                             // default cluster name
 )
 
 // PodCounts summarize the status of the pods associated with one AppWrapper
