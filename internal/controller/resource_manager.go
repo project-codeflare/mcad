@@ -23,6 +23,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/discovery"
@@ -165,7 +166,8 @@ func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.Ap
 		}
 		if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			var derr *discovery.ErrGroupDiscoveryFailed
-			if apierrors.IsNotFound(err) || errors.As(err, &derr) {
+			var merr *meta.NoKindMatchError
+			if apierrors.IsNotFound(err) || errors.As(err, &derr) || errors.As(err, &merr) {
 				continue // ignore missing resources and api resources
 			}
 			log.Error(err, "Resource deletion error")
@@ -192,7 +194,8 @@ func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWra
 		}
 		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil {
 			var derr *discovery.ErrGroupDiscoveryFailed
-			if apierrors.IsNotFound(err) || errors.As(err, &derr) {
+			var merr *meta.NoKindMatchError
+			if apierrors.IsNotFound(err) || errors.As(err, &derr) || errors.As(err, &merr) {
 				continue // ignore missing resources and api resources
 			}
 			log.Error(err, "Forceful resource deletion error")
