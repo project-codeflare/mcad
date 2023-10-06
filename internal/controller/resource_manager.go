@@ -192,8 +192,9 @@ func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWra
 			continue // ignore parsing errors, there is no way we created this resource anyway
 		}
 		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil {
-			if apierrors.IsNotFound(err) {
-				continue // ignore missing resources
+			var derr *discovery.ErrGroupDiscoveryFailed
+			if apierrors.IsNotFound(err) || errors.As(err, &derr) {
+				continue // ignore missing resources and api resources
 			}
 			log.Error(err, "Forceful resource deletion error")
 		}
