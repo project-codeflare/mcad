@@ -48,7 +48,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// get deep copy of AppWrapper object in reconciler cache
 	appWrapper := &mcadv1beta1.AppWrapper{}
 	if err := r.Get(ctx, req.NamespacedName, appWrapper); err != nil {
-		// no such AppWrapper, nothing to reconcile, not an error
+		r.triggerDispatch() // cluster may have more available capacity
 		return ctrl.Result{}, nil
 	}
 
@@ -66,21 +66,20 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 					return ctrl.Result{}, err
 				}
 			}
-			r.triggerDispatch() // cluster may have more available capacity
 		}
+		r.triggerDispatch() // cluster may have more available capacity
 		return ctrl.Result{}, nil
 	}
 
 	// handle other phases
 	switch appWrapper.Spec.DispatcherStatus.Phase {
 	case mcadv1beta1.Succeeded, mcadv1beta1.Queued:
-		// cluster may have more available capacity
 		r.triggerDispatch()
 
 	case mcadv1beta1.Dispatching:
 		if len(appWrapper.Spec.DispatchingGates) > 0 {
 			appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
-			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
+			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing, "requeued due to dispatching gate")
 		}
 		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Dispatching {
 			// runner is ready to dispatch
@@ -124,20 +123,10 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		if len(appWrapper.Spec.DispatchingGates) > 0 {
 			appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
-			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
+			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing, "requeued due to dispatching gate")
 		}
-		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Running {
-			// let the runner monitor the running job
-			return ctrl.Result{}, nil
-		}
-		if isSlowDispatching(appWrapper) {
-			// runner has not completed creation
-			// requeue or fail if max retries exhausted
-			return r.requeueOrFail(ctx, appWrapper)
-		} else {
-			// requeue reconciliation
-			return ctrl.Result{Requeue: true}, nil
-		}
+		// let the runner monitor the running job
+		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Empty:
 		// add finalizer
@@ -170,11 +159,14 @@ func (r *Dispatcher) clusterInfoMapFunc(ctx context.Context, obj client.Object) 
 }
 
 // Update AppWrapper status
-func (r *Dispatcher) update(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase) (ctrl.Result, error) {
+func (r *Dispatcher) update(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase, reason ...string) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	now := metav1.Now()
 	// log transition
 	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase}
+	if len(reason) > 0 {
+		transition.Reason = reason[0]
+	}
 	appWrapper.Spec.DispatcherStatus.Transitions = append(appWrapper.Spec.DispatcherStatus.Transitions, transition)
 	if (appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Dispatching ||
 		appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Running ||
@@ -201,7 +193,7 @@ func (r *Dispatcher) requeueOrFail(ctx context.Context, appWrapper *mcadv1beta1.
 		appWrapper.Spec.DispatcherStatus.LastRequeuingTime = metav1.Now()
 		return r.update(ctx, appWrapper, mcadv1beta1.Requeuing)
 	}
-	return r.update(ctx, appWrapper, mcadv1beta1.Failed)
+	return r.update(ctx, appWrapper, mcadv1beta1.Failed, "maxNumRequeuings exceeded")
 }
 
 // Trigger dispatch

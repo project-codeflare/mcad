@@ -37,8 +37,6 @@ type Runner struct {
 }
 
 func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-
 	// get deep copy of AppWrapper object in reconciler cache
 	appWrapper := &mcadv1beta1.AppWrapper{}
 	if err := r.Get(ctx, req.NamespacedName, appWrapper); err != nil {
@@ -52,24 +50,34 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	}
 
 	// handle deletion
-	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty && !appWrapper.DeletionTimestamp.IsZero() {
+	if !appWrapper.DeletionTimestamp.IsZero() {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Empty {
+			// already done
+			return ctrl.Result{}, nil
+		}
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			// requeue reconciliation
 			return ctrl.Result{Requeue: true}, nil
 		}
+		// set empty status
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
 	}
 
 	// propagate failed phase from dispatcher to runner
-	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Failed && appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Failed {
-		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
+	if appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Failed {
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Failed {
+			// already done
+			return ctrl.Result{}, nil
+		}
+		// set failed status and reason
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, appWrapper.Spec.DispatcherStatus.Transitions[len(appWrapper.Spec.DispatcherStatus.Transitions)-1].Reason)
 	}
 
 	// propagate requeuing phase from dispatcher to runner
-	if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Requeuing &&
-		appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty &&
-		appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing {
+	if appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing &&
+		appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Requeuing &&
+		appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty {
 		appWrapper.Status.RunnerStatus.LastRequeuingTime = metav1.Now()
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Requeuing)
 	}
@@ -92,13 +100,11 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 			// parse wrapped resources
 			objects, err := parseResources(appWrapper)
 			if err != nil {
-				log.Error(err, "Resource parsing error during creation")
-				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed)
+				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, "resource parsing error")
 			}
 			// create wrapped resources
 			if err := r.createResources(ctx, objects); err != nil {
-				log.Error(err, "Resource creation error")
-				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored)
+				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "resource creation error")
 			}
 			// set running status only after successfully requesting the creation of all resources
 			appWrapper.Status.RunnerStatus.LastRunningTime = metav1.Now()
@@ -112,9 +118,17 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 			return ctrl.Result{}, err
 		}
 		// check for failure conditions
-		if counts.Failed > 0 || isSlowRunning(appWrapper) && (counts.Other > 0 || counts.Running < int(appWrapper.Spec.Scheduling.MinAvailable)) {
+		if counts.Failed > 0 {
 			// set errored status
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored)
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "failed pod")
+		}
+		if isSlowRunning(appWrapper) && counts.Other > 0 {
+			// set errored status
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "pod not ready")
+		}
+		if isSlowRunning(appWrapper) && counts.Running < int(appWrapper.Spec.Scheduling.MinAvailable) {
+			// set errored status
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "too few running pods")
 		}
 		// check for successful completion by looking at pods and wrapped resources
 		done, err := r.checkCompletion(ctx, appWrapper, counts)
@@ -162,11 +176,14 @@ func (r *Runner) podMapFunc(ctx context.Context, obj client.Object) []reconcile.
 }
 
 // Update AppWrapper status
-func (r *Runner) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase) (ctrl.Result, error) {
+func (r *Runner) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase, reason ...string) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	now := metav1.Now()
 	// log transition
 	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase}
+	if len(reason) > 0 {
+		transition.Reason = reason[0]
+	}
 	appWrapper.Status.RunnerStatus.Transitions = append(appWrapper.Status.RunnerStatus.Transitions, transition)
 	appWrapper.Status.RunnerStatus.Phase = phase
 	if err := r.Status().Update(ctx, appWrapper); err != nil {

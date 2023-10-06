@@ -71,6 +71,9 @@ spec:
                         phase:
                           description: Phase
                           type: string
+                        reason:
+                          description: Reason
+                          type: string
                         time:
                           description: Timestamp
                           format: date-time
@@ -219,6 +222,9 @@ spec:
                       properties:
                         phase:
                           description: Phase
+                          type: string
+                        reason:
+                          description: Reason
                           type: string
                         time:
                           description: Timestamp
