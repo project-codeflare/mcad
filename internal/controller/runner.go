@@ -87,7 +87,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	case mcadv1beta1.Requeuing:
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			if time.Now().After(appWrapper.Status.RunnerStatus.LastRequeuingTime.Add(time.Minute)) {
+			if isSlowRequeuing(appWrapper) {
 				r.forceDelete(ctx, appWrapper)
 			}
 			// requeue reconciliation
@@ -116,15 +116,6 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		counts, err := r.countPods(ctx, appWrapper)
 		if err != nil {
 			return ctrl.Result{}, err
-		}
-		// check for failure conditions
-		if counts.Failed > 0 {
-			// set errored status
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "failed pod")
-		}
-		if isSlowRunning(appWrapper) && counts.Other > 0 {
-			// set errored status
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "pod not ready")
 		}
 		if isSlowRunning(appWrapper) && counts.Running < int(appWrapper.Spec.Scheduling.MinAvailable) {
 			// set errored status
@@ -198,4 +189,9 @@ func (r *Runner) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWr
 // Is running too slow?
 func isSlowRunning(appWrapper *mcadv1beta1.AppWrapper) bool {
 	return metav1.Now().After(appWrapper.Status.RunnerStatus.LastRunningTime.Add(runningTimeout))
+}
+
+// Is requeuing too slow?
+func isSlowRequeuing(appWrapper *mcadv1beta1.AppWrapper) bool {
+	return metav1.Now().After(appWrapper.Status.RunnerStatus.LastRequeuingTime.Add(time.Minute))
 }
