@@ -195,6 +195,9 @@ type AppWrapperTransition struct {
 	// Timestamp
 	Time metav1.Time `json:"time"`
 
+	// Reason
+	Reason string `json:"reason,omitempty"`
+
 	// Phase
 	Phase AppWrapperPhase `json:"phase"`
 }
