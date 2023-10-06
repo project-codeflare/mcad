@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +54,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 			// delete wrapped resources
 			if r.deleteResources(ctx, appWrapper) != 0 {
 				// requeue reconciliation
-				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
 			// set empty status
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
@@ -87,7 +86,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		if r.deleteResources(ctx, appWrapper) != 0 {
 			if !isSlowRequeuing(appWrapper) {
 				// requeue reconciliation
-				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
 			r.forceDelete(ctx, appWrapper)
 		}
@@ -197,5 +196,5 @@ func isSlowRunning(appWrapper *mcadv1beta1.AppWrapper) bool {
 
 // Is requeuing too slow?
 func isSlowRequeuing(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.RunnerStatus.LastRequeuingTime.Add(time.Minute))
+	return metav1.Now().After(appWrapper.Status.RunnerStatus.LastRequeuingTime.Add(requeuingTimeout))
 }

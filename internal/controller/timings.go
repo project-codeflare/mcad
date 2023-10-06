@@ -30,6 +30,7 @@ const (
 	clusterInfoTimeout   = time.Minute     // how often to refresh cluster capacity
 
 	// RequeueAfter delays
-	runDelay      = time.Minute // how often to force check running AppWrapper health
-	dispatchDelay = time.Minute // how often to force dispatch
+	runDelay      = time.Minute     // how often to force check running AppWrapper health
+	dispatchDelay = time.Minute     // how often to force dispatch
+	deletionDelay = 5 * time.Second // how often to check deleted resources
 )
