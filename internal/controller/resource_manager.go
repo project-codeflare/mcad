@@ -18,15 +18,12 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -162,15 +159,13 @@ func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.Ap
 		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during deletion")
-			continue // ignore parsing errors, there is no way we created this resource anyway
+			continue
 		}
-		if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-			var derr *discovery.ErrGroupDiscoveryFailed
-			var merr *meta.NoKindMatchError
-			if apierrors.IsNotFound(err) || errors.As(err, &derr) || errors.As(err, &merr) {
-				continue // ignore missing resources and api resources
+		if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil {
+			if !apierrors.IsNotFound(err) {
+				log.Error(err, "Resource deletion error")
 			}
-			log.Error(err, "Resource deletion error")
+			continue
 		}
 		count += 1 // no error deleting resource, resource therefore still exists
 	}
@@ -190,15 +185,10 @@ func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWra
 		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
 			log.Error(err, "Resource parsing error during forceful deletion")
-			continue // ignore parsing errors, there is no way we created this resource anyway
+			continue
 		}
-		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil {
-			var derr *discovery.ErrGroupDiscoveryFailed
-			var merr *meta.NoKindMatchError
-			if apierrors.IsNotFound(err) || errors.As(err, &derr) || errors.As(err, &merr) {
-				continue // ignore missing resources and api resources
-			}
-			log.Error(err, "Forceful resource deletion error")
+		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+			log.Error(err, "Resource deletion error")
 		}
 	}
 }

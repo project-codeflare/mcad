@@ -143,10 +143,6 @@ const (
 	// no resource reservation even if pods may still exist in completed state
 	Succeeded AppWrapperPhase = "Succeeded"
 
-	// resources are reserved as errors may be partial
-	// AppWrapper may be requeued
-	Errored AppWrapperPhase = "Errored" // runner-only phase
-
 	// resources are reserved as failures may be partial
 	// AppWrapper may not be requeued
 	Failed AppWrapperPhase = "Failed"

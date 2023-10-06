@@ -92,10 +92,6 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.update(ctx, appWrapper, mcadv1beta1.Succeeded)
 		}
 		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Failed {
-			// ack failure
-			return r.update(ctx, appWrapper, mcadv1beta1.Failed)
-		}
-		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Errored {
 			// requeue or fail if max retries exhausted
 			return r.requeueOrFail(ctx, appWrapper)
 		}
@@ -153,7 +149,9 @@ func (r *Dispatcher) update(ctx context.Context, appWrapper *mcadv1beta1.AppWrap
 	if err := r.Update(ctx, appWrapper); err != nil {
 		return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
 	}
-	log.Info(string(phase))
+	if false {
+		log.Info(string(phase))
+	}
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
 	if !isActivePhase(phase) {

@@ -85,11 +85,11 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	case mcadv1beta1.Requeuing:
 		// delete wrapped resources
 		if r.deleteResources(ctx, appWrapper) != 0 {
-			if isSlowRequeuing(appWrapper) {
-				r.forceDelete(ctx, appWrapper)
+			if !isSlowRequeuing(appWrapper) {
+				// requeue reconciliation
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
-			// requeue reconciliation
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			r.forceDelete(ctx, appWrapper)
 		}
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
 
@@ -102,7 +102,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 			}
 			// create wrapped resources
 			if err := r.createResources(ctx, objects); err != nil {
-				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "resource creation error")
+				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, "resource creation error")
 			}
 			// set running status only after successfully requesting the creation of all resources
 			appWrapper.Status.RunnerStatus.LastRunningTime = metav1.Now()
@@ -117,7 +117,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		}
 		if isSlowRunning(appWrapper) && counts.Running < int(appWrapper.Spec.Scheduling.MinAvailable) {
 			// set errored status
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Errored, "too few running pods")
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, "too few running pods")
 		}
 		// check for successful completion by looking at pods and wrapped resources
 		done, err := r.checkCompletion(ctx, appWrapper, counts)
@@ -182,7 +182,9 @@ func (r *Runner) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWr
 	if err := r.Status().Update(ctx, appWrapper); err != nil {
 		return ctrl.Result{}, err // etcd update failed, abort and requeue reconciliation
 	}
-	log.Info(string(phase))
+	if false {
+		log.Info(string(phase))
+	}
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
 	return ctrl.Result{}, nil
