@@ -48,7 +48,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// get deep copy of AppWrapper object in reconciler cache
 	appWrapper := &mcadv1beta1.AppWrapper{}
 	if err := r.Get(ctx, req.NamespacedName, appWrapper); err != nil {
-		r.triggerDispatch() // cluster may have more available capacity
+		// no such AppWrapper, nothing to reconcile, not an error
 		return ctrl.Result{}, nil
 	}
 
@@ -59,22 +59,16 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
-		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Empty {
-			// remove finalizer
-			if controllerutil.RemoveFinalizer(appWrapper, finalizer) {
-				if err := r.Update(ctx, appWrapper); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
+		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Empty && appWrapper.Spec.DispatcherStatus.Phase != mcadv1beta1.Empty {
+			// remove finalizer and set empty status
+			controllerutil.RemoveFinalizer(appWrapper, finalizer)
+			return r.update(ctx, appWrapper, mcadv1beta1.Empty)
 		}
 		return ctrl.Result{}, nil
 	}
 
 	// handle other phases
 	switch appWrapper.Spec.DispatcherStatus.Phase {
-	case mcadv1beta1.Succeeded, mcadv1beta1.Queued:
-		r.triggerDispatch()
-
 	case mcadv1beta1.Dispatching:
 		if len(appWrapper.Spec.DispatchingGates) > 0 {
 			return r.update(ctx, appWrapper, mcadv1beta1.Requeuing, "requeued due to dispatching gate")
@@ -124,6 +118,7 @@ func (r *Dispatcher) SetupWithManager(mgr ctrl.Manager) error {
 	// watch clusterinfo
 	// watch for triggerDispatch events
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("dispatcher").
 		For(&mcadv1beta1.AppWrapper{}).
 		Watches(&mcadv1beta1.ClusterInfo{}, handler.EnqueueRequestsFromMapFunc(r.clusterInfoMapFunc)).
 		WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
@@ -161,6 +156,9 @@ func (r *Dispatcher) update(ctx context.Context, appWrapper *mcadv1beta1.AppWrap
 	log.Info(string(phase))
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
+	if !isActivePhase(phase) {
+		r.triggerDispatch()
+	}
 	return ctrl.Result{}, nil
 }
 

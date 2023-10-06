@@ -51,27 +51,25 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
-		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Empty {
-			// already done
-			return ctrl.Result{}, nil
+		if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Empty {
+			// delete wrapped resources
+			if r.deleteResources(ctx, appWrapper) != 0 {
+				// requeue reconciliation
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			// set empty status
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
 		}
-		// delete wrapped resources
-		if r.deleteResources(ctx, appWrapper) != 0 {
-			// requeue reconciliation
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-		}
-		// set empty status
-		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Empty)
+		return ctrl.Result{}, nil
 	}
 
 	// propagate failed phase from dispatcher to runner
 	if appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Failed {
-		if appWrapper.Status.RunnerStatus.Phase == mcadv1beta1.Failed {
-			// already done
-			return ctrl.Result{}, nil
+		if appWrapper.Status.RunnerStatus.Phase != mcadv1beta1.Failed {
+			// set failed status and reason
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, appWrapper.Spec.DispatcherStatus.Transitions[len(appWrapper.Spec.DispatcherStatus.Transitions)-1].Reason)
 		}
-		// set failed status and reason
-		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, appWrapper.Spec.DispatcherStatus.Transitions[len(appWrapper.Spec.DispatcherStatus.Transitions)-1].Reason)
+		return ctrl.Result{}, nil
 	}
 
 	// propagate requeuing phase from dispatcher to runner
@@ -151,6 +149,7 @@ func (r *Runner) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	// watch pods
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("runner").
 		For(&mcadv1beta1.AppWrapper{}).
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Complete(r)
