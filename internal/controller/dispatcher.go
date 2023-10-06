@@ -141,7 +141,7 @@ func (r *Dispatcher) update(ctx context.Context, appWrapper *mcadv1beta1.AppWrap
 		appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Running ||
 		appWrapper.Spec.DispatcherStatus.Phase == mcadv1beta1.Requeuing) &&
 		(phase == mcadv1beta1.Failed || phase == mcadv1beta1.Succeeded || phase == mcadv1beta1.Queued) {
-		appWrapper.Spec.DispatcherStatus.DispatchedNanos += int64(time.Since(appWrapper.Spec.DispatcherStatus.LastDispatchingTime.Time).Seconds()) * 1000000000
+		appWrapper.Spec.DispatcherStatus.TimeDispatched += int64(time.Since(appWrapper.Spec.DispatcherStatus.LastDispatchingTime.Time).Seconds())
 	}
 	appWrapper.Spec.DispatcherStatus.Phase = phase
 	if err := r.Update(ctx, appWrapper); err != nil {
