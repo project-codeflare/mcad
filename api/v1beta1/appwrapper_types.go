@@ -93,9 +93,6 @@ type AppWrapperDispatcherStatus struct {
 	// When last dispatched
 	LastDispatchingTime metav1.Time `json:"lastDispatchingTime,omitempty"`
 
-	// When last requeued
-	LastRequeuingTime metav1.Time `json:"lastRequeuingTime,omitempty"`
-
 	// How many times requeued
 	Requeued int32 `json:"requeued,omitempty"`
 

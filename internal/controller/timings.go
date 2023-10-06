@@ -25,16 +25,11 @@ import (
 const (
 	// Timeouts
 	requeuingTimeout     = 2 * time.Minute // minimum wait before aborting Requeuing
-	dispatchingTimeout   = 2 * time.Minute // minimum wait before aborting Dispatching
 	runningTimeout       = 5 * time.Minute // minimum wait before aborting Running
 	cacheConflictTimeout = 5 * time.Minute // minimum wait before invalidating the cache
-	clusterInfoTimeout   = time.Minute     // how long to cache cluster capacity
+	clusterInfoTimeout   = time.Minute     // how often to refresh cluster capacity
 
 	// RequeueAfter delays
-	runDelay      = time.Minute // maximum delay before next reconciliation of a Running AppWrapper
-	dispatchDelay = time.Minute // maximum delay before next "*/*" reconciliation (dispatch)
-
-	// The RequeueAfter delay is the maximum delay before the next reconciliation event.
-	// Reconciliation may be triggered earlier due for instance to pod phase changes.
-	// Reconciliation may be delayed due to the on-going reconciliation of other events.
+	runDelay      = time.Minute // how often to force check running AppWrapper health
+	dispatchDelay = time.Minute // how often to force dispatch
 )
