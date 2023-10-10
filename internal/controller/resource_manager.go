@@ -22,8 +22,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -100,16 +103,27 @@ func parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error)
 	return objects, nil
 }
 
-// Create wrapped resources, give up on first error
-func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []client.Object) error {
+// Create wrapped resources, give up on first error, decide if error is fatal
+func (r *AppWrapperReconciler) createResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (error, bool) {
+	objects, err := parseResources(appWrapper)
+	if err != nil {
+		return err, true // fatal
+	}
 	for _, obj := range objects {
 		if err := r.Create(ctx, obj); err != nil {
-			if !apierrors.IsAlreadyExists(err) { // ignore existing resources
-				return err
+			if apierrors.IsAlreadyExists(err) {
+				continue // ignore existing resources
 			}
+			if discovery.IsGroupDiscoveryFailedError(err) ||
+				meta.IsNoMatchError(err) ||
+				runtime.IsMissingVersion(err) ||
+				runtime.IsMissingKind(err) {
+				return err, true // fatal
+			}
+			return err, false // may be retried
 		}
 	}
-	return nil
+	return nil, false
 }
 
 // Assess successful completion of AppWrapper by looking at pods and wrapped resources

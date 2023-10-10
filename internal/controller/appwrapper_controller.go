@@ -123,15 +123,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 
 	case mcadv1beta1.Dispatching:
-		// parse wrapped resources
-		objects, err := parseResources(appWrapper)
-		if err != nil {
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, "resource parsing error")
-		}
 		// create wrapped resources
-		if err := r.createResources(ctx, objects); err != nil {
-			// requeue or fail if max retries exhausted
-			return r.requeueOrFail(ctx, appWrapper, "resource creation error")
+		err, fatal := r.createResources(ctx, appWrapper)
+		if err != nil {
+			if fatal {
+				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, err.Error())
+			}
+			return r.requeueOrFail(ctx, appWrapper, err.Error())
 		}
 		// set running status only after successfully requesting the creation of all resources
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running)
