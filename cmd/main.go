@@ -27,10 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/validation"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -56,10 +54,6 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	var mode string
-	var namespace string
-	var name string
-	var context string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -68,22 +62,12 @@ func main() {
 	opts := zap.Options{
 		Development: true,
 	}
-	flag.StringVar(&mode, "mode", "default", "One of default, dispatcher, runner.")
-	flag.StringVar(&namespace, "clusterinfo-namespace", "default", "The namespace of the ClusterInfo object")
-	flag.StringVar(&name, "clusterinfo-name", controller.DefaultClusterName, "The name of the ClusterInfo object.")
-	flag.StringVar(&context, "kube-context", "", "The Kubernetes context.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	conf, err := config.GetConfigWithContext(context)
-	if err != nil {
-		setupLog.Error(err, "unable to get kubeconfig")
-		os.Exit(1)
-	}
-
-	mgr, err := ctrl.NewManager(conf, ctrl.Options{
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
 		Port:                   9443,
@@ -107,46 +91,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if mode != "dispatcher" {
-		if msgs := validation.IsQualifiedName(namespace + "/" + name); len(msgs) > 0 {
-			setupLog.Error(err, "invalid ClusterInfo namespace/name")
-			os.Exit(1)
-		}
-		if err = (&controller.Runner{
-			AppWrapperReconciler: controller.AppWrapperReconciler{
-				Client: mgr.GetClient(),
-				Scheme: mgr.GetScheme(),
-				Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create AppWrapper runner")
-			os.Exit(1)
-		}
-		if err = (&controller.ClusterInfoReconciler{
-			Client:    mgr.GetClient(),
-			Scheme:    mgr.GetScheme(),
-			Namespace: namespace,
-			Name:      name,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create ClusterInfo controller")
-			os.Exit(1)
-		}
+	if err = (&controller.AppWrapperReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+		Events: make(chan event.GenericEvent, 1),             // channel to trigger dispatch
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
+		os.Exit(1)
 	}
-
-	if mode != "runner" {
-		if err = (&controller.Dispatcher{
-			AppWrapperReconciler: controller.AppWrapperReconciler{
-				Client: mgr.GetClient(),
-				Scheme: mgr.GetScheme(),
-				Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
-			},
-			Events: make(chan event.GenericEvent, 1), // channel to trigger dispatch
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create AppWrapper dispatcher")
-			os.Exit(1)
-		}
-	}
-
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

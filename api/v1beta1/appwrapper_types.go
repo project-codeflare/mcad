@@ -36,31 +36,14 @@ type AppWrapperSpec struct {
 
 	// Wrapped resources
 	Resources AppWrapperResources `json:"resources"`
-
-	// Dispatcher status
-	DispatcherStatus AppWrapperDispatcherStatus `json:"dispatcherStatus,omitempty"`
-
-	// Sustainable specification
-	Sustainable SustainableSpec `json:"sustainable,omitempty"`
-
-	// Dispatching gates
-	DispatchingGates []DispatchingGate `json:"dispatchingGates,omitempty"`
 }
 
-// Dispatching gate
-type DispatchingGate string
-
 type SchedulingSpec struct {
-	// Minimum number of pods that need to run and succeed
-	// These pods have to be labeled with the AppWrapper name to be accounted for and monitored by mcad:
-	//   workload.codeflare.dev: <appWrapper-name>
+	// Minimum number of pods
 	MinAvailable int32 `json:"minAvailable,omitempty"`
 
 	// Requeuing specification
 	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
-
-	// Cluster specification
-	ClusterScheduling *ClusterSchedulingSpec `json:"clusterScheduling,omitempty"`
 }
 
 type RequeuingSpec struct {
@@ -68,60 +51,22 @@ type RequeuingSpec struct {
 	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 }
 
-// Where to run
-type ClusterSchedulingSpec struct {
-	PolicyResult ClusterDecision `json:"policyResult,omitempty"`
-}
-
-type ClusterDecision struct {
-	TargetCluster ClusterReference `json:"targetCluster,omitempty"`
-}
-
-type ClusterReference struct {
-	Name string `json:"name"`
-}
-
-type SustainableSpec struct {
-	// TODO
-}
-
-// Status from the dispatcher perspective
-type AppWrapperDispatcherStatus struct {
+// AppWrapperStatus defines the observed state of AppWrapper
+type AppWrapperStatus struct {
 	// Phase
 	Phase AppWrapperPhase `json:"phase,omitempty"`
 
 	// When last dispatched
 	LastDispatchingTime metav1.Time `json:"lastDispatchingTime,omitempty"`
 
-	// How many times requeued
-	Requeued int32 `json:"requeued,omitempty"`
-
-	// Transition log
-	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
-
-	// Total time dispatched in seconds (excluding current leg)
-	TimeDispatched int64 `json:"timeDispatched,omitempty"`
-}
-
-// Status from the runner perspective
-type AppWrapperRunnerStatus struct {
-	// Phase
-	Phase AppWrapperPhase `json:"phase,omitempty"`
-
-	// When last running
-	LastRunningTime metav1.Time `json:"lastRunningTime,omitempty"`
-
 	// When last requeued
 	LastRequeuingTime metav1.Time `json:"lastRequeuingTime,omitempty"`
 
+	// How many times restarted
+	Restarts int32 `json:"restarts"`
+
 	// Transition log
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
-}
-
-// Status
-type AppWrapperStatus struct {
-	// Runner status
-	RunnerStatus AppWrapperRunnerStatus `json:"runnerStatus,omitempty"`
 }
 
 // AppWrapperPhase is the label for the AppWrapper status
@@ -132,7 +77,7 @@ const (
 	Empty AppWrapperPhase = ""
 
 	// no resource reservation
-	Queued AppWrapperPhase = "Queued" // dispatcher-only phase
+	Queued AppWrapperPhase = "Queued"
 
 	// resources are reserved
 	Dispatching AppWrapperPhase = "Dispatching"
@@ -140,28 +85,27 @@ const (
 	// resources are reserved
 	Running AppWrapperPhase = "Running"
 
-	// no resource reservation even if pods may still exist in completed state
+	// no resource reservation
 	Succeeded AppWrapperPhase = "Succeeded"
 
-	// resources are reserved as failures may be partial
-	// AppWrapper may not be requeued
+	// resources are reserved (some pods may still be running)
 	Failed AppWrapperPhase = "Failed"
 
-	// resources are reserved
+	// resources are reserved (some pods may still be running)
 	Requeuing AppWrapperPhase = "Requeuing"
 )
 
-// AppWrapperResource
+// AppWrapper resources
 type AppWrapperResources struct {
-	// GenericItems
+	// Array of GenericItems
 	GenericItems []GenericItem `json:"GenericItems"`
 }
 
-// GenericItems is the schema for the wrapped resources
+// AppWrapper resource
 type GenericItem struct {
 	DoNotUseReplicas int32 `json:"replicas,omitempty"`
 
-	// Replica count and resource requests
+	// Array of resource requests
 	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
 
 	// A comma-separated list of keywords to match against condition types
@@ -171,7 +115,7 @@ type GenericItem struct {
 	GenericTemplate runtime.RawExtension `json:"generictemplate"`
 }
 
-// Replica count and resource requests
+// Resource requests
 type CustomPodResource struct {
 	// Replica count
 	Replicas int32 `json:"replicas"`
@@ -191,23 +135,22 @@ type AppWrapperTransition struct {
 	// Reason
 	Reason string `json:"reason,omitempty"`
 
-	// Phase
+	// Phase entered
 	Phase AppWrapperPhase `json:"phase"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="DISPATCHER",type="string",JSONPath=`.spec.dispatcherStatus.phase`
-//+kubebuilder:printcolumn:name="RUNNER",type="string",JSONPath=`.status.runnerStatus.phase`
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Restarts",type="integer",JSONPath=`.status.restarts`
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// AppWrapper object
+// AppWrapper is the Schema for the appwrappers API
 type AppWrapper struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec AppWrapperSpec `json:"spec"`
-
-	// AppWrapper status
+	Spec   AppWrapperSpec   `json:"spec,omitempty"`
 	Status AppWrapperStatus `json:"status,omitempty"`
 }
 

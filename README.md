@@ -5,11 +5,7 @@ This repository contains a prototype MCAD implementation
 using recent versions of [controller
 runtime](https://github.com/kubernetes-sigs/controller-runtime) and
 [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder). This prototype
-does not implement quotas.
-
-Multi-cluster support assumes the use of [KubeStellar](https://kubestellar.io)
-syncers. A simple [syncer.js](syncer/syncer.js) is provided as possible
-substitute for development.
+does not implement quotas or dispatching to multiple clusters.
 
 ## Getting Started
 

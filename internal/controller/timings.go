@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-// This file defines all the time constants used in mcad
+// This file defines all the time constants used in MCAD
 
 const (
 	// Timeouts

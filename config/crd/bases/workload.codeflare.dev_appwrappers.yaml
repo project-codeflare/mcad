@@ -15,16 +15,19 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.dispatcherStatus.phase
-      name: DISPATCHER
+    - jsonPath: .status.phase
+      name: Status
       type: string
-    - jsonPath: .status.runnerStatus.phase
-      name: RUNNER
-      type: string
+    - jsonPath: .status.restarts
+      name: Restarts
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: AppWrapper object
+        description: AppWrapper is the Schema for the appwrappers API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -41,52 +44,6 @@ spec:
           spec:
             description: AppWrapperSpec defines the desired state of AppWrapper
             properties:
-              dispatcherStatus:
-                description: Dispatcher status
-                properties:
-                  lastDispatchingTime:
-                    description: When last dispatched
-                    format: date-time
-                    type: string
-                  phase:
-                    description: Phase
-                    type: string
-                  requeued:
-                    description: How many times requeued
-                    format: int32
-                    type: integer
-                  timeDispatched:
-                    description: Total time dispatched in seconds (excluding current
-                      leg)
-                    format: int64
-                    type: integer
-                  transitions:
-                    description: Transition log
-                    items:
-                      description: Phase transition
-                      properties:
-                        phase:
-                          description: Phase
-                          type: string
-                        reason:
-                          description: Reason
-                          type: string
-                        time:
-                          description: Timestamp
-                          format: date-time
-                          type: string
-                      required:
-                      - phase
-                      - time
-                      type: object
-                    type: array
-                type: object
-              dispatchingGates:
-                description: Dispatching gates
-                items:
-                  description: Dispatching gate
-                  type: string
-                type: array
               priority:
                 description: Priority
                 format: int32
@@ -102,18 +59,18 @@ spec:
                 description: Wrapped resources
                 properties:
                   GenericItems:
-                    description: GenericItems
+                    description: Array of GenericItems
                     items:
-                      description: GenericItems is the schema for the wrapped resources
+                      description: AppWrapper resource
                       properties:
                         completionstatus:
                           description: A comma-separated list of keywords to match
                             against condition types
                           type: string
                         custompodresources:
-                          description: Replica count and resource requests
+                          description: Array of resource requests
                           items:
-                            description: Replica count and resource requests
+                            description: Resource requests
                             properties:
                               limits:
                                 additionalProperties:
@@ -159,25 +116,8 @@ spec:
               schedulingSpec:
                 description: Scheduling specification
                 properties:
-                  clusterScheduling:
-                    description: Cluster specification
-                    properties:
-                      policyResult:
-                        properties:
-                          targetCluster:
-                            properties:
-                              name:
-                                type: string
-                            required:
-                            - name
-                            type: object
-                        type: object
-                    type: object
                   minAvailable:
-                    description: 'Minimum number of pods that need to run and succeed
-                      These pods have to be labeled with the AppWrapper name to be
-                      accounted for and monitored by mcad: workload.codeflare.dev:
-                      <appWrapper-name>'
+                    description: Minimum number of pods
                     format: int32
                     type: integer
                   requeuing:
@@ -189,53 +129,50 @@ spec:
                         type: integer
                     type: object
                 type: object
-              sustainable:
-                description: Sustainable specification
-                type: object
             required:
             - resources
             type: object
           status:
-            description: AppWrapper status
+            description: AppWrapperStatus defines the observed state of AppWrapper
             properties:
-              runnerStatus:
-                description: Runner status
-                properties:
-                  lastRequeuingTime:
-                    description: When last requeued
-                    format: date-time
-                    type: string
-                  lastRunningTime:
-                    description: When last running
-                    format: date-time
-                    type: string
-                  phase:
-                    description: Phase
-                    type: string
-                  transitions:
-                    description: Transition log
-                    items:
-                      description: Phase transition
-                      properties:
-                        phase:
-                          description: Phase
-                          type: string
-                        reason:
-                          description: Reason
-                          type: string
-                        time:
-                          description: Timestamp
-                          format: date-time
-                          type: string
-                      required:
-                      - phase
-                      - time
-                      type: object
-                    type: array
-                type: object
+              lastDispatchingTime:
+                description: When last dispatched
+                format: date-time
+                type: string
+              lastRequeuingTime:
+                description: When last requeued
+                format: date-time
+                type: string
+              phase:
+                description: Phase
+                type: string
+              restarts:
+                description: How many times restarted
+                format: int32
+                type: integer
+              transitions:
+                description: Transition log
+                items:
+                  description: Phase transition
+                  properties:
+                    phase:
+                      description: Phase entered
+                      type: string
+                    reason:
+                      description: Reason
+                      type: string
+                    time:
+                      description: Timestamp
+                      format: date-time
+                      type: string
+                  required:
+                  - phase
+                  - time
+                  type: object
+                type: array
+            required:
+            - restarts
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true

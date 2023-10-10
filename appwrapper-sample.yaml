@@ -8,10 +8,6 @@ spec:
     minAvailable: 2
     requeuing:
       maxNumRequeuings: 5
-    #clusterScheduling:
-      #policyResult:
-        #targetCluster:
-          #name: self
   resources:
     GenericItems:
     - custompodresources:

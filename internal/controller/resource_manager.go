@@ -30,10 +30,18 @@ import (
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
 )
 
+// PodCounts summarize the status of the pods associated with one AppWrapper
+type PodCounts struct {
+	Failed    int
+	Other     int
+	Running   int
+	Succeeded int
+}
+
 const appWrapperNamespacePlaceholder = "<APPWRAPPER_NAMESPACE>"
 const appWrapperNamePlaceholder = "<APPWRAPPER_NAME>"
 
-// replace placeholders in map with AppWrapper metadata
+// Replace placeholders in map with AppWrapper metadata
 func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
 	for k, v := range m {
 		switch v := v.(type) {
@@ -51,7 +59,7 @@ func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
 	}
 }
 
-// replace placeholders in array with AppWrapper metadata
+// Replace placeholders in array with AppWrapper metadata
 func fixArray(appWrapper *mcadv1beta1.AppWrapper, a []interface{}) {
 	for k, v := range a {
 		switch v := v.(type) {
@@ -69,7 +77,7 @@ func fixArray(appWrapper *mcadv1beta1.AppWrapper, a []interface{}) {
 	}
 }
 
-// Parse raw resource into client object
+// Parse raw resource into unstructured object
 func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
@@ -93,7 +101,7 @@ func parseResources(appWrapper *mcadv1beta1.AppWrapper) ([]client.Object, error)
 }
 
 // Create wrapped resources, give up on first error
-func (r *Runner) createResources(ctx context.Context, objects []client.Object) error {
+func (r *AppWrapperReconciler) createResources(ctx context.Context, objects []client.Object) error {
 	for _, obj := range objects {
 		if err := r.Create(ctx, obj); err != nil {
 			if !apierrors.IsAlreadyExists(err) { // ignore existing resources
@@ -104,11 +112,10 @@ func (r *Runner) createResources(ctx context.Context, objects []client.Object) e
 	return nil
 }
 
-// Check completion by looking at pods and wrapped resources
-func (r *Runner) checkCompletion(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, counts *PodCounts) (bool, error) {
-	if counts.Running > 0 ||
-		counts.Other > 0 ||
-		appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
+// Assess successful completion of AppWrapper by looking at pods and wrapped resources
+func (r *AppWrapperReconciler) isSuccessful(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, counts *PodCounts) (bool, error) {
+	// To succeed we need at least MinAvailable successful pods and no running, failed, and other pods
+	if counts.Running > 0 || counts.Failed > 0 || counts.Other > 0 || counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
 		return false, nil
 	}
 	custom := false // at least one resource with completionstatus spec?
@@ -124,7 +131,7 @@ func (r *Runner) checkCompletion(ctx context.Context, appWrapper *mcadv1beta1.Ap
 				return false, err
 			}
 			unstruct := obj.UnstructuredContent()
-			done := false // at least one condition matching completionstatus spec?
+			success := false // at least one condition matching completionstatus spec?
 			// check for a condition with status True and a type than contains one of the specified completion status key
 			if status, ok := unstruct["status"].(map[string]interface{}); ok {
 				if conditions, ok := status["conditions"].([]interface{}); ok {
@@ -134,7 +141,7 @@ func (r *Runner) checkCompletion(ctx context.Context, appWrapper *mcadv1beta1.Ap
 							if t, ok := c["type"].(string); ok && c["status"] == "True" {
 								for _, k := range keys {
 									if strings.Contains(t, k) {
-										done = true
+										success = true
 										break
 									}
 								}
@@ -143,16 +150,17 @@ func (r *Runner) checkCompletion(ctx context.Context, appWrapper *mcadv1beta1.Ap
 					}
 				}
 			}
-			if !done {
+			if !success {
 				return false, nil
 			}
 		}
 	}
+	// To succeed we need to pass the custom completionstatus check or have enough successful pods if MinAvailable > 0
 	return custom || appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded >= int(appWrapper.Spec.Scheduling.MinAvailable), nil
 }
 
 // Delete wrapped resources, ignore errors, return count of pending deletions
-func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) int {
+func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) int {
 	log := log.FromContext(ctx)
 	count := 0
 	for _, resource := range appWrapper.Spec.Resources.GenericItems {
@@ -173,7 +181,7 @@ func (r *Runner) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.Ap
 }
 
 // Forcefully delete wrapped resources and pods
-func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) {
+func (r *AppWrapperReconciler) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) {
 	log := log.FromContext(ctx)
 	// forcefully delete matching pods
 	pod := &v1.Pod{}
@@ -181,6 +189,7 @@ func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWra
 		client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
 		log.Error(err, "Error during forceful pod deletion")
 	}
+	// forcefully delete wrapped resources
 	for _, resource := range appWrapper.Spec.Resources.GenericItems {
 		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
@@ -194,7 +203,7 @@ func (r *Runner) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWra
 }
 
 // Count AppWrapper pods
-func (r *Runner) countPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
+func (r *AppWrapperReconciler) countPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
