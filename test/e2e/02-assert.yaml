@@ -3,4 +3,9 @@ kind: AppWrapper
 metadata:
   name: aw-02
 status:
+  transitions:
+  - state: Pending
+  - state: Dispatching
+  - state: Running
+  - state: Completed
   state: Completed

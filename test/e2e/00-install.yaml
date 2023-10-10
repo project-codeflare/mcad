@@ -3,10 +3,5 @@ kind: AppWrapper
 metadata:
   name: aw-00
 spec:
-  schedulingSpec:
-    clusterScheduling:
-      policyResult:
-        targetCluster:
-          name: self
   resources:
     GenericItems: []
