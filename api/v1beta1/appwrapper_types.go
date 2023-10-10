@@ -54,7 +54,7 @@ type RequeuingSpec struct {
 // AppWrapperStatus defines the observed state of AppWrapper
 type AppWrapperStatus struct {
 	// Phase
-	Phase AppWrapperPhase `json:"phase,omitempty"`
+	Phase AppWrapperPhase `json:"state,omitempty"`
 
 	// When last dispatched
 	DispatchTimestamp metav1.Time `json:"dispatchTimestamp,omitempty"`
@@ -77,7 +77,7 @@ const (
 	Empty AppWrapperPhase = ""
 
 	// no resource reservation
-	Queued AppWrapperPhase = "Queued"
+	Queued AppWrapperPhase = "Pending"
 
 	// resources are reserved
 	Dispatching AppWrapperPhase = "Dispatching"
@@ -86,7 +86,7 @@ const (
 	Running AppWrapperPhase = "Running"
 
 	// no resource reservation
-	Succeeded AppWrapperPhase = "Succeeded"
+	Succeeded AppWrapperPhase = "Completed"
 
 	// resources are reserved (some pods may still be running)
 	Failed AppWrapperPhase = "Failed"
@@ -136,12 +136,12 @@ type AppWrapperTransition struct {
 	Reason string `json:"reason,omitempty"`
 
 	// Phase entered
-	Phase AppWrapperPhase `json:"phase"`
+	Phase AppWrapperPhase `json:"state"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.state`
 //+kubebuilder:printcolumn:name="Restarts",type="integer",JSONPath=`.status.restarts`
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 

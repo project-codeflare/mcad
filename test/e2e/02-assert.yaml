@@ -2,9 +2,5 @@ apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
   name: aw-02
-spec:
-  dispatcherStatus:
-    phase: Succeeded
 status:
-  runnerStatus:
-    phase: Succeeded
+  state: Completed
