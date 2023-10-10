@@ -170,6 +170,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			r.forceDelete(ctx, appWrapper)
 		}
 		// reset status to queued
+		appWrapper.Status.Restarts += 1
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued)
 	}
 	return ctrl.Result{}, nil
@@ -228,7 +229,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 // Set requeuing or failed status depending on restarts count
 func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, reason string) (ctrl.Result, error) {
 	if appWrapper.Status.Restarts < appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings {
-		appWrapper.Status.Restarts += 1
+		appWrapper.Status.RequeueTimestamp = metav1.Now()
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Requeuing, reason)
 	}
 	return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, reason)
@@ -267,7 +268,7 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 			return ctrl.Result{Requeue: true}, nil
 		}
 		// set dispatching time and status
-		appWrapper.Status.LastDispatchingTime = metav1.Now()
+		appWrapper.Status.DispatchTimestamp = metav1.Now()
 		if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -276,10 +277,10 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 
 // Is dispatching too slow?
 func isSlowDispatching(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastDispatchingTime.Add(runningTimeout))
+	return metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(runningTimeout))
 }
 
 // Is requeuing too slow?
 func isSlowRequeuing(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.LastRequeuingTime.Add(requeuingTimeout))
+	return metav1.Now().After(appWrapper.Status.RequeueTimestamp.Add(requeuingTimeout))
 }

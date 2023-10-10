@@ -57,10 +57,10 @@ type AppWrapperStatus struct {
 	Phase AppWrapperPhase `json:"phase,omitempty"`
 
 	// When last dispatched
-	LastDispatchingTime metav1.Time `json:"lastDispatchingTime,omitempty"`
+	DispatchTimestamp metav1.Time `json:"dispatchTimestamp,omitempty"`
 
 	// When last requeued
-	LastRequeuingTime metav1.Time `json:"lastRequeuingTime,omitempty"`
+	RequeueTimestamp metav1.Time `json:"requeueTimestamp,omitempty"`
 
 	// How many times restarted
 	Restarts int32 `json:"restarts"`

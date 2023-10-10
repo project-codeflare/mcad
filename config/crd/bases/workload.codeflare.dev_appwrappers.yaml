@@ -135,16 +135,16 @@ spec:
           status:
             description: AppWrapperStatus defines the observed state of AppWrapper
             properties:
-              lastDispatchingTime:
+              dispatchTimestamp:
                 description: When last dispatched
-                format: date-time
-                type: string
-              lastRequeuingTime:
-                description: When last requeued
                 format: date-time
                 type: string
               phase:
                 description: Phase
+                type: string
+              requeueTimestamp:
+                description: When last requeued
+                format: date-time
                 type: string
               restarts:
                 description: How many times restarted
