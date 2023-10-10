@@ -134,6 +134,13 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 			mcadLog.Info("Available capacity", "priority", priority, "capacity", available)
 		}
 	}
+	if expired {
+		pretty := make([]string, len(queue))
+		for i, appWrapper := range queue {
+			pretty[i] = appWrapper.Namespace + "/" + appWrapper.Name + ":" + string(appWrapper.UID)
+		}
+		mcadLog.Info("Queue", "queue", pretty)
+	}
 	// return first AppWrapper that fits if any
 	for _, appWrapper := range queue {
 		request := aggregateRequests(appWrapper)
