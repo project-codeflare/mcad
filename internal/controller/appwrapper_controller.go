@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -54,6 +55,13 @@ const (
 	specNodeName   = ".spec.nodeName"                   // key to index pods based on node placement
 )
 
+// Structured logger
+var mcadLog = ctrl.Log.WithName("MCAD")
+
+func withAppWrapper(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) context.Context {
+	return log.IntoContext(ctx, mcadLog.WithValues("namespace", appWrapper.Namespace, "name", appWrapper.Name, "uid", appWrapper.UID))
+}
+
 // Reconcile one AppWrapper or dispatch queued AppWrappers
 // Normal reconciliations "namespace/name" implement all phase transitions except for Queued->Dispatching
 // Queued->Dispatching transitions happen as part of a special "*/*" reconciliation
@@ -71,9 +79,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
+	// append appWrapper ID to logger
+	ctx = withAppWrapper(ctx, appWrapper)
+
 	// abort and requeue reconciliation if reconciler cache is stale
-	if err := r.checkCachedPhase(appWrapper); err != nil {
-		return ctrl.Result{}, err
+	if r.isStale(ctx, appWrapper) {
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// handle deletion
@@ -91,6 +102,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		// remove AppWrapper from cache
 		r.deleteCachedPhase(appWrapper)
+		log.FromContext(ctx).Info("Deleted", "phase", "Deleted")
 		return ctrl.Result{}, nil
 	}
 
@@ -209,6 +221,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	}
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
+	log.FromContext(ctx).Info(string(phase), "phase", string(phase))
 	return ctrl.Result{}, nil
 }
 
@@ -242,13 +255,16 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 		if appWrapper == nil {
 			return ctrl.Result{RequeueAfter: dispatchDelay}, nil
 		}
+		// append appWrapper ID to logger
+		ctx := withAppWrapper(ctx, appWrapper)
 		// abort and requeue reconciliation if reconciler cache is stale
-		if err := r.checkCachedPhase(appWrapper); err != nil {
-			return ctrl.Result{}, err
+		if r.isStale(ctx, appWrapper) {
+			return ctrl.Result{Requeue: true}, nil
 		}
 		// check phase again to be extra safe
 		if appWrapper.Status.Phase != mcadv1beta1.Queued {
-			return ctrl.Result{}, errors.New("not queued")
+			log.FromContext(ctx).Error(errors.New("not queued"), "Internal error")
+			return ctrl.Result{Requeue: true}, nil
 		}
 		// set dispatching time and status
 		appWrapper.Status.LastDispatchingTime = metav1.Now()

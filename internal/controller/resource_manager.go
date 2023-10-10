@@ -166,12 +166,12 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 	for _, resource := range appWrapper.Spec.Resources.GenericItems {
 		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
-			log.Error(err, "Resource parsing error during deletion")
+			log.Error(err, "Parsing error")
 			continue
 		}
 		if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil {
 			if !apierrors.IsNotFound(err) {
-				log.Error(err, "Resource deletion error")
+				log.Error(err, "Deletion error")
 			}
 			continue
 		}
@@ -187,17 +187,17 @@ func (r *AppWrapperReconciler) forceDelete(ctx context.Context, appWrapper *mcad
 	pod := &v1.Pod{}
 	if err := r.DeleteAllOf(ctx, pod, client.GracePeriodSeconds(0),
 		client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
-		log.Error(err, "Error during forceful pod deletion")
+		log.Error(err, "Forceful pod deletion error")
 	}
 	// forcefully delete wrapped resources
 	for _, resource := range appWrapper.Spec.Resources.GenericItems {
 		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
-			log.Error(err, "Resource parsing error during forceful deletion")
+			log.Error(err, "Parsing error")
 			continue
 		}
 		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
-			log.Error(err, "Resource deletion error")
+			log.Error(err, "Forceful deletion error")
 		}
 	}
 }

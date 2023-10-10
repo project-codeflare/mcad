@@ -17,10 +17,12 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // We cache AppWrapper phases because the reconciler cache does not immediately reflect updates.
@@ -64,7 +66,7 @@ func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper
 }
 
 // Check whether reconciler cache and our cache appear to be in sync
-func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapper) error {
+func (r *AppWrapperReconciler) isStale(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) bool {
 	if cached, ok := r.Cache[appWrapper.UID]; ok {
 		status := appWrapper.Status
 		// check number of transitions
@@ -72,7 +74,7 @@ func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapp
 			// our cache is behind, update our cache, this is ok
 			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, Transitions: len(status.Transitions)}
 			cached.Conflict = nil // clear conflict timestamp
-			return nil
+			return false
 		}
 		if cached.Transitions > len(status.Transitions) {
 			// reconciler cache appears to be behind
@@ -80,21 +82,23 @@ func (r *AppWrapperReconciler) checkCachedPhase(appWrapper *mcadv1beta1.AppWrapp
 				if time.Now().After(cached.Conflict.Add(cacheConflictTimeout)) {
 					// this has been going on for a while, assume something is wrong with our cache
 					delete(r.Cache, appWrapper.UID)
-					return errors.New("persistent cache conflict") // force redo
+					log.FromContext(ctx).Error(errors.New("cache timeout"), "Internal error")
+					return true
 				}
 			} else {
 				now := time.Now()
 				cached.Conflict = &now // remember when conflict started
 			}
-			return errors.New("stale reconciler cache") // force redo
+			return true
 		}
 		if cached.Phase != status.Phase {
 			// assume something is wrong with our cache
 			delete(r.Cache, appWrapper.UID)
-			return errors.New("divergent phase cache") // force redo
+			log.FromContext(ctx).Error(errors.New("cache conflict"), "Internal error")
+			return true
 		}
 		// caches appear to be in sync
 		cached.Conflict = nil // clear conflict timestamp
 	}
-	return nil
+	return false
 }

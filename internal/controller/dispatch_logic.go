@@ -30,10 +30,6 @@ import (
 
 // Compute available cluster capacity
 func (r *AppWrapperReconciler) computeCapacity(ctx context.Context) (Weights, error) {
-	// return cached capacity if unexpired
-	if !time.Now().After(r.NextSync) {
-		return r.ClusterCapacity, nil
-	}
 	capacity := Weights{}
 	// add allocatable capacity for each schedulable node
 	nodes := &v1.NodeList{}
@@ -65,8 +61,6 @@ func (r *AppWrapperReconciler) computeCapacity(ctx context.Context) (Weights, er
 			}
 		}
 	}
-	r.ClusterCapacity = capacity
-	r.NextSync = time.Now().Add(clusterInfoTimeout)
 	return capacity, nil
 }
 
@@ -114,9 +108,15 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 
 // Find next AppWrapper to dispatch in queue order
 func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
-	capacity, err := r.computeCapacity(ctx)
-	if err != nil {
-		return nil, err
+	expired := time.Now().After(r.NextSync)
+	if expired {
+		capacity, err := r.computeCapacity(ctx)
+		if err != nil {
+			return nil, err
+		}
+		r.ClusterCapacity = capacity
+		r.NextSync = time.Now().Add(clusterInfoTimeout)
+		mcadLog.Info("Total capacity", "capacity", capacity)
 	}
 	requests, queue, err := r.listAppWrappers(ctx)
 	if err != nil {
@@ -128,8 +128,11 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 	for priority, request := range requests {
 		// copy capacity before subtracting request
 		available[priority] = Weights{}
-		available[priority].Add(capacity)
+		available[priority].Add(r.ClusterCapacity)
 		available[priority].Sub(request)
+		if expired {
+			mcadLog.Info("Available capacity", "priority", priority, "capacity", available)
+		}
 	}
 	// return first AppWrapper that fits if any
 	for _, appWrapper := range queue {
