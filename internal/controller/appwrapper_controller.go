@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -142,8 +143,10 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		// check pod count if dispatched for a while
 		if isSlowDispatching(appWrapper) && counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
-			// requeue or fail if max retries exhausted
-			return r.requeueOrFail(ctx, appWrapper, "too few pods")
+
+			customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
+			// requeue or fail if max retries exhausted with custom error message
+			return r.requeueOrFail(ctx, appWrapper, customMessage)
 		}
 		// check for successful completion by looking at pods and wrapped resources
 		success, err := r.isSuccessful(ctx, appWrapper, counts)
