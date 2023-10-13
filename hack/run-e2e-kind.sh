@@ -29,7 +29,7 @@ export IMAGE_MCAD="${IMAGE_REPOSITORY_MCAD}:${IMAGE_TAG_MCAD}"
 CLUSTER_STARTED="false"
 #export KUTTL_VERSION=0.15.0
 #export KUTTL_OPTIONS=${TEST_KUTTL_OPTIONS}
-#export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml" "${ROOT_DIR}/test/kuttl-test-borrowing.yaml" "${ROOT_DIR}/test/kuttl-test-deployment-03.yaml" "${ROOT_DIR}/test/kuttl-test-deployment-02.yaml" "${ROOT_DIR}/test/kuttl-test-deployment-01.yaml")
+export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml")
 DUMP_LOGS="true"
 
 function update_test_host {
@@ -321,7 +321,7 @@ function mcad_up {
                   --set configMap.name=mcad-controller-configmap --set configMap.podCreationTimeout='"120000"' \
                   --set configMap.quotaEnabled='"false"' --set coscheduler.rbac.apiGroup=scheduling.sigs.k8s.io \
                   --set coscheduler.rbac.resource=podgroups --set image.repository=$IMAGE_REPOSITORY_MCAD \
-                  --set image.tag=$IMAGE_TAG_MCAD --set image.pullPolicy=$MCAD_IMAGE_PULL_POLICY --debug
+                  --set image.tag=$IMAGE_TAG_MCAD --set image.pullPolicy=$MCAD_IMAGE_PULL_POLICY
     if [ $? -ne 0 ]
     then
       echo "Failed to deploy MCAD controller"
@@ -428,15 +428,7 @@ function kuttl_tests {
       echo "kuttl e2e test '${kuttl_test}' failure, exiting."
       exit 1
     fi
-    #clean up after sucessfull execution of a test by removing all quota subtrees
-    #and undeploying mcad helm chart.
-    kubectl delete quotasubtrees -n kube-system --all --wait
-    if [ $? -ne 0 ]
-    then
-      echo "Failed to delete quotasubtrees for test: '${kuttl_test}'"
-      exit 1
-    fi  
-    undeploy_mcad_helm
+    #undeploy_mcad_helm
   done
   rm -f kubeconfig
 }
@@ -447,9 +439,9 @@ check_prerequisites
 kind_up_cluster
 extend_resources
 setup_mcad_env
+mcad_up
 # MCAD with quotamanagement options is started by kuttl-tests
 kuttl_tests
-mcad_up
 go test ./internal/controller/suite_test.go -v -timeout 130m -count=1 -ginkgo.fail-fast
 
 RC=$?

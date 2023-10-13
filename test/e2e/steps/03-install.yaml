@@ -20,7 +20,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: busybox
-              image: busybox
+              image: quay.io/quay/busybox
               command: ["sh", "-c", "sleep 10"]
       custompodresources:
       - replicas: 1
@@ -49,7 +49,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: busybox
-              image: busybox
+              image: quay.io/quay/busybox
               command: ["sh", "-c", "sleep 1"]
       custompodresources:
       - replicas: 3

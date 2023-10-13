@@ -20,5 +20,5 @@ spec:
           restartPolicy: Never
           containers:
             - name: busybox
-              image: busybox
+              image: quay.io/quay/busybox
               command: ["sh", "-c", "sleep 1"]

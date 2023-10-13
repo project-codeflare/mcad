@@ -1,10 +1,8 @@
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  name: aw-05
+  name: aw-01
 spec:
-  schedulingSpec:
-    minAvailable: 1
   resources:
     GenericItems:
     - generictemplate:
@@ -20,9 +18,5 @@ spec:
           restartPolicy: Never
           containers:
             - name: busybox
-              image: busybox
+              image: quay.io/quay/busybox
               command: ["sh", "-c", "sleep 1"]
-      custompodresources:
-      - replicas: 1
-        requests:
-          nvidia.com/gpu: 8
