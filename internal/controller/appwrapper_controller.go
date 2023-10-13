@@ -145,7 +145,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if isSlowDispatching(appWrapper) && counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
 
 			customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
-			// requeue or fail if max retries exhausted
+			// requeue or fail if max retries exhausted with custom error message
 			return r.requeueOrFail(ctx, appWrapper, customMessage)
 		}
 		// check for successful completion by looking at pods and wrapped resources
