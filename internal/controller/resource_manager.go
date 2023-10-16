@@ -35,7 +35,6 @@ import (
 
 // PodCounts summarize the status of the pods associated with one AppWrapper
 type PodCounts struct {
-	Failed    int
 	Other     int
 	Running   int
 	Succeeded int
@@ -129,7 +128,7 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, appWrapper *
 // Assess successful completion of AppWrapper by looking at pods and wrapped resources
 func (r *AppWrapperReconciler) isSuccessful(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, counts *PodCounts) (bool, error) {
 	// To succeed we need at least MinAvailable successful pods and no running, failed, and other pods
-	if counts.Running > 0 || counts.Failed > 0 || counts.Other > 0 || counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
+	if counts.Running > 0 || counts.Other > 0 || counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
 		return false, nil
 	}
 	custom := false // at least one resource with completionstatus spec?
@@ -231,8 +230,6 @@ func (r *AppWrapperReconciler) countPods(ctx context.Context, appWrapper *mcadv1
 			counts.Succeeded += 1
 		case v1.PodRunning:
 			counts.Running += 1
-		case v1.PodFailed:
-			counts.Failed += 1
 		default:
 			counts.Other += 1
 		}
