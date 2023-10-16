@@ -91,8 +91,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
 		// delete wrapped resources
-		if r.deleteResources(ctx, appWrapper) != 0 {
-			// deletion is pending, requeue reconciliation after delay
+		if !r.delete(ctx, appWrapper, *appWrapper.DeletionTimestamp) {
+			// requeue reconciliation after delay
 			return ctrl.Result{RequeueAfter: deletionDelay}, nil
 		}
 		// remove finalizer
@@ -103,7 +103,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		// remove AppWrapper from cache
 		r.deleteCachedPhase(appWrapper)
-		log.FromContext(ctx).Info("Deleted", "state", "Deleted")
+		log.FromContext(ctx).Info("Deleted")
 		return ctrl.Result{}, nil
 	}
 
@@ -116,63 +116,70 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{}, err
 			}
 		}
-		// set queued status only after adding finalizer
-		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued)
+		// set queued/idle status only after adding finalizer
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 
 	case mcadv1beta1.Queued, mcadv1beta1.Succeeded:
 		r.triggerDispatch()
 		return ctrl.Result{}, nil
 
-	case mcadv1beta1.Dispatching:
-		// create wrapped resources
-		err, fatal := r.createResources(ctx, appWrapper)
-		if err != nil {
-			if fatal {
-				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, err.Error())
-			}
-			return r.requeueOrFail(ctx, appWrapper, err.Error())
-		}
-		// set running status only after successfully requesting the creation of all resources
-		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running)
-
 	case mcadv1beta1.Running:
-		// count AppWrapper pods
-		counts, err := r.countPods(ctx, appWrapper)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		// check pod count if dispatched for a while
-		if isSlowDispatching(appWrapper) && counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
+		switch appWrapper.Status.Step {
+		case mcadv1beta1.Creating:
+			// create wrapped resources
+			if err, fatal := r.createResources(ctx, appWrapper); err != nil {
+				return r.requeueOrFail(ctx, appWrapper, fatal, err.Error())
+			}
+			// set running/created status only after successfully requesting the creation of all resources
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Created)
 
-			customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
-			// requeue or fail if max retries exhausted with custom error message
-			return r.requeueOrFail(ctx, appWrapper, customMessage)
-		}
-		// check for successful completion by looking at pods and wrapped resources
-		success, err := r.isSuccessful(ctx, appWrapper, counts)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		// set succeeded status if done
-		if success {
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded)
-		}
-		// AppWrapper is healthy, requeue reconciliation after delay
-		return ctrl.Result{RequeueAfter: runDelay}, nil
+		case mcadv1beta1.Created:
+			// count AppWrapper pods
+			counts, err := r.countPods(ctx, appWrapper)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			// check pod count if dispatched for a while
+			if metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.TimeInSeconds)*time.Second)) &&
+				counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
+				customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
+				// requeue or fail if max retries exhausted with custom error message
+				return r.requeueOrFail(ctx, appWrapper, false, customMessage)
+			}
+			// check for successful completion by looking at pods and wrapped resources
+			success, err := r.isSuccessful(ctx, appWrapper, counts)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			// set succeeded/idle status if done
+			if success {
+				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded, mcadv1beta1.Idle)
+			}
+			// AppWrapper is healthy, requeue reconciliation after delay
+			return ctrl.Result{RequeueAfter: runDelay}, nil
 
-	case mcadv1beta1.Requeuing:
-		// delete wrapped resources
-		if r.deleteResources(ctx, appWrapper) != 0 {
-			if !isSlowRequeuing(appWrapper) {
+		case mcadv1beta1.Deleting:
+			// delete wrapped resources
+			if !r.delete(ctx, appWrapper, appWrapper.Status.RequeueTimestamp) {
 				// requeue reconciliation after delay
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
-			// forcefully delete wrapped resources and pods
-			r.forceDelete(ctx, appWrapper)
+			// reset status to queued/idle
+			appWrapper.Status.Restarts += 1
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 		}
-		// reset status to queued
-		appWrapper.Status.Restarts += 1
-		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued)
+
+	case mcadv1beta1.Failed:
+		switch appWrapper.Status.Step {
+		case mcadv1beta1.Deleting:
+			// delete wrapped resources
+			if !r.delete(ctx, appWrapper, appWrapper.Status.RequeueTimestamp) {
+				// requeue reconciliation after delay
+				return ctrl.Result{RequeueAfter: deletionDelay}, nil
+			}
+			// set status to failed/idle
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Idle)
+		}
 	}
 	return ctrl.Result{}, nil
 }
@@ -208,32 +215,39 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 }
 
 // Update AppWrapper status
-func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase, reason ...string) (ctrl.Result, error) {
+func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase, step mcadv1beta1.AppWrapperStep, reason ...string) (ctrl.Result, error) {
 	// log transition
 	now := metav1.Now()
-	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase}
+	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase, Step: step}
 	if len(reason) > 0 {
 		transition.Reason = reason[0]
 	}
 	appWrapper.Status.Transitions = append(appWrapper.Status.Transitions, transition)
 	appWrapper.Status.Phase = phase
+	appWrapper.Status.Step = step
 	// update AppWrapper status in etcd, requeue reconciliation on failure
 	if err := r.Status().Update(ctx, appWrapper); err != nil {
 		return ctrl.Result{}, err
 	}
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
-	log.FromContext(ctx).Info(string(phase), "state", string(phase))
+	log.FromContext(ctx).Info(string(phase), "state", phase, "step", step)
 	return ctrl.Result{}, nil
 }
 
-// Set requeuing or failed status depending on restarts count
-func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, reason string) (ctrl.Result, error) {
-	if appWrapper.Status.Restarts < appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings {
+// Set requeuing or failed status depending on error, configuration, and restarts count
+func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, fatal bool, reason string) (ctrl.Result, error) {
+	if appWrapper.Spec.Scheduling.MinAvailable == 0 {
+		// set failed status and leave resources as is
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, appWrapper.Status.Step, reason)
+	} else if fatal || appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings > 0 && appWrapper.Status.Restarts >= appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings {
+		// set failed/deleting status (request deletion of wrapped resources)
 		appWrapper.Status.RequeueTimestamp = metav1.Now()
-		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Requeuing, reason)
+		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Deleting, reason)
 	}
-	return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, reason)
+	// requeue AppWrapper
+	appWrapper.Status.RequeueTimestamp = metav1.Now()
+	return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Deleting, reason)
 }
 
 // Trigger dispatch by means of "*/*" request
@@ -270,18 +284,22 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 		}
 		// set dispatching time and status
 		appWrapper.Status.DispatchTimestamp = metav1.Now()
-		if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Dispatching); err != nil {
+		if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Creating); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 }
 
-// Is dispatching too slow?
-func isSlowDispatching(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(runningTimeout))
-}
-
-// Is requeuing too slow?
-func isSlowRequeuing(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.RequeueTimestamp.Add(requeuingTimeout))
+// Delete wrapped resources, forcing deletion after a delay
+func (r *AppWrapperReconciler) delete(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, time metav1.Time) bool {
+	if r.deleteResources(ctx, appWrapper) != 0 {
+		// resources still exist
+		if !metav1.Now().After(time.Add(deletionTimeout)) {
+			// there is still time
+			return false
+		}
+		// force deletion
+		r.forceDelete(ctx, appWrapper)
+	}
+	return true
 }

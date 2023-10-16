@@ -40,6 +40,9 @@ type CachedAppWrapper struct {
 	// AppWrapper phase
 	Phase mcadv1beta1.AppWrapperPhase
 
+	// AppWrapper step
+	Step mcadv1beta1.AppWrapperStep
+
 	// Number of transitions
 	Transitions int
 
@@ -49,7 +52,7 @@ type CachedAppWrapper struct {
 
 // Add AppWrapper to cache
 func (r *AppWrapperReconciler) addCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
-	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Transitions: len(appWrapper.Status.Transitions)}
+	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Step: appWrapper.Status.Step, Transitions: len(appWrapper.Status.Transitions)}
 }
 
 // Remove AppWrapper from cache
@@ -58,11 +61,11 @@ func (r *AppWrapperReconciler) deleteCachedPhase(appWrapper *mcadv1beta1.AppWrap
 }
 
 // Get AppWrapper phase from cache if available or from AppWrapper if not
-func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper) mcadv1beta1.AppWrapperPhase {
+func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper) (mcadv1beta1.AppWrapperPhase, mcadv1beta1.AppWrapperStep) {
 	if cached, ok := r.Cache[appWrapper.UID]; ok && cached.Transitions > len(appWrapper.Status.Transitions) {
-		return cached.Phase // our cache is more up-to-date than the reconciler cache
+		return cached.Phase, cached.Step // our cache is more up-to-date than the reconciler cache
 	}
-	return appWrapper.Status.Phase
+	return appWrapper.Status.Phase, appWrapper.Status.Step
 }
 
 // Check whether reconciler cache and our cache appear to be in sync
@@ -91,7 +94,7 @@ func (r *AppWrapperReconciler) isStale(ctx context.Context, appWrapper *mcadv1be
 			}
 			return true
 		}
-		if cached.Phase != status.Phase {
+		if cached.Phase != status.Phase || cached.Step != status.Step {
 			// assume something is wrong with our cache
 			delete(r.Cache, appWrapper.UID)
 			log.FromContext(ctx).Error(errors.New("cache conflict"), "Internal error")

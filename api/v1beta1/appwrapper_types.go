@@ -47,6 +47,13 @@ type SchedulingSpec struct {
 }
 
 type RequeuingSpec struct {
+	// Initial waiting time before requeuing conditions are checked
+	// +kubebuilder:default=300
+	TimeInSeconds int64 `json:"timeInSeconds,omitempty"`
+
+	// Wait time before trying to dispatch again after requeuing
+	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
+
 	// Max requeuings permitted
 	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 }
@@ -55,6 +62,9 @@ type RequeuingSpec struct {
 type AppWrapperStatus struct {
 	// Phase
 	Phase AppWrapperPhase `json:"state,omitempty"`
+
+	// Status of wrapped resources
+	Step AppWrapperStep `json:"step,omitempty"`
 
 	// When last dispatched
 	DispatchTimestamp metav1.Time `json:"dispatchTimestamp,omitempty"`
@@ -72,27 +82,36 @@ type AppWrapperStatus struct {
 // AppWrapperPhase is the label for the AppWrapper status
 type AppWrapperPhase string
 
+// AppWrapperState is the status of wrapped resources
+type AppWrapperStep string
+
 const (
-	// no resource reservation
+	// Initial state upon creation of the AppWrapper object
 	Empty AppWrapperPhase = ""
 
-	// no resource reservation
+	// AppWrapper has not been dispatched yet or has been requeued
 	Queued AppWrapperPhase = "Pending"
 
-	// resources are reserved
-	Dispatching AppWrapperPhase = "Dispatching"
-
-	// resources are reserved
+	// AppWrapper has been dispatched and not requeued
 	Running AppWrapperPhase = "Running"
 
-	// no resource reservation
+	// AppWrapper completed successfully
 	Succeeded AppWrapperPhase = "Completed"
 
-	// resources are reserved (some pods may still be running)
+	// AppWrapper failed and is not requeued
 	Failed AppWrapperPhase = "Failed"
 
-	// resources are reserved (some pods may still be running)
-	Requeuing AppWrapperPhase = "Requeuing"
+	// Resources are not deployed
+	Idle AppWrapperStep = ""
+
+	// MCAD is in the process of creating the wrapped resources
+	Creating AppWrapperStep = "creating"
+
+	// The wrapped resources have been deployed successfully
+	Created AppWrapperStep = "created"
+
+	// MCAD is in the process of deleting the wrapped resources
+	Deleting AppWrapperStep = "deleting"
 )
 
 // AppWrapper resources
@@ -137,6 +156,9 @@ type AppWrapperTransition struct {
 
 	// Phase entered
 	Phase AppWrapperPhase `json:"state"`
+
+	// Status of wrapped resources
+	Step AppWrapperStep `json:"step,omitempty"`
 }
 
 //+kubebuilder:object:root=true

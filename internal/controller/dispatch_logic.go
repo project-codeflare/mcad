@@ -76,16 +76,17 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 	for _, appWrapper := range appWrappers.Items {
 		// get phase from cache if available as reconciler cache may be lagging
-		phase := r.getCachedPhase(&appWrapper)
+		phase, step := r.getCachedPhase(&appWrapper)
 		// make sure to initialize weights for every known priority level
 		if requests[int(appWrapper.Spec.Priority)] == nil {
 			requests[int(appWrapper.Spec.Priority)] = Weights{}
 		}
-		if isActivePhase(phase) {
+		if step != mcadv1beta1.Idle {
 			// discount resource requested by AppWrapper
 			awRequest := aggregateRequests(&appWrapper)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
-		} else if phase == mcadv1beta1.Queued {
+		} else if phase == mcadv1beta1.Queued &&
+			time.Now().After(appWrapper.Status.RequeueTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.PauseTimeInSeconds)*time.Second)) {
 			// add AppWrapper to queue
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
@@ -174,15 +175,5 @@ func assertPriorities(w map[int]Weights) {
 	sort.Ints(keys)
 	for i := len(keys) - 1; i > 0; i-- {
 		w[keys[i-1]].Add(w[keys[i]])
-	}
-}
-
-// Are resources reserved in this phase
-func isActivePhase(phase mcadv1beta1.AppWrapperPhase) bool {
-	switch phase {
-	case mcadv1beta1.Dispatching, mcadv1beta1.Running, mcadv1beta1.Failed, mcadv1beta1.Requeuing:
-		return true
-	default:
-		return false // Empty, Queued, Succeeded
 	}
 }
