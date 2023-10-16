@@ -103,7 +103,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		// remove AppWrapper from cache
 		r.deleteCachedPhase(appWrapper)
-		log.FromContext(ctx).Info("Deleted", "state", "Deleted")
+		log.FromContext(ctx).Info("Deleted")
 		return ctrl.Result{}, nil
 	}
 
@@ -230,7 +230,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 	}
 	// cache AppWrapper status
 	r.addCachedPhase(appWrapper)
-	log.FromContext(ctx).Info(string(phase), "state", string(phase))
+	log.FromContext(ctx).Info(string(phase), "state", phase, "step", step)
 	return ctrl.Result{}, nil
 }
 
