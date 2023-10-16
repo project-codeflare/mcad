@@ -57,7 +57,7 @@ type AppWrapperStatus struct {
 	Phase AppWrapperPhase `json:"state,omitempty"`
 
 	// Status of wrapped resources
-	Step AppWrapperStep `json:"step"`
+	Step AppWrapperStep `json:"step,omitempty"`
 
 	// When last dispatched
 	DispatchTimestamp metav1.Time `json:"dispatchTimestamp,omitempty"`
@@ -135,7 +135,7 @@ type AppWrapperTransition struct {
 	Phase AppWrapperPhase `json:"state"`
 
 	// Status of wrapped resources
-	Step AppWrapperStep `json:"step"`
+	Step AppWrapperStep `json:"step,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -173,13 +173,11 @@ spec:
                       type: string
                   required:
                   - state
-                  - step
                   - time
                   type: object
                 type: array
             required:
             - restarts
-            - step
             type: object
         type: object
     served: true
