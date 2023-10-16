@@ -139,13 +139,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			// check pod count if dispatched for a while
-			if metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.TimeInSeconds)*time.Second)) &&
-				counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
-				customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
-				// requeue or fail if max retries exhausted with custom error message
-				return r.requeueOrFail(ctx, appWrapper, false, customMessage)
-			}
 			// check for successful completion by looking at pods and wrapped resources
 			success, err := r.isSuccessful(ctx, appWrapper, counts)
 			if err != nil {
@@ -154,6 +147,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			// set succeeded/idle status if done
 			if success {
 				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded, mcadv1beta1.Idle)
+			}
+			// check pod count if dispatched for a while
+			if metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.TimeInSeconds)*time.Second)) &&
+				counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
+				customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
+				// requeue or fail if max retries exhausted with custom error message
+				return r.requeueOrFail(ctx, appWrapper, false, customMessage)
 			}
 			// AppWrapper is healthy, requeue reconciliation after delay
 			return ctrl.Result{RequeueAfter: runDelay}, nil
