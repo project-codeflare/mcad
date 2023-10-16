@@ -81,7 +81,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 		if requests[int(appWrapper.Spec.Priority)] == nil {
 			requests[int(appWrapper.Spec.Priority)] = Weights{}
 		}
-		if isActivePhase(phase) {
+		if appWrapper.Status.Step != mcadv1beta1.Idle {
 			// discount resource requested by AppWrapper
 			awRequest := aggregateRequests(&appWrapper)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
@@ -174,15 +174,5 @@ func assertPriorities(w map[int]Weights) {
 	sort.Ints(keys)
 	for i := len(keys) - 1; i > 0; i-- {
 		w[keys[i-1]].Add(w[keys[i]])
-	}
-}
-
-// Are resources reserved in this phase
-func isActivePhase(phase mcadv1beta1.AppWrapperPhase) bool {
-	switch phase {
-	case mcadv1beta1.Dispatching, mcadv1beta1.Running, mcadv1beta1.Failed, mcadv1beta1.Requeuing:
-		return true
-	default:
-		return false // Empty, Queued, Succeeded
 	}
 }

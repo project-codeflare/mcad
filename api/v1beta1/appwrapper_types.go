@@ -56,6 +56,9 @@ type AppWrapperStatus struct {
 	// Phase
 	Phase AppWrapperPhase `json:"state,omitempty"`
 
+	// Status of wrapped resources
+	Step AppWrapperStep `json:"step"`
+
 	// When last dispatched
 	DispatchTimestamp metav1.Time `json:"dispatchTimestamp,omitempty"`
 
@@ -72,27 +75,20 @@ type AppWrapperStatus struct {
 // AppWrapperPhase is the label for the AppWrapper status
 type AppWrapperPhase string
 
+// AppWrapperState is the status of wrapped resources
+type AppWrapperStep string
+
 const (
-	// no resource reservation
-	Empty AppWrapperPhase = ""
-
-	// no resource reservation
-	Queued AppWrapperPhase = "Pending"
-
-	// resources are reserved
-	Dispatching AppWrapperPhase = "Dispatching"
-
-	// resources are reserved
-	Running AppWrapperPhase = "Running"
-
-	// no resource reservation
+	Empty     AppWrapperPhase = ""
+	Queued    AppWrapperPhase = "Pending"
+	Running   AppWrapperPhase = "Running"
 	Succeeded AppWrapperPhase = "Completed"
+	Failed    AppWrapperPhase = "Failed"
 
-	// resources are reserved (some pods may still be running)
-	Failed AppWrapperPhase = "Failed"
-
-	// resources are reserved (some pods may still be running)
-	Requeuing AppWrapperPhase = "Requeuing"
+	Idle     AppWrapperStep = ""
+	Creating AppWrapperStep = "creating"
+	Created  AppWrapperStep = "created"
+	Deleting AppWrapperStep = "deleting"
 )
 
 // AppWrapper resources
@@ -137,6 +133,9 @@ type AppWrapperTransition struct {
 
 	// Phase entered
 	Phase AppWrapperPhase `json:"state"`
+
+	// Status of wrapped resources
+	Step AppWrapperStep `json:"step"`
 }
 
 //+kubebuilder:object:root=true
