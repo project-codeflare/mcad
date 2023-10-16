@@ -153,7 +153,7 @@ func (r *AppWrapperReconciler) isSuccessful(ctx context.Context, appWrapper *mca
 						if c, ok := condition.(map[string]interface{}); ok {
 							if t, ok := c["type"].(string); ok && c["status"] == "True" {
 								for _, k := range keys {
-									if strings.Contains(t, k) {
+									if strings.Contains(strings.ToLower(t), strings.ToLower(k)) {
 										success = true
 										break
 									}
