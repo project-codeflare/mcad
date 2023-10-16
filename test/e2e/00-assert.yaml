@@ -5,6 +5,8 @@ metadata:
 status:
   transitions:
   - state: Pending
-  - state: Dispatching
   - state: Running
+    step: creating
+  - state: Running
+    step: created
   state: Running
