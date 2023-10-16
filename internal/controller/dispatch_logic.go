@@ -76,16 +76,17 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 	for _, appWrapper := range appWrappers.Items {
 		// get phase from cache if available as reconciler cache may be lagging
-		phase := r.getCachedPhase(&appWrapper)
+		phase, step := r.getCachedPhase(&appWrapper)
 		// make sure to initialize weights for every known priority level
 		if requests[int(appWrapper.Spec.Priority)] == nil {
 			requests[int(appWrapper.Spec.Priority)] = Weights{}
 		}
-		if appWrapper.Status.Step != mcadv1beta1.Idle {
+		if step != mcadv1beta1.Idle {
 			// discount resource requested by AppWrapper
 			awRequest := aggregateRequests(&appWrapper)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
-		} else if phase == mcadv1beta1.Queued {
+		} else if phase == mcadv1beta1.Queued &&
+			time.Now().After(appWrapper.Status.RequeueTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.PauseTimeInSeconds)*time.Second)) {
 			// add AppWrapper to queue
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)

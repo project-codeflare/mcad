@@ -127,6 +127,17 @@ spec:
                         description: Max requeuings permitted
                         format: int32
                         type: integer
+                      pauseTimeInSeconds:
+                        description: Wait time before trying to dispatch again after
+                          requeuing
+                        format: int64
+                        type: integer
+                      timeInSeconds:
+                        default: 300
+                        description: Initial waiting time before requeuing conditions
+                          are checked
+                        format: int64
+                        type: integer
                     type: object
                 type: object
             required:

@@ -47,6 +47,13 @@ type SchedulingSpec struct {
 }
 
 type RequeuingSpec struct {
+	// Initial waiting time before requeuing conditions are checked
+	// +kubebuilder:default=300
+	TimeInSeconds int64 `json:"timeInSeconds,omitempty"`
+
+	// Wait time before trying to dispatch again after requeuing
+	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
+
 	// Max requeuings permitted
 	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 }
@@ -79,15 +86,31 @@ type AppWrapperPhase string
 type AppWrapperStep string
 
 const (
-	Empty     AppWrapperPhase = ""
-	Queued    AppWrapperPhase = "Pending"
-	Running   AppWrapperPhase = "Running"
-	Succeeded AppWrapperPhase = "Completed"
-	Failed    AppWrapperPhase = "Failed"
+	// Initial state upon creation of the AppWrapper object
+	Empty AppWrapperPhase = ""
 
-	Idle     AppWrapperStep = ""
+	// AppWrapper has not been dispatched yet or has been requeued
+	Queued AppWrapperPhase = "Pending"
+
+	// AppWrapper has been dispatched and not requeued
+	Running AppWrapperPhase = "Running"
+
+	// AppWrapper completed successfully
+	Succeeded AppWrapperPhase = "Completed"
+
+	// AppWrapper failed and is not requeued
+	Failed AppWrapperPhase = "Failed"
+
+	// Resources are not deployed
+	Idle AppWrapperStep = ""
+
+	// MCAD is in the process of creating the wrapped resources
 	Creating AppWrapperStep = "creating"
-	Created  AppWrapperStep = "created"
+
+	// The wrapped resources have been deployed successfully
+	Created AppWrapperStep = "created"
+
+	// MCAD is in the process of deleting the wrapped resources
 	Deleting AppWrapperStep = "deleting"
 )
 

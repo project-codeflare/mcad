@@ -24,8 +24,7 @@ import (
 
 const (
 	// Timeouts
-	requeuingTimeout     = 2 * time.Minute // minimum wait before aborting Requeuing
-	runningTimeout       = 5 * time.Minute // minimum wait before aborting Running
+	deletionTimeout      = 2 * time.Minute // minimum wait before forcing deletion
 	cacheConflictTimeout = 5 * time.Minute // minimum wait before invalidating the cache
 	clusterInfoTimeout   = time.Minute     // how often to refresh cluster capacity
 

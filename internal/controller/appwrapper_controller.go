@@ -140,7 +140,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{}, err
 			}
 			// check pod count if dispatched for a while
-			if isSlowDispatching(appWrapper) && counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
+			if metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.TimeInSeconds)*time.Second)) &&
+				counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
 				customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
 				// requeue or fail if max retries exhausted with custom error message
 				return r.requeueOrFail(ctx, appWrapper, false, customMessage)
@@ -289,16 +290,11 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 	}
 }
 
-// Is dispatching too slow?
-func isSlowDispatching(appWrapper *mcadv1beta1.AppWrapper) bool {
-	return metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(runningTimeout))
-}
-
 // Delete wrapped resources, forcing deletion after a delay
 func (r *AppWrapperReconciler) delete(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, time metav1.Time) bool {
 	if r.deleteResources(ctx, appWrapper) != 0 {
 		// resources still exist
-		if !metav1.Now().After(time.Add(requeuingTimeout)) {
+		if !metav1.Now().After(time.Add(deletionTimeout)) {
 			// there is still time
 			return false
 		}
