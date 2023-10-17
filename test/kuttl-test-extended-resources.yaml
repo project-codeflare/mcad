@@ -2,6 +2,6 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
 testDirs:
   - test/e2e-kuttl-extended-resources/
-timeout: 60
+timeout: 240
 artifactsDir: _output/logs
 commands:

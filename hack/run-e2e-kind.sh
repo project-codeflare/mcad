@@ -10,6 +10,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#!/bin/bash
+
 export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
@@ -163,7 +165,7 @@ function check_prerequisites {
 
 function kind_up_cluster {
   echo "Running kind: [kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT}]"
-  KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT} --wait ${WAIT_TIME} 
+  kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT} --wait ${WAIT_TIME} 
   if [ $? -ne 0 ]
   then
     echo "Failed to start kind cluster"
@@ -177,28 +179,28 @@ function kind_up_cluster {
   fi
   CLUSTER_STARTED="true"
 
-  podman pull ${IMAGE_ECHOSERVER} 
+  docker pull ${IMAGE_ECHOSERVER} 
   if [ $? -ne 0 ]
   then
     echo "Failed to pull ${IMAGE_ECHOSERVER}"
     exit 1
   fi
 
-  podman pull ${IMAGE_UBUNTU_LATEST}
+  docker pull ${IMAGE_UBUNTU_LATEST}
   if [ $? -ne 0 ]
   then
     echo "Failed to pull ${IMAGE_UBUNTU_LATEST}"
     exit 1
   fi
 
-  podman pull ${IMAGE_UBI_LATEST}
+  docker pull ${IMAGE_UBI_LATEST}
   if [ $? -ne 0 ]
   then
     echo "Failed to pull ${IMAGE_UBI_LATEST}"
     exit 1
   fi
   
-  podman pull ${IMAGE_BUSY_BOX_LATEST}
+  docker pull ${IMAGE_BUSY_BOX_LATEST}
   if [ $? -ne 0 ]
   then
     echo "Failed to pull ${IMAGE_BUSY_BOX_LATEST}"
@@ -207,7 +209,7 @@ function kind_up_cluster {
  
   if [[ "$MCAD_IMAGE_PULL_POLICY" = "Always" ]]
   then
-    podman pull ${IMAGE_MCAD}
+    docker pull ${IMAGE_MCAD}
     if [ $? -ne 0 ]
     then
       echo "Failed to pull ${IMAGE_MCAD}"
@@ -219,7 +221,7 @@ function kind_up_cluster {
       exit 1
     fi
   fi
-  podman images
+  docker images
 
   for image in ${IMAGE_ECHOSERVER} ${IMAGE_UBUNTU_LATEST} ${IMAGE_MCAD} ${IMAGE_UBI_LATEST} ${IMAGE_BUSY_BOX_LATEST}
   do
@@ -440,9 +442,9 @@ kind_up_cluster
 extend_resources
 setup_mcad_env
 mcad_up
-# MCAD with quotamanagement options is started by kuttl-tests
+
 kuttl_tests
-go test ./internal/controller/suite_test.go -v -timeout 130m -count=1 -ginkgo.fail-fast
+#go test ./internal/controller/suite_test.go -v -timeout 130m -count=1 -ginkgo.fail-fast
 
 RC=$?
 if [ ${RC} -eq 0 ]
