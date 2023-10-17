@@ -87,6 +87,9 @@ func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (*unstructure
 		return nil, err
 	}
 	fixMap(appWrapper, obj.UnstructuredContent())
+	if obj.GetNamespace() == "" {
+		obj.SetNamespace("default")
+	}
 	return obj, nil
 }
 
@@ -236,19 +239,26 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 func (r *AppWrapperReconciler) countPods(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) (*PodCounts, error) {
 	// list matching pods
 	pods := &v1.PodList{}
-	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-		client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
+	if err := r.List(ctx, pods,
+		client.MatchingLabels{nameLabel: appWrapper.Name}); err != nil {
 		return nil, err
 	}
 	counts := &PodCounts{}
 	for _, pod := range pods.Items {
+		namespace := pod.Labels[namespaceLabel]
 		switch pod.Status.Phase {
 		case v1.PodSucceeded:
-			counts.Succeeded += 1
+			if namespace == appWrapper.Namespace || namespace == "" {
+				counts.Succeeded += 1 // for backward compatibility count pods missing namespace label
+			}
 		case v1.PodRunning:
-			counts.Running += 1
+			if namespace == appWrapper.Namespace || namespace == "" {
+				counts.Running += 1 // for backward compatibility count pods missing namespace label
+			}
 		default:
-			counts.Other += 1
+			if namespace == appWrapper.Namespace {
+				counts.Other += 1
+			}
 		}
 	}
 	return counts, nil
