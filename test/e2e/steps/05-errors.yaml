@@ -1,13 +1,15 @@
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  name: aw-04
+  name: aw-041
+  namespace: start-up-02
 status:
   state: Running
 ---
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  name: aw-04
+  name: aw-041
+  namespace: start-up-02
 status:
   state: Completed

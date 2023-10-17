@@ -1,0 +1,13 @@
+apiVersion: workload.codeflare.dev/v1beta1
+kind: AppWrapper
+metadata:
+  name: aw-08
+  namespace: start-up-02
+status:
+  transitions:
+  - state: Pending
+  - state: Running
+    step: creating
+  - state: Running
+    step: created
+  state: Running

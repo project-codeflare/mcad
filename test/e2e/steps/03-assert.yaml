@@ -1,7 +1,8 @@
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  name: aw-02
+  name: aw-03
+  namespace: start-up-02
 status:
   transitions:
   - state: Pending

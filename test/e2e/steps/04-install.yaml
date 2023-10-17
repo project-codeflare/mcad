@@ -1,7 +1,8 @@
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  name: aw-03
+  name: aw-04
+  namespace: start-up-02
 spec:
   schedulingSpec:
     minAvailable: 1
@@ -11,16 +12,16 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
+          namespace: start-up-02
           name: <APPWRAPPER_NAME>-pod-01
           labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com/namespace: start-up-02
             appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
           restartPolicy: Never
           containers:
             - name: busybox
-              image: busybox
+              image: quay.io/quay/busybox
               command: ["sh", "-c", "sleep 10"]
       custompodresources:
       - replicas: 1
@@ -30,7 +31,8 @@ spec:
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  name: aw-04
+  name: aw-041
+  namespace: start-up-02
 spec:
   schedulingSpec:
     minAvailable: 1
@@ -40,10 +42,10 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
-          name: <APPWRAPPER_NAME>-pod-01
+          namespace: start-up-02
+          name: <APPWRAPPER_NAME>-pod-041
           labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com/namespace: start-up-02
             appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
           restartPolicy: Never

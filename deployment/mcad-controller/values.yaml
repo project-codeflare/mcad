@@ -1,0 +1,67 @@
+# Default values for MCAD-Controller.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+deploymentName: mcad-controller
+namespace: kube-system
+replicaCount: 1
+loglevel: 3
+
+image:
+  repository: mcad-controller
+  tag: latest
+  pullPolicy: Always
+
+crd:
+
+httpImage:
+  repository: restserver
+  tag: latest
+  pullPolicy: Always
+
+httpServerImage:
+  repository: httpserver
+  tag: latest
+  pullPolicy: Always
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2048Mi
+  requests:
+    cpu: 2000m
+    memory: 2048Mi
+
+imagePullSecret:
+  name:
+  username: iamapikey
+  registry: registry.stage1.ng.bluemix.net
+  password: dummyvalue
+
+serviceAccount: mcad-controller
+
+nodeSelector:
+  hostname:
+
+configMap:
+  name:
+  quotaEnabled: '"false"'
+  multiCluster: false
+  dispatcherMode: '"false"'
+  preemptionEnabled: '"false"'
+  agentConfigs: ""
+  quotaRestUrl: ""
+  # String timeout in milliseconds
+  podCreationTimeout:
+
+volumes:
+  hostPath:
+
+coscheduler:
+  rbac:
+    apiGroup:
+    resource:
+
+quotaManagement:
+  rbac:
+    apiGroup:
+    resource:

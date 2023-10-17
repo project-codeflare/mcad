@@ -56,6 +56,13 @@ If you are editing the API definitions, generate the manifests such as CRs or CR
 ```sh
 make manifests
 ```
+## Running tests locally
+
+Make sure Kind and Helmv3 are installed on uour laptop. To run kuttl tests lically use command:
+
+```sh
+sh hack/run-e2e-kind.sh <image-name> <image-tag>
+```
 
 **NOTE:** Run `make --help` for more information on all potential `make` targets
 

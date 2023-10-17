@@ -66,7 +66,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 .PHONY: kuttl
 kuttl:
-	kubectl kuttl test test
+	kubectl kuttl test test/e2e
 
 ##@ Build
 
