@@ -119,7 +119,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// set queued/idle status only after adding finalizer
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 
-	case mcadv1beta1.Queued, mcadv1beta1.Succeeded:
+	case mcadv1beta1.Queued:
 		r.triggerDispatch()
 		return ctrl.Result{}, nil
 
@@ -146,6 +146,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 			// set succeeded/idle status if done
 			if success {
+				r.triggerDispatch()
 				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded, mcadv1beta1.Idle)
 			}
 			// check pod count if dispatched for a while
@@ -178,6 +179,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
 			// set status to failed/idle
+			r.triggerDispatch()
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Idle)
 		}
 	}
