@@ -91,7 +91,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
 		// delete wrapped resources
-		if !r.delete(ctx, appWrapper, *appWrapper.DeletionTimestamp) {
+		if !r.deleteResources(ctx, appWrapper, *appWrapper.DeletionTimestamp) {
 			// requeue reconciliation after delay
 			return ctrl.Result{RequeueAfter: deletionDelay}, nil
 		}
@@ -160,7 +160,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		case mcadv1beta1.Deleting:
 			// delete wrapped resources
-			if !r.delete(ctx, appWrapper, appWrapper.Status.RequeueTimestamp) {
+			if !r.deleteResources(ctx, appWrapper, appWrapper.Status.RequeueTimestamp) {
 				// requeue reconciliation after delay
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
@@ -173,7 +173,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		switch appWrapper.Status.Step {
 		case mcadv1beta1.Deleting:
 			// delete wrapped resources
-			if !r.delete(ctx, appWrapper, appWrapper.Status.RequeueTimestamp) {
+			if !r.deleteResources(ctx, appWrapper, appWrapper.Status.RequeueTimestamp) {
 				// requeue reconciliation after delay
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
@@ -288,18 +288,4 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 			return ctrl.Result{}, err
 		}
 	}
-}
-
-// Delete wrapped resources, forcing deletion after a delay
-func (r *AppWrapperReconciler) delete(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, time metav1.Time) bool {
-	if r.deleteResources(ctx, appWrapper) != 0 {
-		// resources still exist
-		if !metav1.Now().After(time.Add(deletionTimeout)) {
-			// there is still time
-			return false
-		}
-		// force deletion
-		r.forceDelete(ctx, appWrapper)
-	}
-	return true
 }

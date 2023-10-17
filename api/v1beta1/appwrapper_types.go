@@ -39,11 +39,14 @@ type AppWrapperSpec struct {
 }
 
 type SchedulingSpec struct {
-	// Minimum number of pods
+	// Minimum number of expected running and successful pods
 	MinAvailable int32 `json:"minAvailable,omitempty"`
 
 	// Requeuing specification
 	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
+
+	// Enable forced deletion after delay if nonzero
+	ForceDeletionTimeInSeconds int64 `json:"forceDeletionTimeInSeconds,omitempty"`
 }
 
 type RequeuingSpec struct {
@@ -54,7 +57,7 @@ type RequeuingSpec struct {
 	// Wait time before trying to dispatch again after requeuing
 	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
 
-	// Max requeuings permitted
+	// Max requeuings permitted (infinite if zero)
 	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 }
 

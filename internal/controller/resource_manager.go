@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"strings"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -172,10 +173,10 @@ func (r *AppWrapperReconciler) isSuccessful(ctx context.Context, appWrapper *mca
 	return custom || appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded >= int(appWrapper.Spec.Scheduling.MinAvailable), nil
 }
 
-// Delete wrapped resources, ignore errors, return count of pending deletions
-func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) int {
+// Delete wrapped resources, forcing deletion of pods and wrapped resources if enabled
+func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, timestamp metav1.Time) bool {
 	log := log.FromContext(ctx)
-	count := 0
+	remaining := 0
 	for _, resource := range appWrapper.Spec.Resources.GenericItems {
 		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
 		if err != nil {
@@ -188,31 +189,47 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 			}
 			continue
 		}
-		count += 1 // no error deleting resource, resource therefore still exists
+		remaining++ // no error deleting resource, resource therefore still exists
 	}
-	return count
-}
-
-// Forcefully delete wrapped resources and pods
-func (r *AppWrapperReconciler) forceDelete(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) {
-	log := log.FromContext(ctx)
-	// forcefully delete matching pods
-	pod := &v1.Pod{}
-	if err := r.DeleteAllOf(ctx, pod, client.GracePeriodSeconds(0),
+	if appWrapper.Spec.Scheduling.ForceDeletionTimeInSeconds == 0 {
+		// force deletion is not enabled, return true iff no resources were found
+		return remaining == 0
+	}
+	pods := &v1.PodList{Items: []v1.Pod{}}
+	if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 		client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
-		log.Error(err, "Forceful pod deletion error")
+		log.Error(err, "Pod list error")
 	}
-	// forcefully delete wrapped resources
-	for _, resource := range appWrapper.Spec.Resources.GenericItems {
-		obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
-		if err != nil {
-			log.Error(err, "Parsing error")
-			continue
+	if remaining == 0 && len(pods.Items) == 0 {
+		// no resources, no pods, deletion is complete
+		return true
+	}
+	if !metav1.Now().After(timestamp.Add(time.Duration(appWrapper.Spec.Scheduling.ForceDeletionTimeInSeconds) * time.Second)) {
+		// wait before forcing deletion and simply requeue deletion
+		return false
+	}
+	if len(pods.Items) > 0 {
+		// force deletion of pods first
+		for _, pod := range pods.Items {
+			if err := r.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
+				log.Error(err, "Forceful pod deletion error")
+			}
 		}
-		if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
-			log.Error(err, "Forceful deletion error")
+	} else {
+		// force deletion of wrapped resources once pods are gone
+		for _, resource := range appWrapper.Spec.Resources.GenericItems {
+			obj, err := parseResource(appWrapper, resource.GenericTemplate.Raw)
+			if err != nil {
+				log.Error(err, "Parsing error")
+				continue
+			}
+			if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+				log.Error(err, "Forceful deletion error")
+			}
 		}
 	}
+	// requeue deletion
+	return false
 }
 
 // Count AppWrapper pods

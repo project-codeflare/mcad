@@ -24,7 +24,6 @@ import (
 
 const (
 	// Timeouts
-	deletionTimeout      = 2 * time.Minute // minimum wait before forcing deletion
 	cacheConflictTimeout = 5 * time.Minute // minimum wait before invalidating the cache
 	clusterInfoTimeout   = time.Minute     // how often to refresh cluster capacity
 
