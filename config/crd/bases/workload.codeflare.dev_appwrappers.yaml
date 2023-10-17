@@ -169,6 +169,10 @@ spec:
               step:
                 description: Status of wrapped resources
                 type: string
+              transitionCount:
+                description: Number of transitions
+                format: int32
+                type: integer
               transitions:
                 description: Transition log
                 items:

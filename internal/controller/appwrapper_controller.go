@@ -225,6 +225,10 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 		transition.Reason = reason[0]
 	}
 	appWrapper.Status.Transitions = append(appWrapper.Status.Transitions, transition)
+	if len(appWrapper.Status.Transitions) > 20 {
+		appWrapper.Status.Transitions = appWrapper.Status.Transitions[1:]
+	}
+	appWrapper.Status.TransitionCount++
 	appWrapper.Status.Phase = phase
 	appWrapper.Status.Step = step
 	// update AppWrapper status in etcd, requeue reconciliation on failure

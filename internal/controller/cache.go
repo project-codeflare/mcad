@@ -44,7 +44,7 @@ type CachedAppWrapper struct {
 	Step mcadv1beta1.AppWrapperStep
 
 	// Number of transitions
-	Transitions int
+	TransitionCount int32
 
 	// First conflict detected between reconciler cache and our cache if not nil
 	Conflict *time.Time
@@ -52,7 +52,7 @@ type CachedAppWrapper struct {
 
 // Add AppWrapper to cache
 func (r *AppWrapperReconciler) addCachedPhase(appWrapper *mcadv1beta1.AppWrapper) {
-	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Step: appWrapper.Status.Step, Transitions: len(appWrapper.Status.Transitions)}
+	r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: appWrapper.Status.Phase, Step: appWrapper.Status.Step, TransitionCount: appWrapper.Status.TransitionCount}
 }
 
 // Remove AppWrapper from cache
@@ -62,7 +62,7 @@ func (r *AppWrapperReconciler) deleteCachedPhase(appWrapper *mcadv1beta1.AppWrap
 
 // Get AppWrapper phase from cache if available or from AppWrapper if not
 func (r *AppWrapperReconciler) getCachedPhase(appWrapper *mcadv1beta1.AppWrapper) (mcadv1beta1.AppWrapperPhase, mcadv1beta1.AppWrapperStep) {
-	if cached, ok := r.Cache[appWrapper.UID]; ok && cached.Transitions > len(appWrapper.Status.Transitions) {
+	if cached, ok := r.Cache[appWrapper.UID]; ok && cached.TransitionCount > appWrapper.Status.TransitionCount {
 		return cached.Phase, cached.Step // our cache is more up-to-date than the reconciler cache
 	}
 	return appWrapper.Status.Phase, appWrapper.Status.Step
@@ -73,13 +73,13 @@ func (r *AppWrapperReconciler) isStale(ctx context.Context, appWrapper *mcadv1be
 	if cached, ok := r.Cache[appWrapper.UID]; ok {
 		status := appWrapper.Status
 		// check number of transitions
-		if cached.Transitions < len(status.Transitions) {
+		if cached.TransitionCount < status.TransitionCount {
 			// our cache is behind, update our cache, this is ok
-			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, Transitions: len(status.Transitions)}
+			r.Cache[appWrapper.UID] = &CachedAppWrapper{Phase: status.Phase, TransitionCount: status.TransitionCount}
 			cached.Conflict = nil // clear conflict timestamp
 			return false
 		}
-		if cached.Transitions > len(status.Transitions) {
+		if cached.TransitionCount > status.TransitionCount {
 			// reconciler cache appears to be behind
 			if cached.Conflict != nil {
 				if time.Now().After(cached.Conflict.Add(cacheConflictTimeout)) {

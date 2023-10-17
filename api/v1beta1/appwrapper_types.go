@@ -80,6 +80,9 @@ type AppWrapperStatus struct {
 
 	// Transition log
 	Transitions []AppWrapperTransition `json:"transitions,omitempty"`
+
+	// Number of transitions
+	TransitionCount int32 `json:"transitionCount,omitempty"`
 }
 
 // AppWrapperPhase is the label for the AppWrapper status
