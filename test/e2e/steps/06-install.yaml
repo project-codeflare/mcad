@@ -2,37 +2,28 @@ apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
   name: aw-06
+  namespace: start-up-02
 spec:
   schedulingSpec:
     minAvailable: 1
   resources:
     GenericItems:
     - generictemplate:
-        apiVersion: batch/v1
-        kind: Job
+        apiVersion: v1
+        kind: Pod
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
+          namespace: start-up-02
           name: <APPWRAPPER_NAME>-pod-01
           labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com/namespace: start-up-02
             appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
-          template:
-            metadata:
-              namespace: <APPWRAPPER_NAMESPACE>
-              name: <APPWRAPPER_NAME>-pod-01
-              labels:
-                appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
-                appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
-            spec:
-              containers:
-              - name: busybox
-                image: quay.io/quay/busybox
-                command: ["sh", "-c", "sleep 1"]
-              restartPolicy: Never
+          restartPolicy: Never
+          containers:
+            - name: busybox
+              image: quay.io/quay/busybox
+              command: ["sh", "-c", "sleep 1"]
       custompodresources:
       - replicas: 1
         requests:
-          cpu: 1000
-          memory: 1000G
-          nvidia.com/gpu: 0
+          nvidia.com/gpu: 8

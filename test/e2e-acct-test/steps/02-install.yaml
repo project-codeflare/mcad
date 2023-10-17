@@ -1,7 +1,8 @@
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:
-  name: aw-10
+  name: aw-02
+  namespace: start-up-03
 spec:
   resources:
     GenericItems:
@@ -9,9 +10,10 @@ spec:
         apiVersion: apps/v1
         kind: Deployment
         metadata:
-          name: <APPWRAPPER_NAME>-aw-10
+          name: <APPWRAPPER_NAME>-aw-02
+          namespace: start-up-03
           labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com/namespace: start-up-03
             appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
         spec:
           replicas: 2
@@ -20,9 +22,9 @@ spec:
               app: <APPWRAPPER_NAME>-aw-09
           template:
             metadata:
-              namespace:  <APPWRAPPER_NAMESPACE>
+              namespace:  start-up-03
               labels:
-                appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+                appwrapper.mcad.ibm.com/namespace: start-up-03
                 appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
                 app: <APPWRAPPER_NAME>-aw-09
             spec:
