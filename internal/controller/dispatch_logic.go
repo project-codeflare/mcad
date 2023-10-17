@@ -82,8 +82,23 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			requests[int(appWrapper.Spec.Priority)] = Weights{}
 		}
 		if step != mcadv1beta1.Idle {
-			// discount resource requested by AppWrapper
+			// use max request among AppWrapper request and total request of non-terminated AppWrapper pods
 			awRequest := aggregateRequests(&appWrapper)
+			podRequest := Weights{}
+			pods := &v1.PodList{}
+			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
+				client.MatchingLabels{namespaceLabel: appWrapper.Namespace, nameLabel: appWrapper.Name}); err != nil {
+				return nil, nil, err
+			}
+			for _, pod := range pods.Items {
+				if pod.Spec.NodeName != "" && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+					for _, container := range pod.Spec.Containers {
+						podRequest.Add(NewWeights(container.Resources.Requests))
+					}
+				}
+			}
+			// compute max
+			awRequest.Max(podRequest)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
 		} else if phase == mcadv1beta1.Queued &&
 			time.Now().After(appWrapper.Status.RequeueTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.PauseTimeInSeconds)*time.Second)) {
