@@ -14,8 +14,8 @@ spec:
           namespace: <APPWRAPPER_NAMESPACE>
           name: <APPWRAPPER_NAME>-pod-01
           labels:
-            workload.codeflare.dev/namespace: <APPWRAPPER_NAMESPACE>
-            workload.codeflare.dev: <APPWRAPPER_NAME>
+            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
           restartPolicy: Never
           containers:
@@ -43,8 +43,8 @@ spec:
           namespace: <APPWRAPPER_NAMESPACE>
           name: <APPWRAPPER_NAME>-pod-01
           labels:
-            workload.codeflare.dev/namespace: <APPWRAPPER_NAMESPACE>
-            workload.codeflare.dev: <APPWRAPPER_NAME>
+            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
           restartPolicy: Never
           containers:
