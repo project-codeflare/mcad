@@ -12,15 +12,15 @@ spec:
           namespace: <APPWRAPPER_NAMESPACE>
           name: <APPWRAPPER_NAME>-batch-01
           labels:
-            workload.codeflare.dev/namespace: <APPWRAPPER_NAMESPACE>
-            workload.codeflare.dev: <APPWRAPPER_NAME>
+            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
           template:
             metadata:
               namespace:  <APPWRAPPER_NAMESPACE>
               labels:
-                workload.codeflare.dev/namespace: <APPWRAPPER_NAMESPACE>
-                workload.codeflare.dev:  <APPWRAPPER_NAME>
+                appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+                appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
             spec:
               containers:
               - name: busybox

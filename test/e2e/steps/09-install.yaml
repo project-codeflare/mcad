@@ -1,0 +1,37 @@
+apiVersion: workload.codeflare.dev/v1beta1
+kind: AppWrapper
+metadata:
+  name: aw-09
+spec:
+  resources:
+    GenericItems:
+    - generictemplate:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: <APPWRAPPER_NAME>-aw-09
+          namespace:  <APPWRAPPER_NAMESPACE>
+          labels:
+            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: <APPWRAPPER_NAME>-aw-09
+          template:
+            metadata:
+              namespace:  <APPWRAPPER_NAMESPACE>
+              labels:
+                appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+                appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
+                app: <APPWRAPPER_NAME>-aw-09
+            spec:
+              containers:
+              - name: nginx
+                image: quay.io/solo-io/echo-server
+                ports:
+                - containerPort: 80
+                resources:
+                  requests: 
+                    cpu: 550

@@ -1,0 +1,8 @@
+apiVersion: workload.codeflare.dev/v1beta1
+kind: AppWrapper
+metadata:
+  name: aw-10
+status:
+  transitions:
+  - state: Pending
+  state: Pending
