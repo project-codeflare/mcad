@@ -33,6 +33,7 @@ CLUSTER_STARTED="false"
 #export KUTTL_OPTIONS=${TEST_KUTTL_OPTIONS}
 export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml")
 DUMP_LOGS="true"
+export GORACE=1
 
 function update_test_host {
   
