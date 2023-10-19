@@ -35,6 +35,7 @@ export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml")
 DUMP_LOGS="true"
 export GORACE=1
 
+
 function update_test_host {
   
   local arch="$(go env GOARCH)"
