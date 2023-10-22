@@ -36,12 +36,12 @@ make uninstall
 
 Build and push your image to the location specified by `IMG`:
 ```sh
-make docker-build docker-push IMG=<some-registry>/mcad:<some-tag>
+make docker-build docker-push IMG=<image-name>:<image-tag>
 ```
 
 Deploy the CRDs and controller to the cluster with the image specified by `IMG`:
 ```sh
-make deploy IMG=<some-registry>/mcad:<some-tag>
+make deploy IMG=<image-name>:<image-tag>
 ```
 
 Undeploy the CRDs and controller from the cluster:
@@ -56,15 +56,16 @@ If you are editing the API definitions, generate the manifests such as CRs or CR
 ```sh
 make manifests
 ```
+
+**NOTE:** Run `make --help` for more information on all potential `make` targets
+
 ## Running tests locally
 
-Make sure Kind and Helmv3 are installed on uour laptop. To run kuttl tests lically use command:
+Make sure Kind and Helm v3 are installed on your laptop. To run kuttl tests locally use command:
 
 ```sh
 sh hack/run-e2e-kind.sh <image-name> <image-tag>
 ```
-
-**NOTE:** Run `make --help` for more information on all potential `make` targets
 
 ## License
 
