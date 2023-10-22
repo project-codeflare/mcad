@@ -1,289 +1,72 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: custom-metrics-apiserver
-  namespace: kube-system
-spec:
-  ports:
-  - name: https
-    port: 443
-    targetPort: 6443
-  - name: http
-    port: 80
-    targetPort: 8080
-  selector:
-    app: custom-metrics-apiserver
----
-#{{ if .Values.configMap.quotaRestUrl }}
-apiVersion: v1
-kind: Service
-metadata:
-  name: quota-http-server
-spec:
-  type: NodePort
-  selector:
-    app: custom-metrics-apiserver
-  ports:
-    # By default and for convenience, the `targetPort` is set to the same value as the `port` field.
-    - port: 8082
-      targetPort: 80
-      # Optional field
-      # By default and for convenience, the Kubernetes control plane will allocate a port from a range (default: 30000-32767)
-      nodePort: 30082
-#{{ end }}
----
-#{{ if (eq .Values.configMap.multiCluster true) }}
-apiVersion: apiregistration.k8s.io/v1beta1
-kind: APIService
-metadata:
-  name: v1beta1.external.metrics.k8s.io
-spec:
-  service:
-    name: custom-metrics-apiserver
-    namespace: kube-system
-  group: external.metrics.k8s.io
-  version: v1beta1
-  insecureSkipTLSVerify: true
-  groupPriorityMinimum: 100 
-  versionPriority: 100 
-#{{ end }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  annotations:
-    rbac.authorization.kubernetes.io/autoupdate: "true"
-  name: system:controller:xqueuejob-controller
-  labels:
-    kubernetes.io/bootstrapping: rbac-defaults
-rules:
-- apiGroups:
-  - quota.codeflare.dev
-  - workload.codeflare.dev
-  resources:
-  - xqueuejobs
-  - queuejobs
-  - schedulingspecs
-  - appwrappers
-  - appwrappers/finalizers
-  - appwrappers/status
-  - quotasubtrees
-  verbs:
-  - create
-  - delete
-  - deletecollection
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumes
-  - namespaces
-  verbs:
-  - create
-  - delete
-  - deletecollection
-  - get
-  - list
-  - patch
-  - update
-  - watch
-#{{ if .Values.quotaManagement.rbac.apiGroup }}
-#{{ if .Values.quotaManagement.rbac.resource }}
-- apiGroups:
-    - {{ .Values.quotaManagement.rbac.apiGroup }}
-  resources:
-    - {{ .Values.quotaManagement.rbac.resource }}
-  verbs:
-  - get 
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-#{{ end }}
-#{{ end }}
-#{{ if .Values.coscheduler.rbac.apiGroup }}
-#{{ if .Values.coscheduler.rbac.resource }}
-- apiGroups:
-    - {{ .Values.coscheduler.rbac.apiGroup }}
-  resources:
-    - {{ .Values.coscheduler.rbac.resource }}
-  verbs:
-  - get 
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-#{{ end }}
-#{{ end }}
----
-#{{ if .Values.serviceAccount }}
-apiVersion: v1
-#{{ if .Values.imagePullSecret.name }}
-imagePullSecrets:
-- name: {{ .Values.imagePullSecret.name }}
-#{{ end }}
-kind: ServiceAccount
-metadata:
-  labels:
-    wdc.ibm.com/ownership: admin
-  name: {{ .Values.serviceAccount }}
-  namespace: kube-system
-#{{ end }}
----
-#{{ if .Values.serviceAccount }}
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  annotations:
-    rbac.authorization.kubernetes.io/autoupdate: "true"
-  labels:
-    kubernetes.io/bootstrapping: rbac-defaults
-  name: system:controller:xqueuejob-controller
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: system:controller:xqueuejob-controller
-subjects:
-- kind: ServiceAccount
-  name: {{ .Values.serviceAccount }}
-  namespace: kube-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  annotations:
-    rbac.authorization.kubernetes.io/autoupdate: "true"
-  labels:
-    kubernetes.io/bootstrapping: rbac-defaults
-  name: system:controller:xqueuejob-controller-edit
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: edit
-subjects:
-- kind: ServiceAccount
-  name: {{ .Values.serviceAccount }}
-  namespace: kube-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  annotations:
-    rbac.authorization.kubernetes.io/autoupdate: "true"
-  labels:
-    kubernetes.io/bootstrapping: rbac-defaults
-  name: system:controller:xqueuejob-controller-kube-scheduler
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: system:kube-scheduler
-subjects:
-- kind: ServiceAccount
-  name: {{ .Values.serviceAccount }}
-  namespace: kube-system
-#{{ end }}
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.deploymentName }}
-  namespace: kube-system
-  labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
-    app: custom-metrics-apiserver
+  name: {{ .Release.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
-      app: custom-metrics-apiserver
+      app: {{ .Release.Name }}
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
       labels:
-        app: custom-metrics-apiserver
-      name: {{ .Values.deploymentName }}
+        app: {{ .Release.Name }}
     spec:
-#{{ if .Values.serviceAccount }}
+      securityContext:
+        runAsNonRoot: true
       serviceAccountName: {{ .Values.serviceAccount }}
-#{{ end }}
-#{{ if .Values.nodeSelector.hostname }}
-      nodeSelector:
-        kubernetes.io/hostname: {{ .Values.nodeSelector.hostname }}
-#{{ end }}
-      volumes:
-      - name: temp-vol
-        emptyDir: {}
-#{{ if .Values.volumes.hostPath }}
-      - name: agent-config-vol
-        hostPath:
-          path: {{ .Values.volumes.hostPath }}
-#{{ end }}
+      terminationGracePeriodSeconds: 10
       containers:
-#{{ if .Values.configMap.quotaRestUrl }}
-      - name: "quota-httpserver"
-        image: "{{ .Values.httpServerImage.repository }}:{{ .Values.httpServerImage.tag }}"
-        imagePullPolicy: {{ .Values.httpServerImage.pullPolicy }}
+      - args:
+        - --secure-listen-address=0.0.0.0:8443
+        - --upstream=http://127.0.0.1:8080/
+        - --logtostderr=true
+        - --v=0
+        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.14.1
+        name: kube-rbac-proxy
         ports:
-        - containerPort: 80
-      - name: "quota-management"
-        image: "{{ .Values.httpImage.repository }}:{{ .Values.httpImage.tag }}"
-        imagePullPolicy: {{ .Values.httpImage.pullPolicy }}
-        ports:
-        - containerPort: 8081
-        volumeMounts:
-          - mountPath: /tmp
-            name: temp-vol
-#{{ if .Values.volumes.hostPath }}
-          - name: agent-config-vol
-            mountPath: /root/kubernetes
-#{{ end }}
-#{{ end }}
-      - name: {{ .Chart.Name }}
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 5m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      - args:
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=127.0.0.1:8080
+        - --leader-elect
+        command:
+        - /manager
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["/manager"]
-#{{ if (eq .Values.configMap.multiCluster true) }}
-#--v", "10", "--logtostderr", "--secure-port=6443
-        args: ["--health-probe-bind-address=:8081", "--metrics-bind-address=127.0.0.1:8080", "--leader-elect"]
-#{{ end }}
-#{{ if (eq .Values.configMap.multiCluster false) }}
-        #args: ["--v", "{{ .Values.loglevel }}", "--logtostderr"]
-#{{ end }}
-        ports:
-        - containerPort: 6443
-          name: https
-        - containerPort: 8080
-          name: http
-        volumeMounts:
-        - mountPath: /tmp
-          name: temp-vol
-#{{ if .Values.volumes.hostPath }}
-        - name: agent-config-vol
-          mountPath: /root/kubernetes
-#{{ end }}
-        # livenessProbe:
-        #   httpGet:
-        #     path: /healthz
-        #     port: 8081
-        #   periodSeconds: 5
-        #   timeoutSeconds: 5
-        # readinessProbe:
-        #   httpGet:
-        #     path: /healthz
-        #     port: 8081
-        #   periodSeconds: 5
-        #   timeoutSeconds: 5
-#{{ if .Values.configMap.name }}
-        envFrom:
-        - configMapRef:
-            name: {{ .Values.configMap.name }}
-#{{ end }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
         resources:
 {{ toYaml .Values.resources | indent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
