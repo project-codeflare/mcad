@@ -194,7 +194,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 		}
 		remaining++ // no error deleting resource, resource therefore still exists
 	}
-	if appWrapper.Spec.Scheduling.ForceDeletionTimeInSeconds == 0 {
+	if appWrapper.Spec.Scheduling.Requeuing.ForceDeletionTimeInSeconds == 0 {
 		// force deletion is not enabled, return true iff no resources were found
 		return remaining == 0
 	}
@@ -207,7 +207,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 		// no resources, no pods, deletion is complete
 		return true
 	}
-	if !metav1.Now().After(timestamp.Add(time.Duration(appWrapper.Spec.Scheduling.ForceDeletionTimeInSeconds) * time.Second)) {
+	if !metav1.Now().After(timestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.ForceDeletionTimeInSeconds) * time.Second)) {
 		// wait before forcing deletion and simply requeue deletion
 		return false
 	}

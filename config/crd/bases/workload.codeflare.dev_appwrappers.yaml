@@ -116,10 +116,6 @@ spec:
               schedulingSpec:
                 description: Scheduling specification
                 properties:
-                  forceDeletionTimeInSeconds:
-                    description: Enable forced deletion after delay if nonzero
-                    format: int64
-                    type: integer
                   minAvailable:
                     description: Minimum number of expected running and successful
                       pods
@@ -128,6 +124,10 @@ spec:
                   requeuing:
                     description: Requeuing specification
                     properties:
+                      forceDeletionTimeInSeconds:
+                        description: Enable forced deletion after delay if nonzero
+                        format: int64
+                        type: integer
                       maxNumRequeuings:
                         description: Max requeuings permitted (infinite if zero)
                         format: int32

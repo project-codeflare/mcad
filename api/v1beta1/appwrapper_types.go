@@ -44,15 +44,15 @@ type SchedulingSpec struct {
 
 	// Requeuing specification
 	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
-
-	// Enable forced deletion after delay if nonzero
-	ForceDeletionTimeInSeconds int64 `json:"forceDeletionTimeInSeconds,omitempty"`
 }
 
 type RequeuingSpec struct {
 	// Initial waiting time before requeuing conditions are checked
 	// +kubebuilder:default=300
 	TimeInSeconds int64 `json:"timeInSeconds,omitempty"`
+
+	// Enable forced deletion after delay if nonzero
+	ForceDeletionTimeInSeconds int64 `json:"forceDeletionTimeInSeconds,omitempty"`
 
 	// Wait time before trying to dispatch again after requeuing
 	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
