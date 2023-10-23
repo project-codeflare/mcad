@@ -1,4 +1,6 @@
- # Licensed under the Apache License, Version 2.0 (the "License");
+#!/bin/bash
+
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -9,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-#!/bin/bash
 
 export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
@@ -37,7 +37,7 @@ export GORACE=1
 
 
 function update_test_host {
-  
+
   local arch="$(go env GOARCH)"
   if [ -z $arch ]
   then
@@ -55,43 +55,43 @@ function update_test_host {
 
   which kubectl >/dev/null 2>&1
   if [ $? -ne 0 ]
-  then 
+  then
       sudo apt-get install -y --allow-unauthenticated kubectl
-      [ $? -ne 0 ] && echo "Failed to install kubectl" && exit 1  
-      echo "kubectl was sucessfully installed."    
-  fi    
-  
+      [ $? -ne 0 ] && echo "Failed to install kubectl" && exit 1
+      echo "kubectl was sucessfully installed."
+  fi
+
   which kind >/dev/null 2>&1
-  if [ $? -ne 0 ] 
+  if [ $? -ne 0 ]
   then
     # Download kind binary (0.20.0)
     echo "Downloading and installing kind...."
     sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.20.0/kind-linux-${arch} && \
-    sudo chmod +x /usr/local/bin/kind  
-    [ $? -ne 0 ] && echo "Failed to download kind" && exit 1  
-    echo "Kind was sucessfully installed."    
+    sudo chmod +x /usr/local/bin/kind
+    [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
+    echo "Kind was sucessfully installed."
   fi
 
   which helm >/dev/null 2>&1
   if [ $? -ne 0 ]
-  then 
+  then
     # Installing helm3
     echo "Downloading and installing helm..."
-    curl -fsSL -o ${ROOT_DIR}/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && 
+    curl -fsSL -o ${ROOT_DIR}/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 &&
       chmod 700 ${ROOT_DIR}/get_helm.sh && ${ROOT_DIR}/get_helm.sh
     [ $? -ne 0 ] && echo "Failed to download and install helm" && exit 1
     echo "Helm was sucessfully installed."
     rm -rf ${ROOT_DIR}/get_helm.sh
   fi
-  
+
   kubectl kuttl version >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
     if [[ "$arch" == "amd64" ]]
-    then 
+    then
       local kuttl_arch="x86_64"
     else
-      local kuttl_arch=$arch  
+      local kuttl_arch=$arch
     fi
     # Download kuttl plugin
     echo "Downloading and installing kuttl...."
@@ -107,7 +107,7 @@ function update_test_host {
 function check_prerequisites {
   echo "checking prerequisites"
   which kind >/dev/null 2>&1
-  if [ $? -ne 0 ] 
+  if [ $? -ne 0 ]
   then
     echo "kind not installed, exiting."
     exit 1
@@ -121,7 +121,7 @@ function check_prerequisites {
     echo "kubectl not installed, exiting."
     exit 1
   else
-    echo -n "found kubectl, " && kubectl version 
+    echo -n "found kubectl, " && kubectl version
   fi
   kubectl kuttl version >/dev/null 2>&1
   if [ $? -ne 0 ]
@@ -131,7 +131,7 @@ function check_prerequisites {
   else
     echo -n "found kuttl plugin for kubectl, " && kubectl kuttl version
   fi
-  
+
   if [[ $IMAGE_REPOSITORY_MCAD == "" ]]
   then
     echo "No MCAD image was provided."
@@ -143,17 +143,7 @@ function check_prerequisites {
   else
     echo "end to end test with ${IMAGE_MCAD}."
   fi
-  
-  which helm >/dev/null 2>&1
-  if [ $? -ne 0 ]
-  then
-    echo "helm not installed, exiting."
-    exit 1
-  else
-    echo -n "found helm, " && helm version --short
-  fi  
 
-  
   which helm >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
@@ -161,13 +151,23 @@ function check_prerequisites {
     exit 1
   else
     echo -n "found helm, " && helm version --short
-  fi  
+  fi
+
+
+  which helm >/dev/null 2>&1
+  if [ $? -ne 0 ]
+  then
+    echo "helm not installed, exiting."
+    exit 1
+  else
+    echo -n "found helm, " && helm version --short
+  fi
 
 }
 
 function kind_up_cluster {
   echo "Running kind: [kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT}]"
-  kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT} --wait ${WAIT_TIME} 
+  kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT} --wait ${WAIT_TIME}
   if [ $? -ne 0 ]
   then
     echo "Failed to start kind cluster"
@@ -181,7 +181,7 @@ function kind_up_cluster {
   fi
   CLUSTER_STARTED="true"
 
-  docker pull ${IMAGE_ECHOSERVER} 
+  docker pull ${IMAGE_ECHOSERVER}
   if [ $? -ne 0 ]
   then
     echo "Failed to pull ${IMAGE_ECHOSERVER}"
@@ -201,14 +201,14 @@ function kind_up_cluster {
     echo "Failed to pull ${IMAGE_UBI_LATEST}"
     exit 1
   fi
-  
+
   docker pull ${IMAGE_BUSY_BOX_LATEST}
   if [ $? -ne 0 ]
   then
     echo "Failed to pull ${IMAGE_BUSY_BOX_LATEST}"
     exit 1
   fi
- 
+
   if [[ "$MCAD_IMAGE_PULL_POLICY" = "Always" ]]
   then
     docker pull ${IMAGE_MCAD}
@@ -233,7 +233,7 @@ function kind_up_cluster {
       echo "Failed to load image ${image} in cluster"
       exit 1
     fi
-  done 
+  done
 }
 
 # clean up
@@ -244,7 +244,7 @@ function cleanup {
     then
       echo "Cluster was not started, nothing more to do."
       return
-    fi  
+    fi
 
     if [[ ${DUMP_LOGS} == "true" ]]
     then
@@ -291,15 +291,15 @@ function cleanup {
         kubectl logs ${mcad_pod} -n kube-system
       fi
     fi
-    
+
     rm -f kubeconfig
-    
+
     if [[ $CLEANUP_CLUSTER == "true" ]]
     then
-      kind delete cluster ${CLUSTER_CONTEXT}     
-    else 
-      echo "Cluster requested to stay up, not deleting cluster"     
-    fi 
+      kind delete cluster ${CLUSTER_CONTEXT}
+    else
+      echo "Cluster requested to stay up, not deleting cluster"
+    fi
 }
 
 function undeploy_mcad_helm {
@@ -336,10 +336,10 @@ function mcad_up {
 function setup_mcad_env {
   echo "Installing Podgroup CRD"
   kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/scheduler-plugins/277b6bdec18f8a9e9ccd1bfeaf4b66495bfc6f92/config/crd/bases/scheduling.sigs.k8s.io_podgroups.yaml
- 
+
   # Turn off master taints
   kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-
- 
+
   # This is meant to orchestrate initial cluster configuration such that accounting tests can be consistent
   echo "Orchestrate cluster..."
   echo "kubectl cordon test-worker"
@@ -357,7 +357,7 @@ function setup_mcad_env {
   echo "Waiting for pod in the kube-system namespace to be ready to become ready"
   while [[ $(kubectl get pods -n kube-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
   do
-    echo -n "." && sleep 1; 
+    echo -n "." && sleep 1;
   done
 }
 
@@ -439,7 +439,7 @@ function kuttl_tests {
 
 trap cleanup EXIT
 update_test_host
-check_prerequisites 
+check_prerequisites
 kind_up_cluster
 extend_resources
 setup_mcad_env

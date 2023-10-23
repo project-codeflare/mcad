@@ -14,7 +14,7 @@ spec:
           namespace: start-up-03
           labels:
             appwrapper.mcad.ibm.com/namespace: start-up-03
-            appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
+            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
           replicas: 2
           selector:
@@ -22,10 +22,10 @@ spec:
               app: <APPWRAPPER_NAME>-aw-09
           template:
             metadata:
-              namespace:  start-up-03
+              namespace: start-up-03
               labels:
                 appwrapper.mcad.ibm.com/namespace: start-up-03
-                appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
+                appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
                 app: <APPWRAPPER_NAME>-aw-09
             spec:
               containers:
@@ -34,7 +34,7 @@ spec:
                 ports:
                 - containerPort: 80
                 resources:
-                  requests: 
+                  requests:
                     cpu: 350m
                   limits:
                     cpu: 350m

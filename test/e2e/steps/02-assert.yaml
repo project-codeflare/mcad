@@ -1,4 +1,3 @@
----
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 metadata:

@@ -18,10 +18,10 @@ spec:
         spec:
           template:
             metadata:
-              namespace:  start-up-02
+              namespace: start-up-02
               labels:
                 appwrapper.mcad.ibm.com/namespace: start-up-02
-                appwrapper.mcad.ibm.com:  <APPWRAPPER_NAME>
+                appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
             spec:
               containers:
               - name: busybox

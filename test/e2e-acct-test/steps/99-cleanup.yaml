@@ -1,12 +1,11 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
-apply: [] 
-assert: [] 
-error: [] 
+apply: []
+assert: []
+error: []
 unitTest: false
 delete: []
-commands:  
-  - command: kubectl delete appwrappers -n start-up-03  --all --wait
-  - command: kubectl delete deployments,pods,jobs -n start-up-03 --all --wait
-  - command: kubectl delete namespace start-up-03 --wait
-
+commands:
+- command: kubectl delete appwrappers -n start-up-03  --all --wait
+- command: kubectl delete deployments,pods,jobs -n start-up-03 --all --wait
+- command: kubectl delete namespace start-up-03 --wait
