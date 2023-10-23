@@ -64,6 +64,40 @@ make manifests
 
 **NOTE:** Run `make --help` for more information on all potential `make` targets
 
+## Helm Chart
+
+Alternatively, MCAD can be installed on a cluster using Helm.
+
+Install the CRDs and controller in the `kube-system` namespace:
+```sh
+helm install --namespace kube-system mcad-controller deployment/mcad-controller \
+  --set image.repository=<image-name> \
+  --set image.tag=<image-tag> \
+  --set resources.requests.cpu=100m \
+  --set resources.requests.memory=512Mi \
+  --set resources.limits.cpu=2000m \
+  --set resources.limits.memory=4096Mi
+```
+
+Uninstall from `kube-system` namespace:
+```sh
+helm uninstall mcad-controller -n kube-system
+```
+
+Uninstall CRDs:
+```sh
+kubectl delete crd appwrappers.workload.codeflare.dev
+```
+
+## Pre-commit hooks
+
+This repository includes pre-configured pre-commit hooks. Make sure to install
+the hooks immediately after cloning the repository:
+```sh
+pre-commit install
+```
+See [https://pre-commit.com](https://pre-commit.com) for prerequisites.
+
 ## Running tests locally
 
 Make sure Kind and Helm v3 are installed on your laptop. To run kuttl tests locally use command:
