@@ -14,6 +14,7 @@ spec:
         apiVersion: scheduling.sigs.k8s.io/v1alpha1
         kind: PodGroup
         metadata:
+          namespace: <APPWRAPPER_NAMESPACE>
           name: podgroup-1
         spec:
           minMember: 2
