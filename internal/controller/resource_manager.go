@@ -252,8 +252,14 @@ func (r *AppWrapperReconciler) countPods(ctx context.Context, appWrapper *mcadv1
 				counts.Succeeded += 1 // for backward compatibility count pods missing namespace label
 			}
 		case v1.PodRunning:
-			if namespace == appWrapper.Namespace || namespace == "" {
-				counts.Running += 1 // for backward compatibility count pods missing namespace label
+			if pod.DeletionTimestamp.IsZero() {
+				if namespace == appWrapper.Namespace || namespace == "" {
+					counts.Running += 1 // for backward compatibility count pods missing namespace label
+				}
+			} else {
+				if namespace == appWrapper.Namespace {
+					counts.Other += 1
+				}
 			}
 		default:
 			if namespace == appWrapper.Namespace {
