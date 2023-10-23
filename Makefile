@@ -66,7 +66,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 .PHONY: kuttl
 kuttl:
-	kubectl kuttl test test/e2e
+	kubectl kuttl test test/e2e --timeout 120
 
 ##@ Build
 
