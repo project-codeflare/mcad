@@ -39,6 +39,11 @@ Build and push your image to the location specified by `IMG`:
 make docker-build docker-push IMG=<image-name>:<image-tag>
 ```
 
+Or build and push a multi-architecture image with:
+```sh
+make docker-buildx IMG=<image-name>:<image-tag>
+```
+
 Deploy the CRDs and controller to the cluster with the image specified by `IMG`:
 ```sh
 make deploy IMG=<image-name>:<image-tag>
