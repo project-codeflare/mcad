@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -212,10 +213,11 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
-	// watch AppWrapper pods, watch events
+	// watch AppWrapper pods, jobs, watch events
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1beta1.AppWrapper{}).
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
+		Watches(&batchv1.Job{}, handler.EnqueueRequestsFromMapFunc(r.jobMapFunc)).
 		WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
@@ -226,6 +228,19 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 	if name, ok := pod.Labels[nameLabel]; ok {
 		if namespace, ok := pod.Labels[namespaceLabel]; ok {
 			if pod.Status.Phase == v1.PodSucceeded {
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
+			}
+		}
+	}
+	return nil
+}
+
+// Map labelled jobs to corresponding AppWrappers
+func (r *AppWrapperReconciler) jobMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
+	job := obj.(*batchv1.Job)
+	if name, ok := job.Labels[nameLabel]; ok {
+		if namespace, ok := job.Labels[namespaceLabel]; ok {
+			if !job.Status.CompletionTime.IsZero() {
 				return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
 			}
 		}
