@@ -1,0 +1,71 @@
+apiVersion: workload.codeflare.dev/v1beta1
+kind: AppWrapper
+metadata:
+  name: appwrapper-podgroup-sample
+spec:
+  priority: 5
+  schedulingSpec:
+    minAvailable: 2
+    requeuing:
+      maxNumRequeuings: 5
+  resources:
+    GenericItems:
+    - generictemplate:
+        apiVersion: scheduling.sigs.k8s.io/v1alpha1
+        kind: PodGroup
+        metadata:
+          name: podgroup-1
+        spec:
+          minMember: 2
+    - custompodresources:
+      - requests:
+          nvidia.com/gpu: 8
+        replicas: 1
+      generictemplate:
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          namespace: <APPWRAPPER_NAMESPACE>
+          name: <APPWRAPPER_NAME>-1
+          labels:
+            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
+            pod-group.scheduling.sigs.k8s.io: podgroup-1
+        spec:
+          schedulerName: scheduler-plugins-scheduler
+          restartPolicy: Never
+          containers:
+          - name: busybox
+            image: busybox
+            command: ["sh", "-c", "sleep 5"]
+            resources:
+              requests:
+                nvidia.com/gpu: 8
+              limits:
+                nvidia.com/gpu: 8
+    - custompodresources:
+      - requests:
+          nvidia.com/gpu: 4
+        replicas: 1
+      generictemplate:
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          namespace: <APPWRAPPER_NAMESPACE>
+          name: <APPWRAPPER_NAME>-2
+          labels:
+            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
+            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
+            pod-group.scheduling.sigs.k8s.io: podgroup-1
+        spec:
+          schedulerName: scheduler-plugins-scheduler
+          restartPolicy: Never
+          containers:
+          - name: busybox
+            image: busybox
+            command: ["sh", "-c", "sleep 10"]
+            resources:
+              requests:
+                nvidia.com/gpu: 4
+              limits:
+                nvidia.com/gpu: 4
