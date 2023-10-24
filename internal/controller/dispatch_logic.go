@@ -36,10 +36,16 @@ func (r *AppWrapperReconciler) computeCapacity(ctx context.Context) (Weights, er
 	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, err
 	}
+LOOP:
 	for _, node := range nodes.Items {
 		// skip unschedulable nodes
 		if node.Spec.Unschedulable {
 			continue
+		}
+		for _, taint := range node.Spec.Taints {
+			if taint.Effect == v1.TaintEffectNoSchedule || taint.Effect == v1.TaintEffectNoExecute {
+				continue LOOP
+			}
 		}
 		// add allocatable capacity on the node
 		capacity.Add(NewWeights(node.Status.Allocatable))
