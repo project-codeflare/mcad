@@ -61,9 +61,7 @@ LOOP:
 		}
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-				for _, container := range pod.Spec.Containers {
-					capacity.Sub(NewWeights(container.Resources.Requests))
-				}
+				capacity.Sub(NewWeightsForPod(&pod))
 			}
 		}
 	}
@@ -98,9 +96,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			}
 			for _, pod := range pods.Items {
 				if pod.Spec.NodeName != "" && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-					for _, container := range pod.Spec.Containers {
-						podRequest.Add(NewWeights(container.Resources.Requests))
-					}
+					podRequest.Add(NewWeightsForPod(&pod))
 				}
 			}
 			// compute max

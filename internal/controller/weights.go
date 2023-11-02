@@ -36,6 +36,24 @@ func NewWeights(r v1.ResourceList) Weights {
 	return w
 }
 
+// Converts effective resources of a pod to Weights
+func NewWeightsForPod(pod *v1.Pod) Weights {
+	podRequest := Weights{}
+	// add up resources of all containers
+	for _, container := range pod.Spec.Containers {
+		podRequest.Add(NewWeights(container.Resources.Requests))
+	}
+	// take max(sum_pod, any_init_container)
+	for _, initContainer := range pod.Spec.InitContainers {
+		podRequest.Max(NewWeights(initContainer.Resources.Requests))
+	}
+	// add any pod overhead
+	if pod.Spec.Overhead != nil {
+		podRequest.Add(NewWeights(pod.Spec.Overhead))
+	}
+	return podRequest
+}
+
 // Add weights to receiver
 func (w Weights) Add(r Weights) {
 	for k, v := range r {
