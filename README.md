@@ -7,6 +7,9 @@ runtime](https://github.com/kubernetes-sigs/controller-runtime) and
 [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder). This prototype
 does not implement quotas or dispatching to multiple clusters.
 
+See [PORTING.md](PORTING.md) for instructions on how to port AppWrappers from
+MCAD to MicroMCAD.
+
 ## Getting Started
 
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
