@@ -1,7 +1,7 @@
 # Porting AppWrappers to MicroMCAD
 
 Using MicroMCAD requires a couple of changes to AppWrapper yamls described
-below. MicroMCAD comes with a revised status amd enhanced fault-tolerance capabilities.
+below. MicroMCAD comes with a revised status and enhanced fault-tolerance capabilities.
 
 ## Required changes
 
