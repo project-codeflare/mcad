@@ -20,6 +20,7 @@ import (
 	"context"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -180,12 +181,37 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 	// return first AppWrapper that fits if any
 	for _, appWrapper := range queue {
 		request := aggregateRequests(appWrapper)
-		if request.Fits(available[int(appWrapper.Spec.Priority)]) {
+		// get resourceQuota in appwrapper namespace, if any
+		resourceQuotas := &v1.ResourceQuotaList{}
+		if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
+			&client.ListOptions{Namespace: appWrapper.GetNamespace()}); err != nil {
+			return nil, err
+		}
+		// check if appwrapper passes both resource availability and resource quota (if any)
+		if request.Fits(available[int(appWrapper.Spec.Priority)]) &&
+			(len(resourceQuotas.Items) == 0 || satisfiesQuota(appWrapper, &resourceQuotas.Items[0])) {
+			//TODO: update usage of resource quota (in cache?)
 			return appWrapper.DeepCopy(), nil // deep copy AppWrapper
 		}
 	}
 	// no queued AppWrapper fits
 	return nil, nil
+}
+
+// satisfiesQuota : check if appwrapper requests and limits satisfy available resource quota
+// (arguments cannot be nil)
+func satisfiesQuota(appWrapper *mcadv1beta1.AppWrapper, resourceQuota *v1.ResourceQuota) bool {
+	// get requests and limits from appwrapper specs
+	// TODO: add up requests and limits of all pods spec in appwrapper
+	request := aggregateRequests(appWrapper)
+	limit := aggregateLimits(appWrapper)
+	// get quota and current usage from resource quota
+	quotaRequest, quotaLimit := getQuotaWeights(resourceQuota.Status.Hard)
+	usedRequest, usedLimit := getQuotaWeights(resourceQuota.Status.Used)
+	// check if both appwrapper requests and limits fit available resource quota
+	quotaRequest.Sub(usedRequest)
+	quotaLimit.Sub(usedLimit)
+	return request.Fits(quotaRequest) && limit.Fits(quotaLimit)
 }
 
 // Aggregate requests
@@ -197,6 +223,39 @@ func aggregateRequests(appWrapper *mcadv1beta1.AppWrapper) Weights {
 		}
 	}
 	return request
+}
+
+// Aggregate limits
+func aggregateLimits(appWrapper *mcadv1beta1.AppWrapper) Weights {
+	limit := Weights{}
+	for _, r := range appWrapper.Spec.Resources.GenericItems {
+		for _, cpr := range r.CustomPodResources {
+			// TODO: check why not use limits spec in custom pod resource?
+			limit.AddProd(cpr.Replicas, NewWeights(cpr.DoNotUseLimits))
+		}
+	}
+	return limit
+}
+
+const DefaultResourceLimitsPrefix = "limits."
+
+// getQuotaWeights : get requests and limits from quota resource list as weights
+func getQuotaWeights(r v1.ResourceList) (request Weights, limit Weights) {
+	request = Weights{}
+	limit = Weights{}
+	for k, v := range r {
+		if strings.HasPrefix(k.String(), DefaultResourceLimitsPrefix) {
+			trimmedName := strings.Replace(k.String(), DefaultResourceLimitsPrefix, "", 1)
+			limit[v1.ResourceName(trimmedName)] = v.AsDec()
+			continue
+		}
+		if strings.HasPrefix(k.String(), v1.DefaultResourceRequestsPrefix) {
+			trimmedName := strings.Replace(k.String(), v1.DefaultResourceRequestsPrefix, "", 1)
+			k = v1.ResourceName(trimmedName)
+		}
+		request[k] = v.AsDec()
+	}
+	return request, limit
 }
 
 // Propagate reservations at all priority levels to all levels below
