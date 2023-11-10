@@ -82,6 +82,8 @@ type ClusterReference struct {
 }
 
 type SustainableSpec struct {
+	RunTime  int64       `json:"runTime"`
+	Deadline metav1.Time `json:"deadline"`
 	// TODO
 }
 
