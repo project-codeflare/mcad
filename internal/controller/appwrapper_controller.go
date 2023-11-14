@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
+	mcadv1beta1 "github.com/tayebehbahreini/mcad/api/v1beta1"
 )
 
 //+kubebuilder:rbac:groups=*,resources=*,verbs=*

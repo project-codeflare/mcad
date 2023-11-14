@@ -191,6 +191,16 @@ spec:
                 type: object
               sustainable:
                 description: Sustainable specification
+                properties:
+                  deadline:
+                    format: date-time
+                    type: string
+                  runTime:
+                    format: int64
+                    type: integer
+                required:
+                - deadline
+                - runTime
                 type: object
             required:
             - resources

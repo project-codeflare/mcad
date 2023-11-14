@@ -35,8 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
-	"github.com/tardieu/mcad/internal/controller"
+	mcadv1beta1 "github.com/tayebehbahreini/mcad/api/v1beta1"
+	"github.com/tayebehbahreini/mcad/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 

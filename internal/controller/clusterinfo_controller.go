@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
+	mcadv1beta1 "github.com/tayebehbahreini/mcad/api/v1beta1"
 )
 
 // ClusterInfoReconciler reconciles a ClusterInfo object
