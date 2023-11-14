@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	mcad_upstream "github.com/project-codeflare/multi-cluster-app-dispatcher/pkg/apis/controller/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,33 +33,10 @@ type AppWrapperSpec struct {
 	DoNotUsePrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
 
 	// Scheduling specification
-	Scheduling SchedulingSpec `json:"schedulingSpec,omitempty"`
+	Scheduling mcad_upstream.SchedulingSpecTemplate `json:"schedulingSpec,omitempty"`
 
 	// Wrapped resources
 	Resources AppWrapperResources `json:"resources"`
-}
-
-type SchedulingSpec struct {
-	// Minimum number of expected running and successful pods
-	MinAvailable int32 `json:"minAvailable,omitempty"`
-
-	// Requeuing specification
-	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
-}
-
-type RequeuingSpec struct {
-	// Initial waiting time before requeuing conditions are checked
-	// +kubebuilder:default=300
-	TimeInSeconds int64 `json:"timeInSeconds,omitempty"`
-
-	// Enable forced deletion after delay if nonzero
-	ForceDeletionTimeInSeconds int64 `json:"forceDeletionTimeInSeconds,omitempty"`
-
-	// Wait time before trying to dispatch again after requeuing
-	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
-
-	// Max requeuings permitted (infinite if zero)
-	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper

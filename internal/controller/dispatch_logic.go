@@ -103,7 +103,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			awRequest.Max(podRequest)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
 		} else if phase == mcadv1beta1.Queued &&
-			time.Now().After(appWrapper.Status.RequeueTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.PauseTimeInSeconds)*time.Second)) {
+			time.Now().After(appWrapper.Status.RequeueTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.TimeInSeconds)*time.Second)) {
 			// add AppWrapper to queue
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)

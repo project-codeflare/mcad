@@ -278,7 +278,7 @@ func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mc
 	if appWrapper.Spec.Scheduling.MinAvailable == 0 {
 		// set failed status and leave resources as is
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, appWrapper.Status.Step, reason)
-	} else if fatal || appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings > 0 && appWrapper.Status.Restarts >= appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings {
+	} else if fatal || appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings > 0 && appWrapper.Status.Restarts >= int32(appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings) {
 		// set failed/deleting status (request deletion of wrapped resources)
 		appWrapper.Status.RequeueTimestamp = metav1.Now()
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Deleting, reason)
