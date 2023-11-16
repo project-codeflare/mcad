@@ -171,7 +171,6 @@ type GenericItem struct {
 
 	// The template for the resource
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:validation:EmbeddedResource
 	GenericTemplate runtime.RawExtension `json:"generictemplate,omitempty"`
 
 	// Array of resource requests

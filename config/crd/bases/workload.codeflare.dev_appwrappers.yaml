@@ -104,7 +104,6 @@ spec:
                         generictemplate:
                           description: The template for the resource
                           type: object
-                          x-kubernetes-embedded-resource: true
                           x-kubernetes-preserve-unknown-fields: true
                         minavailable:
                           format: int32
