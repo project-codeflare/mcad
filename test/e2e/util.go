@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,16 +29,17 @@ import (
 	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 
-	arbv1 "github.com/project-codeflare/multi-cluster-app-dispatcher/pkg/apis/controller/v1beta1"
-	versioned "github.com/project-codeflare/multi-cluster-app-dispatcher/pkg/client/clientset/versioned"
+	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
 )
 
 var ninetySeconds = 90 * time.Second
@@ -59,9 +59,7 @@ func homeDir() string {
 }
 
 type context struct {
-	kubeclient *kubernetes.Clientset
-	karclient  *versioned.Clientset
-
+	client                 client.Client
 	namespace              string
 	queues                 []string
 	enableNamespaceAsQueue bool
@@ -75,22 +73,21 @@ func initTestContext() *context {
 		queues:    []string{"q1", "q2"},
 	}
 
-	home := homeDir()
-	Expect(home).NotTo(Equal(""))
-
-	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = arbv1.AddToScheme(scheme)
+	kubeconfig := ctrl.GetConfigOrDie()
+	kubeclient, err := client.New(kubeconfig, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
-
-	cxt.karclient = versioned.NewForConfigOrDie(config)
-	cxt.kubeclient = kubernetes.NewForConfigOrDie(config)
+	cxt.client = kubeclient
 
 	cxt.enableNamespaceAsQueue = enableNamespaceAsQueue
 
-	_, err = cxt.kubeclient.CoreV1().Namespaces().Create(gcontext.Background(), &v1.Namespace{
+	_ = cxt.client.Create(gcontext.Background(), &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: cxt.namespace,
 		},
-	}, metav1.CreateOptions{})
+	})
 	// Expect(err).NotTo(HaveOccurred())
 
 	/* 	_, err = cxt.kubeclient.SchedulingV1beta1().PriorityClasses().Create(gcontext.Background(), &schedv1.PriorityClass{
@@ -221,24 +218,24 @@ func createGenericAWTimeoutWithStatus(context *context, name string) *arbv1.AppW
 			}
 		}
 	}`)
-	var schedSpecMin int = 1
-	var dispatchDurationSeconds int = 10
+	var schedSpecMin int32 = 1
+	var dispatchDurationSeconds int32 = 10
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
-				DispatchDuration: arbv1.DispatchDurationSpec{
+				DoNotUseDispatchDuration: arbv1.DoNotUseDispatchDurationSpec{
 					Limit: dispatchDurationSeconds,
 				},
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -249,15 +246,16 @@ func createGenericAWTimeoutWithStatus(context *context, name string) *arbv1.AppW
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func anyPodsExist(ctx *context, awNamespace string, awName string) wait.ConditionFunc {
 	return func() (bool, error) {
-		podList, err := ctx.kubeclient.CoreV1().Pods(awNamespace).List(gcontext.Background(), metav1.ListOptions{})
+		podList := &v1.PodList{}
+		err := ctx.client.List(gcontext.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		Expect(err).NotTo(HaveOccurred())
 
 		podExistsNum := 0
@@ -280,7 +278,8 @@ func anyPodsExist(ctx *context, awNamespace string, awName string) wait.Conditio
 
 func podPhase(ctx *context, awNamespace string, awName string, pods []*v1.Pod, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
 	return func() (bool, error) {
-		podList, err := ctx.kubeclient.CoreV1().Pods(awNamespace).List(gcontext.Background(), metav1.ListOptions{})
+		podList := &v1.PodList{}
+		err := ctx.client.List(gcontext.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		Expect(err).NotTo(HaveOccurred())
 
 		if podList == nil || podList.Size() < 1 {
@@ -372,7 +371,8 @@ func cleanupTestObjectsVerbose(context *context, appwrappers []*arbv1.AppWrapper
 		if err != nil {
 			var podsStillExisting []*v1.Pod
 			for _, pod := range pods {
-				podExist, _ := context.kubeclient.CoreV1().Pods(pod.Namespace).Get(gcontext.Background(), pod.Name, metav1.GetOptions{})
+				podExist := &v1.Pod{}
+				_ = context.client.Get(context.ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
 				if podExist != nil {
 					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
 					podsStillExisting = append(podsStillExisting, podExist)
@@ -390,11 +390,12 @@ func cleanupTestObjectsVerbose(context *context, appwrappers []*arbv1.AppWrapper
 func awPodPhase(ctx *context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quite bool) wait.ConditionFunc {
 	return func() (bool, error) {
 		defer GinkgoRecover()
-
-		aw, err := ctx.karclient.WorkloadV1beta1().AppWrappers(aw.Namespace).Get(ctx.ctx, aw.Name, metav1.GetOptions{})
+		awIgnored := &arbv1.AppWrapper{}
+		err := ctx.client.Get(ctx.ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
 		Expect(err).NotTo(HaveOccurred())
 
-		podList, err := ctx.kubeclient.CoreV1().Pods(aw.Namespace).List(gcontext.Background(), metav1.ListOptions{})
+		podList := &v1.PodList{}
+		err = ctx.client.List(ctx.ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
 		Expect(err).NotTo(HaveOccurred())
 
 		if podList == nil || podList.Size() < 1 {
@@ -460,10 +461,12 @@ func waitAWNamespaceActive(ctx *context, aw *arbv1.AppWrapper) error {
 
 func awNamespacePhase(ctx *context, aw *arbv1.AppWrapper, phase []v1.NamespacePhase) wait.ConditionFunc {
 	return func() (bool, error) {
-		aw, err := ctx.karclient.WorkloadV1beta1().AppWrappers(aw.Namespace).Get(ctx.ctx, aw.Name, metav1.GetOptions{})
+		awIgnored := &arbv1.AppWrapper{}
+		err := ctx.client.Get(ctx.ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
 		Expect(err).NotTo(HaveOccurred())
 
-		namespaces, err := ctx.kubeclient.CoreV1().Namespaces().List(gcontext.Background(), metav1.ListOptions{})
+		namespaces := &v1.NamespaceList{}
+		err = ctx.client.List(ctx.ctx, namespaces)
 		Expect(err).NotTo(HaveOccurred())
 
 		readyTaskNum := 0
@@ -485,19 +488,19 @@ func awNamespacePhase(ctx *context, aw *arbv1.AppWrapper, phase []v1.NamespacePh
 }
 
 func waitAWPodsReady(ctx *context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.SchedSpec.MinAvailable), false)
+	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
 func waitAWPodsCompleted(ctx *context, aw *arbv1.AppWrapper, timeout time.Duration) error {
-	return waitAWPodsCompletedEx(ctx, aw, int(aw.Spec.SchedSpec.MinAvailable), false, timeout)
+	return waitAWPodsCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false, timeout)
 }
 
 func waitAWPodsNotCompleted(ctx *context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsNotCompletedEx(ctx, aw, int(aw.Spec.SchedSpec.MinAvailable), false)
+	return waitAWPodsNotCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
 func waitAWReadyQuiet(ctx *context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsReadyEx(ctx, aw, threeHundredSeconds, int(aw.Spec.SchedSpec.MinAvailable), true)
+	return waitAWPodsReadyEx(ctx, aw, threeHundredSeconds, int(aw.Spec.Scheduling.MinAvailable), true)
 }
 
 func waitAWAnyPodsExists(ctx *context, aw *arbv1.AppWrapper) error {
@@ -522,7 +525,7 @@ func waitAWPodsDeletedVerbose(ctx *context, awNamespace string, awName string, p
 
 func waitAWPending(ctx *context, aw *arbv1.AppWrapper) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodPending}, int(aw.Spec.SchedSpec.MinAvailable), false))
+		[]v1.PodPhase{v1.PodPending}, int(aw.Spec.Scheduling.MinAvailable), false))
 }
 
 func waitAWPodsReadyEx(ctx *context, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int, quite bool) error {
@@ -541,7 +544,7 @@ func waitAWPodsNotCompletedEx(ctx *context, aw *arbv1.AppWrapper, taskNum int, q
 }
 
 func waitAWPodsPending(ctx *context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsPendingEx(ctx, aw, int(aw.Spec.SchedSpec.MinAvailable), false)
+	return waitAWPodsPendingEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
 func waitAWPodsPendingEx(ctx *context, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
@@ -610,7 +613,7 @@ func createJobAWWithInitContainer(context *context, name string, requeuingTimeIn
 		}
 	}} `)
 
-	var minAvailable int = 3
+	var minAvailable int32 = 3
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -618,18 +621,18 @@ func createJobAWWithInitContainer(context *context, name string, requeuingTimeIn
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: minAvailable,
-				Requeuing: arbv1.RequeuingTemplate{
-					TimeInSeconds:    requeuingTimeInSeconds,
-					GrowthType:       requeuingGrowthType,
-					MaxNumRequeuings: requeuingMaxNumRequeuings,
+				Requeuing: arbv1.RequeuingSpec{
+					TimeInSeconds:      int64(requeuingTimeInSeconds),
+					DoNotUseGrowthType: requeuingGrowthType,
+					MaxNumRequeuings:   int32(requeuingMaxNumRequeuings),
 				},
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -640,15 +643,15 @@ func createJobAWWithInitContainer(context *context, name string, requeuingTimeIn
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "Deployment", 
+		"kind": "Deployment",
 	"metadata": {
 		"name": "aw-deployment-3",
 		"namespace": "test",
@@ -687,7 +690,7 @@ func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 			}
 		}
 	}} `)
-	var schedSpecMin int = 3
+	var schedSpecMin int32 = 3
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -695,13 +698,13 @@ func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -711,15 +714,15 @@ func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createDeploymentAWwith550CPU(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "Deployment", 
+		"kind": "Deployment",
 	"metadata": {
 		"name": "` + name + `",
 		"namespace": "test",
@@ -763,7 +766,7 @@ func createDeploymentAWwith550CPU(context *context, name string) *arbv1.AppWrapp
 			}
 		}
 	}} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -771,13 +774,13 @@ func createDeploymentAWwith550CPU(context *context, name string) *arbv1.AppWrapp
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -787,15 +790,15 @@ func createDeploymentAWwith550CPU(context *context, name string) *arbv1.AppWrapp
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createDeploymentAWwith350CPU(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "Deployment", 
+		"kind": "Deployment",
 	"metadata": {
 		"name": "aw-deployment-2-350cpu",
 		"namespace": "test",
@@ -839,7 +842,7 @@ func createDeploymentAWwith350CPU(context *context, name string) *arbv1.AppWrapp
 			}
 		}
 	}} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -847,13 +850,13 @@ func createDeploymentAWwith350CPU(context *context, name string) *arbv1.AppWrapp
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -863,15 +866,15 @@ func createDeploymentAWwith350CPU(context *context, name string) *arbv1.AppWrapp
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createDeploymentAWwith426CPU(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-	"kind": "Deployment", 
+	"kind": "Deployment",
 	"metadata": {
 		"name": "` + name + `",
 		"namespace": "test",
@@ -915,7 +918,7 @@ func createDeploymentAWwith426CPU(context *context, name string) *arbv1.AppWrapp
 			}
 		}
 	}} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -923,13 +926,13 @@ func createDeploymentAWwith426CPU(context *context, name string) *arbv1.AppWrapp
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -939,15 +942,15 @@ func createDeploymentAWwith426CPU(context *context, name string) *arbv1.AppWrapp
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createDeploymentAWwith425CPU(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-	"kind": "Deployment", 
+	"kind": "Deployment",
 	"metadata": {
 		"name": "aw-deployment-2-425cpu",
 		"namespace": "test",
@@ -991,7 +994,7 @@ func createDeploymentAWwith425CPU(context *context, name string) *arbv1.AppWrapp
 			}
 		}
 	}} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -999,13 +1002,13 @@ func createDeploymentAWwith425CPU(context *context, name string) *arbv1.AppWrapp
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1015,15 +1018,15 @@ func createDeploymentAWwith425CPU(context *context, name string) *arbv1.AppWrapp
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "Deployment", 
+		"kind": "Deployment",
 	"metadata": {
 		"name": "aw-generic-deployment-3",
 		"namespace": "test",
@@ -1062,7 +1065,7 @@ func createGenericDeploymentAW(context *context, name string) *arbv1.AppWrapper 
 			}
 		}
 	}} `)
-	var schedSpecMin int = 3
+	var schedSpecMin int32 = 3
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1070,13 +1073,13 @@ func createGenericDeploymentAW(context *context, name string) *arbv1.AppWrapper 
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1087,10 +1090,10 @@ func createGenericDeploymentAW(context *context, name string) *arbv1.AppWrapper 
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericJobAWWithStatus(context *context, name string) *arbv1.AppWrapper {
@@ -1149,13 +1152,13 @@ func createGenericJobAWWithStatus(context *context, name string) *arbv1.AppWrapp
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				// MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1166,10 +1169,10 @@ func createGenericJobAWWithStatus(context *context, name string) *arbv1.AppWrapp
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericJobAWWithMultipleStatus(context *context, name string) *arbv1.AppWrapper {
@@ -1275,17 +1278,17 @@ func createGenericJobAWWithMultipleStatus(context *context, name string) *arbv1.
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
 						CompletionStatus: "Complete",
 					},
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb2,
 						},
@@ -1296,10 +1299,10 @@ func createGenericJobAWWithMultipleStatus(context *context, name string) *arbv1.
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createAWGenericItemWithoutStatus(context *context, name string) *arbv1.AppWrapper {
@@ -1317,20 +1320,20 @@ func createAWGenericItemWithoutStatus(context *context, name string) *arbv1.AppW
                             "minMember": 1
                         }
 		}`)
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1340,10 +1343,10 @@ func createAWGenericItemWithoutStatus(context *context, name string) *arbv1.AppW
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericJobAWWithScheduleSpec(context *context, name string) *arbv1.AppWrapper {
@@ -1395,7 +1398,7 @@ func createGenericJobAWWithScheduleSpec(context *context, name string) *arbv1.Ap
 		}
 	}`)
 
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1403,11 +1406,11 @@ func createGenericJobAWWithScheduleSpec(context *context, name string) *arbv1.Ap
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
@@ -1418,10 +1421,10 @@ func createGenericJobAWWithScheduleSpec(context *context, name string) *arbv1.Ap
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericJobAWtWithLargeCompute(context *context, name string) *arbv1.AppWrapper {
@@ -1482,13 +1485,13 @@ func createGenericJobAWtWithLargeCompute(context *context, name string) *arbv1.A
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				// MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1499,10 +1502,10 @@ func createGenericJobAWtWithLargeCompute(context *context, name string) *arbv1.A
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericServiceAWWithNoStatus(context *context, name string) *arbv1.AppWrapper {
@@ -1553,13 +1556,13 @@ func createGenericServiceAWWithNoStatus(context *context, name string) *arbv1.Ap
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				// MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1570,10 +1573,10 @@ func createGenericServiceAWWithNoStatus(context *context, name string) *arbv1.Ap
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericDeploymentAWWithMultipleItems(context *context, name string) *arbv1.AppWrapper {
@@ -1671,7 +1674,7 @@ func createGenericDeploymentAWWithMultipleItems(context *context, name string) *
 		}
 	}} `)
 
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1679,20 +1682,20 @@ func createGenericDeploymentAWWithMultipleItems(context *context, name string) *
 			Namespace: "test",
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
 						CompletionStatus: "Progressing",
 					},
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb1,
 						},
@@ -1702,16 +1705,16 @@ func createGenericDeploymentAWWithMultipleItems(context *context, name string) *
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericDeploymentWithCPUAW(context *context, name string, cpuDemand string, replicas int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
-	"kind": "Deployment", 
+	"kind": "Deployment",
 	"metadata": {
 		"name": "%s",
 		"namespace": "test",
@@ -1756,7 +1759,7 @@ func createGenericDeploymentWithCPUAW(context *context, name string, cpuDemand s
 		}
 	}} `, name, name, replicas, name, name, name, name, cpuDemand))
 
-	var schedSpecMin int = replicas
+	var schedSpecMin int32 = int32(replicas)
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1764,13 +1767,13 @@ func createGenericDeploymentWithCPUAW(context *context, name string, cpuDemand s
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1780,16 +1783,16 @@ func createGenericDeploymentWithCPUAW(context *context, name string, cpuDemand s
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericDeploymentCustomPodResourcesWithCPUAW(context *context, name string, customPodCpuDemand string, cpuDemand string, replicas int, requeuingTimeInSeconds int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
-	"kind": "Deployment", 
+	"kind": "Deployment",
 	"metadata": {
 		"name": "%s",
 		"namespace": "test",
@@ -1834,7 +1837,7 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(context *context, name s
 		}
 	}} `, name, name, replicas, name, name, name, name, cpuDemand))
 
-	var schedSpecMin int = replicas
+	var schedSpecMin int32 = int32(replicas)
 	var customCpuResource = v1.ResourceList{"cpu": resource.MustParse(customPodCpuDemand)}
 
 	aw := &arbv1.AppWrapper{
@@ -1843,18 +1846,18 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(context *context, name s
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
-				Requeuing: arbv1.RequeuingTemplate{
-					TimeInSeconds: requeuingTimeInSeconds,
+				Requeuing: arbv1.RequeuingSpec{
+					TimeInSeconds: int64(requeuingTimeInSeconds),
 				},
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						CustomPodResources: []arbv1.CustomPodResourceTemplate{
+						CustomPodResources: []arbv1.CustomPodResource{
 							{
-								Replicas: replicas,
+								Replicas: int32(replicas),
 								Requests: customCpuResource,
 							},
 						},
@@ -1867,35 +1870,35 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(context *context, name s
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createNamespaceAW(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "v1",
-		"kind": "Namespace", 
+		"kind": "Namespace",
 	"metadata": {
 		"name": "aw-namespace-0",
 		"labels": {
 			"app": "aw-namespace-0"
 		}
 	}} `)
-	var schedSpecMin int = 0
+	var schedSpecMin int32 = 0
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1905,15 +1908,15 @@ func createNamespaceAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericNamespaceAW(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "v1",
-		"kind": "Namespace", 
+		"kind": "Namespace",
 	"metadata": {
 		"name": "aw-generic-namespace-0",
 		"labels": {
@@ -1926,10 +1929,10 @@ func createGenericNamespaceAW(context *context, name string) *arbv1.AppWrapper {
 			Name: name,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 0,
+						DoNotUseReplicas: 0,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1939,15 +1942,15 @@ func createGenericNamespaceAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "StatefulSet", 
+		"kind": "StatefulSet",
 	"metadata": {
 		"name": "aw-statefulset-2",
 		"namespace": "test",
@@ -1987,7 +1990,7 @@ func createStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
 			}
 		}
 	}} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1995,13 +1998,13 @@ func createStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -2011,15 +2014,15 @@ func createStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "StatefulSet", 
+		"kind": "StatefulSet",
 	"metadata": {
 		"name": "aw-generic-statefulset-2",
 		"namespace": "test",
@@ -2059,7 +2062,7 @@ func createGenericStatefulSetAW(context *context, name string) *arbv1.AppWrapper
 			}
 		}
 	}} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2067,13 +2070,13 @@ func createGenericStatefulSetAW(context *context, name string) *arbv1.AppWrapper
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 2,
+						DoNotUseReplicas: 2,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -2082,10 +2085,10 @@ func createGenericStatefulSetAW(context *context, name string) *arbv1.AppWrapper
 			},
 		},
 	}
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 // NOTE:
@@ -2118,7 +2121,7 @@ func createBadPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 			]
 		}
 	} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2126,13 +2129,13 @@ func createBadPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 2,
+						DoNotUseReplicas: 2,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -2142,10 +2145,10 @@ func createBadPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
@@ -2196,7 +2199,7 @@ func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 			]
 		}
 	} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2204,11 +2207,11 @@ func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
@@ -2224,10 +2227,10 @@ func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createPodCheckFailedStatusAW(context *context, name string) *arbv1.AppWrapper {
@@ -2264,7 +2267,7 @@ func createPodCheckFailedStatusAW(context *context, name string) *arbv1.AppWrapp
 		}
 	} `)
 
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2272,13 +2275,13 @@ func createPodCheckFailedStatusAW(context *context, name string) *arbv1.AppWrapp
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 1,
+						DoNotUseReplicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -2288,10 +2291,10 @@ func createPodCheckFailedStatusAW(context *context, name string) *arbv1.AppWrapp
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericPodAWCustomDemand(context *context, name string, cpuDemand string) *arbv1.AppWrapper {
@@ -2332,7 +2335,7 @@ func createGenericPodAWCustomDemand(context *context, name string, cpuDemand str
 	} `, name, name, name, name, cpuDemand, cpuDemand)
 
 	rb := []byte(genericItems)
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 
 	labels := make(map[string]string)
 	labels["quota_service"] = "service-w"
@@ -2344,11 +2347,11 @@ func createGenericPodAWCustomDemand(context *context, name string, cpuDemand str
 			Labels:    labels,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
@@ -2359,10 +2362,10 @@ func createGenericPodAWCustomDemand(context *context, name string, cpuDemand str
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericPodAW(context *context, name string) *arbv1.AppWrapper {
@@ -2402,7 +2405,7 @@ func createGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 		}
 	} `)
 
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 
 	labels := make(map[string]string)
 	labels["quota_service"] = "service-w"
@@ -2414,11 +2417,11 @@ func createGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 			Labels:    labels,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
@@ -2429,10 +2432,10 @@ func createGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createGenericPodTooBigAW(context *context, name string) *arbv1.AppWrapper {
@@ -2474,7 +2477,7 @@ func createGenericPodTooBigAW(context *context, name string) *arbv1.AppWrapper {
 		}
 	} `)
 
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 
 	labels := make(map[string]string)
 	labels["quota_service"] = "service-w"
@@ -2486,11 +2489,11 @@ func createGenericPodTooBigAW(context *context, name string) *arbv1.AppWrapper {
 			Labels:    labels,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
@@ -2501,10 +2504,10 @@ func createGenericPodTooBigAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createBadGenericPodAW(context *context, name string) *arbv1.AppWrapper {
@@ -2533,7 +2536,7 @@ func createBadGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 			]
 		}
 	} `)
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2541,11 +2544,11 @@ func createBadGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
@@ -2556,15 +2559,15 @@ func createBadGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createBadGenericItemAW(context *context, name string) *arbv1.AppWrapper {
 	// rb := []byte(`""`)
-	var schedSpecMin int = 1
+	var schedSpecMin int32 = 1
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2572,11 +2575,11 @@ func createBadGenericItemAW(context *context, name string) *arbv1.AppWrapper {
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
 						// GenericTemplate: runtime.RawExtension{
 						// 	Raw: rb,
@@ -2587,10 +2590,10 @@ func createBadGenericItemAW(context *context, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
-	return appwrapper
+	return aw
 }
 
 func createBadGenericPodTemplateAW(context *context, name string) (*arbv1.AppWrapper, error) {
@@ -2625,7 +2628,7 @@ func createBadGenericPodTemplateAW(context *context, name string) (*arbv1.AppWra
 			]
 		}
 	}} `)
-	var schedSpecMin int = 2
+	var schedSpecMin int32 = 2
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2633,13 +2636,13 @@ func createBadGenericPodTemplateAW(context *context, name string) (*arbv1.AppWra
 			Namespace: context.namespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
-			SchedSpec: arbv1.SchedulingSpecTemplate{
+			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
 			},
-			AggrResources: arbv1.AppWrapperResourceList{
-				GenericItems: []arbv1.AppWrapperGenericResource{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
 					{
-						DesiredAvailable: 2,
+						DoNotUseReplicas: 2,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -2649,23 +2652,28 @@ func createBadGenericPodTemplateAW(context *context, name string) (*arbv1.AppWra
 		},
 	}
 
-	appwrapper, err := context.karclient.WorkloadV1beta1().AppWrappers(context.namespace).Create(context.ctx, aw, metav1.CreateOptions{})
+	err := context.client.Create(context.ctx, aw)
 	Expect(err).To(HaveOccurred())
-	return appwrapper, err
+	return aw, err
 }
 
 func deleteAppWrapper(ctx *context, name string) error {
 	foreground := metav1.DeletePropagationForeground
-	return ctx.karclient.WorkloadV1beta1().AppWrappers(ctx.namespace).Delete(ctx.ctx, name, metav1.DeleteOptions{
-		PropagationPolicy: &foreground,
-	})
+	aw := &arbv1.AppWrapper{ObjectMeta: metav1.ObjectMeta{
+		Name:      name,
+		Namespace: ctx.namespace,
+	}}
+	return ctx.client.Delete(ctx.ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
+
 }
 
 func getPodsOfAppWrapper(ctx *context, aw *arbv1.AppWrapper) []*v1.Pod {
-	aw, err := ctx.karclient.WorkloadV1beta1().AppWrappers(aw.Namespace).Get(ctx.ctx, aw.Name, metav1.GetOptions{})
+	awIgnored := &arbv1.AppWrapper{}
+	err := ctx.client.Get(ctx.ctx, client.ObjectKeyFromObject(aw), awIgnored) // TODO: Do we actually need to do this Get?
 	Expect(err).NotTo(HaveOccurred())
 
-	pods, err := ctx.kubeclient.CoreV1().Pods(aw.Namespace).List(gcontext.Background(), metav1.ListOptions{})
+	pods := &v1.PodList{}
+	err = ctx.client.List(gcontext.Background(), pods, &client.ListOptions{Namespace: aw.Namespace})
 	Expect(err).NotTo(HaveOccurred())
 
 	var awpods []*v1.Pod
@@ -2674,7 +2682,7 @@ func getPodsOfAppWrapper(ctx *context, aw *arbv1.AppWrapper) []*v1.Pod {
 		// Get a pointer to the pod in the list not a pointer to the podCopy
 		pod := &pods.Items[index]
 
-		if gn, found := pod.Annotations[arbv1.AppWrapperAnnotationKey]; !found || gn != aw.Name {
+		if gn, found := pod.Annotations["appwrapper.mcad.ibm.com/appwrapper-name"]; !found || gn != aw.Name {
 			continue
 		}
 		awpods = append(awpods, pod)
@@ -2696,12 +2704,15 @@ func appendRandomString(value string) string {
 
 func AppWrapper(context *context, namespace string, name string) func(g gomega.Gomega) *arbv1.AppWrapper {
 	return func(g gomega.Gomega) *arbv1.AppWrapper {
-		aw, err := context.karclient.WorkloadV1beta1().AppWrappers(namespace).Get(context.ctx, name, metav1.GetOptions{})
+		aw := &arbv1.AppWrapper{}
+		err := context.client.Get(context.ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 		return aw
 	}
 }
 
+/* TODO: DAVE AppWrapperState
 func AppWrapperState(aw *arbv1.AppWrapper) arbv1.AppWrapperState {
 	return aw.Status.State
 }
+*/
