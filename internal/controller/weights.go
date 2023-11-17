@@ -17,6 +17,9 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
+	"fmt"
+
 	"gopkg.in/inf.v0"
 
 	v1 "k8s.io/api/core/v1"
@@ -127,4 +130,60 @@ func (w Weights) AsResources() v1.ResourceList {
 		resources[k] = *resource.NewDecimalQuantity(*v, resource.DecimalSI)
 	}
 	return resources
+}
+
+// Clone : Create a copy of Weights
+func (w Weights) Clone() Weights {
+	r := Weights{}
+	for k, v := range w {
+		r[k] = v
+	}
+	return r
+}
+
+// WeightsPair : A pair of Weights -
+// Typically used to represent requests and limits for an object
+type WeightsPair struct {
+	w1 *Weights
+	w2 *Weights
+}
+
+// NewWeightsPair : Create a new pair of weights
+func NewWeightsPair(w1 *Weights, w2 *Weights) *WeightsPair {
+	return &WeightsPair{
+		w1: w1,
+		w2: w2,
+	}
+}
+
+// Add : Add pair of weights to receiver
+func (w *WeightsPair) Add(r *WeightsPair) {
+	w.w1.Add(*r.w1)
+	w.w2.Add(*r.w2)
+}
+
+// Sub : Subtract pair of weights from receiver
+func (w *WeightsPair) Sub(r *WeightsPair) {
+	w.w1.Sub(*r.w1)
+	w.w2.Sub(*r.w2)
+}
+
+// Clone : Clone a pair of weights
+func (w *WeightsPair) Clone() *WeightsPair {
+	w1Clone := w.w1.Clone()
+	w2Clone := w.w2.Clone()
+	return NewWeightsPair(&w1Clone, &w2Clone)
+}
+
+// Fits: Compare receiver to argument -
+// True if both weights of receiver fit corresponding weights of argument
+func (w *WeightsPair) Fits(r *WeightsPair) bool {
+	return w.w1.Fits(*r.w1) && w.w2.Fits(*r.w2)
+}
+
+func (w *WeightsPair) String() string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "{Requests: %v}; ", *w.w1)
+	fmt.Fprintf(&b, "{Limits: %v}", *w.w2)
+	return b.String()
 }
