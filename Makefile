@@ -37,6 +37,18 @@ CONTAINER_TOOL ?= docker
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+BUILD_DATE := $(shell date +%Y-%m-%d\ %H:%M)
+BUILD_TAG_SHA := $(shell git rev-list --abbrev-commit --tags --max-count=1)
+BUILD_TAG_NAME := $(shell git describe --abbrev=0 --tags ${BUILD_TAG_SHA} 2>/dev/null || true)
+BUILD_SHA := $(shell git rev-parse --short HEAD)
+BUILD_VERSION := $(BUILD_TAG_NAME:v%=%)
+ifneq ($(BUILD_SHA), $(BUILD_TAG_SHA))
+	BUILD_VERSION := $(BUILD_VERSION)-$(BUILD_SHA)
+endif
+ifneq ($(shell git status --porcelain),)
+	BUILD_VERSION := $(BUILD_VERSION)-dirty
+endif
+
 .PHONY: all
 all: run-test
 
@@ -117,7 +129,12 @@ run-e2e: docker-build run-e2e-existing-images ## Build docker image and run end-
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build \
+		-ldflags " \
+			-X 'main.BuildVersion=$(BUILD_VERSION)' \
+			-X 'main.BuildDate=$(BUILD_DATE)' \
+		" \
+		-o bin/manager cmd/main.go
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
