@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"sort"
+	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -26,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Compute available cluster capacity
@@ -78,12 +80,21 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	}
 	requests := map[int]Weights{}        // total request per priority level
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
+
+	appWrapperCount := map[phaseStepPriority]int{}
+
 	for _, appWrapper := range appWrappers.Items {
 		// get phase from cache if available as reconciler cache may be lagging
 		phase, step := r.getCachedPhase(&appWrapper)
+		priority := int(appWrapper.Spec.Priority)
+		key := phaseStepPriority{phase, step, priority}
+		if _, exists := appWrapperCount[key]; !exists {
+			appWrapperCount[key] = 0
+		}
+		appWrapperCount[key]++
 		// make sure to initialize weights for every known priority level
-		if requests[int(appWrapper.Spec.Priority)] == nil {
-			requests[int(appWrapper.Spec.Priority)] = Weights{}
+		if requests[priority] == nil {
+			requests[priority] = Weights{}
 		}
 		if step != mcadv1beta1.Idle {
 			// use max request among AppWrapper request and total request of non-terminated AppWrapper pods
@@ -108,6 +119,13 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
 		}
+	}
+	// update AppWrapper count metric
+	appWrappersCount.Reset()
+	for key, count := range appWrapperCount {
+		appWrappersCount.With(
+			prometheus.Labels{"phase": string(key.phase), "step": string(key.step), "priority": strconv.Itoa(key.priority)},
+		).Set(float64(count))
 	}
 	// propagate reservations at all priority levels to all levels below
 	assertPriorities(requests)
