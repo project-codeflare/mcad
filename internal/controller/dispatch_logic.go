@@ -49,8 +49,8 @@ LOOP:
 				continue LOOP
 			}
 		}
-		// add allocatable capacity on the node
-		capacity.Add(NewWeights(node.Status.Allocatable))
+		// compute allocatable capacity on the node
+		nodeCapacity := NewWeights(node.Status.Allocatable)
 		// subtract requests from non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
@@ -63,11 +63,40 @@ LOOP:
 		}
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-				capacity.Sub(NewWeightsForPod(&pod))
+				nodeCapacity.Sub(NewWeightsForPod(&pod))
 			}
 		}
+		// add allocatable capacity on the node
+		capacity.Add(nodeCapacity)
+		updateMetrics(capacity, node)
 	}
 	return capacity, nil
+}
+
+// Update metrics
+func updateMetrics(capacity Weights, node v1.Node) {
+	// In general, it's not recommended to convert Dec to float64. However, we have no choice since Prometheus works with float64.
+	// https://github.com/go-inf/inf/issues/7#issuecomment-504729949
+	capacityCpu, err := strconv.ParseFloat(capacity["cpu"].String(), 64)
+	if err != nil {
+		mcadLog.V(1).Error(err, "Unable to get CPU capacity", "node", node.Name)
+	} else {
+		totalCapacityCpu.WithLabelValues(node.Name).Set(capacityCpu)
+	}
+
+	capacityMemory, err := strconv.ParseFloat(capacity["memory"].String(), 64)
+	if err != nil {
+		mcadLog.V(1).Error(err, "Unable to get memory capacity", "node", node.Name)
+	} else {
+		totalCapacityMemory.WithLabelValues(node.Name).Set(capacityMemory)
+	}
+
+	capacityGpu, err := strconv.ParseFloat(capacity["nvidia.com/gpu"].String(), 64)
+	if err != nil {
+		mcadLog.V(1).Error(err, "Unable to get gpu capacity", "node", node.Name)
+	} else {
+		totalCapacityGpu.WithLabelValues(node.Name).Set(capacityGpu)
+	}
 }
 
 // Compute resources reserved by AppWrappers at every priority level for the specified cluster
