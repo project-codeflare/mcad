@@ -1,4 +1,4 @@
-module github.com/tardieu/mcad
+module github.com/project-codeflare/mcad
 
 go 1.20
 

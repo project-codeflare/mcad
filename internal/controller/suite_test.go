@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
+	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 
