@@ -1,12 +1,12 @@
-# Porting AppWrappers to MicroMCAD
+# Porting AppWrappers to MCAD v2
 
-Using MicroMCAD requires a couple of changes to AppWrapper yamls described
-below. MicroMCAD comes with a revised status and enhanced fault-tolerance capabilities.
+Using MCAD v2 requires a couple of changes to AppWrapper yamls described
+below. MCAD v2 comes with a revised status and enhanced fault-tolerance capabilities.
 
 ## Required changes
 
 Recent versions of MCAD have introduced some important changes to the AppWrapper
-CRD. MicroMCAD follows suit.
+CRD. MCAD v2 follows suit.
 
 First update the `apiVersion` from:
 ```yaml
@@ -84,7 +84,7 @@ spec:
 
 ## Changes to AppWrapper status
 
-MicroMCAD reports the status of an AppWrapper as follows:
+MCAD v2 reports the status of an AppWrapper as follows:
 ```yaml
 status:
   dispatchTimestamp: "2023-11-02T15:19:09Z"
@@ -113,7 +113,7 @@ or being undeployed.
 The `transitions` reflect the last 20 state/step changes in order and the
 respective timestamps for these changes.
 
-Here is a longer example illustrating MicroMCAD requeuing capabilities:
+Here is a longer example illustrating MCAD v2 requeuing capabilities:
 ```yaml
 status:
   dispatchTimestamp: "2023-11-02T15:32:32Z"
@@ -153,11 +153,11 @@ about five minutes after dispatch reflecting the default 300s grace period
 The top-level `dispatchTimestamp` and `requeueTimestamp` respectively report the
 most recent dispatch and requeue times.
 
-The AppWrapper status in MicroMCAD is still a work in progress.
+The AppWrapper status in MCAD v2 is still a work in progress.
 
 ## Fault-tolerance enhancements
 
-MicroMCAD supports an extended `schedulingSpec`:
+MCAD v2 supports an extended `schedulingSpec`:
 
 ```yaml
 apiVersion: workload.codeflare.dev/v1beta1
@@ -178,26 +178,26 @@ spec:
       ...
 ```
 
-To request MicroMCAD to monitor the health of a running AppWrapper, a non-zero
+To request MCAD v2 to monitor the health of a running AppWrapper, a non-zero
 `minAvailable` number of pods must be specified. If this field is zero or left
-out from the `schedulingSpec`, MicroMCAD does not monitor the AppWrapper once
+out from the `schedulingSpec`, MCAD v2 does not monitor the AppWrapper once
 dispatched and does not reclaim resources from failed AppWrappers. In practice,
 only specify `minAvailable: 0` for debugging purposes.
 
-If `minAvailable` is greater than zero, MicroMCAD checks that the number of
+If `minAvailable` is greater than zero, MCAD v2 checks that the number of
 running or successful pods remains equal to or greater than `minAvailable`. This
 checking starts only `timeInSeconds` after dispatch to account for, e.g., large
 image pulls. The default `timeInSeconds` value is `300`.
 
 If the number of running or successful pods dips below `minAvailable` pods after
-`timeInSeconds`, MicroMCAD attempts to requeue the AppWrapper by deleting the
+`timeInSeconds`, MCAD v2 attempts to requeue the AppWrapper by deleting the
 wrapped resources. If `forceDeletionTimeInSeconds` is set to a value greater
-than zero, MicroMCAD will force delete resources and pods after
+than zero, MCAD v2 will force delete resources and pods after
 `forceDeletionTimeInSeconds` if necessary. For deletion is disabled by default.
 
 Once the failed AppWrapper is successfully requeued, i.e., after deletion or
-force deletion, MicroMCAD will wait at least `pauseTimeInSeconds` before
+force deletion, MCAD v2 will wait at least `pauseTimeInSeconds` before
 attempting to dispatch the AppWrapper again, if specified.
 
-If `maxNumRequeuings` is specified and greater than zero, MicroMCAD will attempt
+If `maxNumRequeuings` is specified and greater than zero, MCAD v2 will attempt
 to redispatch up to `maxNumRequeuings` times only.

@@ -1,14 +1,16 @@
-# MicroMCAD
+# MCAD v2
 
-This repository contains a prototype MCAD implementation
+This repository contains a reimplementation of MCAD
 ([multi-cluster-app-dispatcher](https://github.com/project-codeflare/multi-cluster-app-dispatcher))
 using recent versions of [controller
 runtime](https://github.com/kubernetes-sigs/controller-runtime) and
-[kubebuilder](https://github.com/kubernetes-sigs/kubebuilder). This prototype
-does not implement quotas or dispatching to multiple clusters.
+[kubebuilder](https://github.com/kubernetes-sigs/kubebuilder).
+
+This reimplementation does not support quotas or dispatching to multiple
+clusters yet.
 
 See [PORTING.md](PORTING.md) for instructions on how to port AppWrappers from
-MCAD to MicroMCAD.
+MCAD to MCAD v2.
 
 ## Getting Started
 
