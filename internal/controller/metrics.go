@@ -49,6 +49,22 @@ var (
 		Name:      "capacity_gpu",
 		Help:      "Available GPU capacity per node, excluding non-AppWrapper pods",
 	}, []string{"node"})
+
+	requestedCpu = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "mcad",
+		Name:      "requested_cpu",
+		Help:      "Requested CPU per priority",
+	}, []string{"priority"})
+	requestedMemory = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "mcad",
+		Name:      "requested_memory",
+		Help:      "Requested memory per priority",
+	}, []string{"priority"})
+	requestedGpu = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "mcad",
+		Name:      "requested_gpu",
+		Help:      "Requested GPU per priority",
+	}, []string{"priority"})
 )
 
 func init() {
@@ -57,5 +73,8 @@ func init() {
 		totalCapacityCpu,
 		totalCapacityMemory,
 		totalCapacityGpu,
+		requestedCpu,
+		requestedMemory,
+		requestedGpu,
 	)
 }

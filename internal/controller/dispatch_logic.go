@@ -69,13 +69,13 @@ LOOP:
 		}
 		// add allocatable capacity on the node
 		capacity.Add(nodeCapacity)
-		updateMetrics(capacity, node)
+		updateCapacityMetrics(capacity, node)
 	}
 	return capacity, nil
 }
 
-// Update metrics
-func updateMetrics(capacity Weights, node v1.Node) {
+// Update capacity metrics
+func updateCapacityMetrics(capacity Weights, node v1.Node) {
 	capacityCpu, err := Dec2float64(capacity["cpu"])
 	if err != nil {
 		mcadLog.Error(err, "Unable to get CPU capacity", "node", node.Name)
@@ -105,6 +105,32 @@ func Dec2float64(d *inf.Dec) (float64, error) {
 	// In general, it's not recommended to convert Dec to float64. However, we have no choice since Prometheus works with float64.
 	// https://github.com/go-inf/inf/issues/7#issuecomment-504729949
 	return strconv.ParseFloat(d.String(), 64)
+}
+
+// Reset requested metrics
+func resetRequestedMetrics() {
+	requestedCpu.Reset()
+	requestedMemory.Reset()
+	requestedGpu.Reset()
+}
+
+// Update requested metrics
+func updateRequestedMetrics(request Weights, priority int) {
+	updateRequestedMetricGeneric(request, priority, "cpu", *requestedCpu)
+	updateRequestedMetricGeneric(request, priority, "memory", *requestedMemory)
+	updateRequestedMetricGeneric(request, priority, "nvidia.com/gpu", *requestedGpu)
+}
+
+// Update requested metric
+func updateRequestedMetricGeneric(request Weights, priority int, resourceName v1.ResourceName, metric prometheus.GaugeVec) {
+	if val, exists := request[resourceName]; exists {
+		resourceValue, err := Dec2float64(val)
+		if err != nil {
+			mcadLog.Error(err, "Unable to get requested resource", "priority", priority, "resource name", resourceName)
+		} else {
+			metric.WithLabelValues(strconv.Itoa(priority)).Set(resourceValue)
+		}
+	}
 }
 
 // Compute resources reserved by AppWrappers at every priority level for the specified cluster
@@ -161,8 +187,16 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	appWrappersCount.Reset()
 	for key, count := range appWrapperCount {
 		appWrappersCount.With(
-			prometheus.Labels{"state": string(key.state), "step": string(key.step), "priority": strconv.Itoa(key.priority)},
+			prometheus.Labels{
+				"state":    string(key.state),
+				"step":     string(key.step),
+				"priority": strconv.Itoa(key.priority)},
 		).Set(float64(count))
+	}
+	// update requested resources metrices before assertPriorities()
+	resetRequestedMetrics()
+	for priority, request := range requests {
+		updateRequestedMetrics(request, priority)
 	}
 	// propagate reservations at all priority levels to all levels below
 	assertPriorities(requests)
