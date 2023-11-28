@@ -152,17 +152,6 @@ function check_prerequisites {
   else
     echo -n "found helm, " && helm version --short
   fi
-
-
-  which helm >/dev/null 2>&1
-  if [ $? -ne 0 ]
-  then
-    echo "helm not installed, exiting."
-    exit 1
-  else
-    echo -n "found helm, " && helm version --short
-  fi
-
 }
 
 function kind_up_cluster {
