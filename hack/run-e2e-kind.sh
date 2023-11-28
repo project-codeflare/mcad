@@ -31,7 +31,7 @@ export IMAGE_MCAD="${IMAGE_REPOSITORY_MCAD}:${IMAGE_TAG_MCAD}"
 CLUSTER_STARTED="false"
 export KUTTL_VERSION=0.15.0
 #export KUTTL_OPTIONS=${TEST_KUTTL_OPTIONS}
-export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml")
+export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml" "${ROOT_DIR}/test/kuttl-acct-test.yaml")
 DUMP_LOGS="true"
 export GORACE=1
 
@@ -421,7 +421,6 @@ function kuttl_tests {
       echo "kuttl e2e test '${kuttl_test}' failure, exiting."
       exit 1
     fi
-    #undeploy_mcad_helm
   done
   rm -f kubeconfig
 }
