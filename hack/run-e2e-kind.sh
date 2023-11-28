@@ -29,7 +29,7 @@ export IMAGE_TAG_MCAD="${2}"
 export MCAD_IMAGE_PULL_POLICY="${3-Always}"
 export IMAGE_MCAD="${IMAGE_REPOSITORY_MCAD}:${IMAGE_TAG_MCAD}"
 CLUSTER_STARTED="false"
-#export KUTTL_VERSION=0.15.0
+export KUTTL_VERSION=0.15.0
 #export KUTTL_OPTIONS=${TEST_KUTTL_OPTIONS}
 export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml")
 DUMP_LOGS="true"
@@ -152,17 +152,6 @@ function check_prerequisites {
   else
     echo -n "found helm, " && helm version --short
   fi
-
-
-  which helm >/dev/null 2>&1
-  if [ $? -ne 0 ]
-  then
-    echo "helm not installed, exiting."
-    exit 1
-  else
-    echo -n "found helm, " && helm version --short
-  fi
-
 }
 
 function kind_up_cluster {

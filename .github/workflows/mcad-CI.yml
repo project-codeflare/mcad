@@ -40,10 +40,10 @@ jobs:
     - name: Run Unit tests
       run: make test
 
-    # - name: Build Image
-    #   run: |
-    #     make images -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+    - name: Build Image
+      run: |
+        make docker-build -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
-    # - name: Run E2E tests
-    #   run: |
-    #     make run-e2e -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+    - name: Run E2E tests
+      run: |
+        make run-e2e -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
