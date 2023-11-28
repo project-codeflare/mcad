@@ -1,6 +1,21 @@
 
-# Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+GIT_BRANCH:=$(shell git symbolic-ref --short HEAD 2>&1 | grep -v fatal)
+TAG:=$(shell echo "")
+# Check for current branch name and update 'RELEASE_VER' and 'TAG'
+ifneq ($(strip $(GIT_BRANCH)),)
+	RELEASE_VER:= $(shell git describe --tags --abbrev=0)
+	TAG:=${TAG}${GIT_BRANCH}
+	# replace invalid characters that might exist in the branch name
+	TAG:=$(shell echo ${TAG} | sed 's/[^a-zA-Z0-9]/-/g')
+	TAG:=${TAG}-${RELEASE_VER}
+endif
+
+ifeq ($(strip $(quay_repository)),)
+IMG=mcad-controller:${TAG}
+else
+IMG=${quay_repository}/mcad-controller:${TAG}
+endif
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27.1
 
@@ -23,7 +38,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 .PHONY: all
-all: build
+all: run-test
 
 ##@ General
 
@@ -60,13 +75,21 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-.PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+.PHONY: run-test
+run-test: build envtest ## Run unit tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -skip test -coverprofile cover.out
 
-.PHONY: kuttl
-kuttl:
-	kubectl kuttl test test/e2e --timeout 120
+# Assumes images are already built
+.PHONY: run-e2e
+run-e2e:
+ifeq ($(strip $(quay_repository)),)
+	echo "Running e2e with MCAD local image: mcad-controller ${TAG} IfNotPresent."
+	hack/run-e2e-kind.sh mcad-controller ${TAG} IfNotPresent
+else
+	echo "Running e2e with MCAD registry image image: ${quay_repository}/mcad-controller ${TAG}."
+	hack/run-e2e-kind.sh ${quay_repository}/mcad-controller ${TAG}
+endif
+
 
 ##@ Build
 
@@ -82,7 +105,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64 ). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+docker-build: run-test ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
 .PHONY: docker-push
@@ -97,7 +120,7 @@ docker-push: ## Push docker image with the manager.
 # To properly provided solutions that supports more than one platform you should use this option.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx
-docker-buildx: test ## Build and push docker image for the manager for cross-platform support
+docker-buildx: run-test ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
