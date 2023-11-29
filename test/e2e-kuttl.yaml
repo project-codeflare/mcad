@@ -1,0 +1,15 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestSuite
+testDirs:
+- test/e2e-kuttl/
+timeout: 120
+artifactsDir: _output/logs
+commands:
+- script: >
+    helm upgrade --install mcad-controller ${ROOT_DIR}/deployment/mcad-controller
+    --namespace kube-system --wait --set loglevel=${LOG_LEVEL} --set resources.requests.cpu=500m
+    --set resources.requests.memory=1024Mi --set resources.limits.cpu=500m --set resources.limits.memory=1024Mi
+    --set configMap.name=mcad-controller-configmap --set configMap.podCreationTimeout='"120000"'
+    --set configMap.quotaEnabled='"false"' --set coscheduler.rbac.apiGroup=scheduling.sigs.k8s.io
+    --set coscheduler.rbac.resource=podgroups --set image.repository=$IMAGE_REPOSITORY_MCAD
+    --set image.tag=$IMAGE_TAG_MCAD --set image.pullPolicy=$MCAD_IMAGE_PULL_POLICY

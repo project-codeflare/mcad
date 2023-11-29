@@ -1,7 +1,0 @@
-apiVersion: kuttl.dev/v1beta1
-kind: TestSuite
-testDirs:
-- test/e2e-acct-test/
-timeout: 120
-artifactsDir: _output/logs
-commands:
