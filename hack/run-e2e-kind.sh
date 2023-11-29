@@ -31,7 +31,7 @@ export IMAGE_MCAD="${IMAGE_REPOSITORY_MCAD}:${IMAGE_TAG_MCAD}"
 CLUSTER_STARTED="false"
 export KUTTL_VERSION=0.15.0
 #export KUTTL_OPTIONS=${TEST_KUTTL_OPTIONS}
-export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/kuttl-test.yaml")
+export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/e2e-kuttl.yaml" "${ROOT_DIR}/test/e2e-kuttl-acct.yaml")
 DUMP_LOGS="true"
 export GORACE=1
 
@@ -266,10 +266,6 @@ function cleanup {
       echo "'all' Namespaces  list..."
       kubectl get namespaces
 
-      echo "---"
-      echo "'aw-namespace-1' Namespace  list..."
-      kubectl get namespace aw-namespace-1 -o yaml
-
       echo "===================================================================================="
       echo "==========================>>>>> MCAD Controller Logs <<<<<=========================="
       echo "===================================================================================="
@@ -307,14 +303,16 @@ function undeploy_mcad_helm {
 }
 
 function mcad_up {
-    echo "helm install mcad-controller namespace kube-system wait set loglevel=2 set resources.requests.cpu=1000m set resources.requests.memory=1024Mi set resources.limits.cpu=4000m set resources.limits.memory=4096Mi set image.repository=$IMAGE_REPOSITORY_MCAD set image.tag=$IMAGE_TAG_MCAD set image.pullPolicy=$MCAD_IMAGE_PULL_POLICY"
-    helm upgrade  --install mcad-controller ${ROOT_DIR}/deployment/mcad-controller  --namespace kube-system --wait \
-                  --set loglevel=${LOG_LEVEL} --set resources.requests.cpu=500m --set resources.requests.memory=1024Mi \
-                  --set resources.limits.cpu=500m --set resources.limits.memory=1024Mi \
-                  --set configMap.name=mcad-controller-configmap --set configMap.podCreationTimeout='"120000"' \
-                  --set configMap.quotaEnabled='"false"' --set coscheduler.rbac.apiGroup=scheduling.sigs.k8s.io \
-                  --set coscheduler.rbac.resource=podgroups --set image.repository=$IMAGE_REPOSITORY_MCAD \
-                  --set image.tag=$IMAGE_TAG_MCAD --set image.pullPolicy=$MCAD_IMAGE_PULL_POLICY
+    local helm_args=" --install mcad-controller ${ROOT_DIR}/deployment/mcad-controller  --namespace kube-system --wait"
+    helm_args+=" --set loglevel=${LOG_LEVEL} --set resources.requests.cpu=500m --set resources.requests.memory=1024Mi"
+    helm_args+=" --set resources.limits.cpu=500m --set resources.limits.memory=1024Mi"
+    helm_args+=" --set configMap.name=mcad-controller-configmap --set configMap.podCreationTimeout='"120000"'"
+    helm_args+=" --set configMap.quotaEnabled='"false"' --set coscheduler.rbac.apiGroup=scheduling.sigs.k8s.io"
+    helm_args+=" --set coscheduler.rbac.resource=podgroups --set image.repository=$IMAGE_REPOSITORY_MCAD"
+    helm_args+=" --set image.tag=$IMAGE_TAG_MCAD --set image.pullPolicy=$MCAD_IMAGE_PULL_POLICY"
+
+    echo "helm upgrade $helm_args"
+    helm upgrade $helm_args
     if [ $? -ne 0 ]
     then
       echo "Failed to deploy MCAD controller"
@@ -401,8 +399,8 @@ function extend_resources {
     echo "Killing proxy (pid=${proxy_pid})..."
     kill -9 ${proxy_pid}
 
-    # Run kuttl tests to confirm GPUs were added correctly
-    kuttl_test="${ROOT_DIR}/test/kuttl-test-extended-resources.yaml"
+    # Run kuttl test to confirm GPUs were added correctly
+    kuttl_test="${ROOT_DIR}/test/e2e-kuttl-extended-resources.yaml"
     echo "kubectl kuttl test --config ${kuttl_test}"
     kubectl kuttl test --config ${kuttl_test}
     if [ $? -ne 0 ]
@@ -414,6 +412,7 @@ function extend_resources {
 
 function kuttl_tests {
   for kuttl_test in ${KUTTL_TEST_SUITES[@]}; do
+    # NOTE: each kuttl TestSuite installs the mcad helm chart configured as needed for the test
     echo "kubectl kuttl test --config ${kuttl_test}"
     kubectl kuttl test --config ${kuttl_test}
     if [ $? -ne 0 ]
@@ -421,7 +420,7 @@ function kuttl_tests {
       echo "kuttl e2e test '${kuttl_test}' failure, exiting."
       exit 1
     fi
-    #undeploy_mcad_helm
+    undeploy_mcad_helm
   done
   rm -f kubeconfig
 }
@@ -432,9 +431,9 @@ check_prerequisites
 kind_up_cluster
 extend_resources
 setup_mcad_env
-mcad_up
 
 kuttl_tests
+#mcad_up
 #go test ./internal/controller/suite_test.go -v -timeout 130m -count=1 -ginkgo.fail-fast
 
 RC=$?
