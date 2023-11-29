@@ -565,10 +565,10 @@ func createJobAWWithInitContainer(context *context, name string, requeuingTimeIn
 	rb := []byte(`{"apiVersion": "batch/v1",
 		"kind": "Job",
 	"metadata": {
-		"name": "aw-job-3-init-container",
+		"name": "` + name + `",
 		"namespace": "test",
 		"labels": {
-			"app": "aw-job-3-init-container"
+			"app": "` + name + `"
 		}
 	},
 	"spec": {
@@ -576,11 +576,11 @@ func createJobAWWithInitContainer(context *context, name string, requeuingTimeIn
 		"template": {
 			"metadata": {
 				"labels": {
-					"app": "aw-job-3-init-container",
-					"appwrapper.mcad.ibm.com": "aw-job-3-init-container"
+					"app": "` + name + `",
+					"appwrapper.mcad.ibm.com": "` + name + `"
 				},
 				"annotations": {
-					"appwrapper.mcad.ibm.com/appwrapper-name": "aw-job-3-init-container"
+					"appwrapper.mcad.ibm.com/appwrapper-name": "` + name + `"
 				}
 			},
 			"spec": {
@@ -654,34 +654,34 @@ func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
-		"name": "aw-deployment-3",
+		"name": "` + name + `",
 		"namespace": "test",
 		"labels": {
-			"app": "aw-deployment-3"
+			"app": "` + name + `"
 		}
 	},
 	"spec": {
 		"replicas": 3,
 		"selector": {
 			"matchLabels": {
-				"app": "aw-deployment-3"
+				"app": "` + name + `"
 			}
 		},
 		"template": {
 			"metadata": {
 				"labels": {
-					"app": "aw-deployment-3",
-					"appwrapper.mcad.ibm.com": "aw-deployment-3"
+					"app": "` + name + `",
+					"appwrapper.mcad.ibm.com": "` + name + `"
 				},
 				"annotations": {
-					"appwrapper.mcad.ibm.com/appwrapper-name": "aw-deployment-3"
+					"appwrapper.mcad.ibm.com/appwrapper-name": "` + name + `"
 				}
 			},
 			"spec": {
 				"containers": [
 					{
-						"name": "aw-deployment-3",
-						"image": "kicbase/echo-server:1.0",
+						"name": "` + name + `",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"ports": [
 							{
 								"containerPort": 80
@@ -753,7 +753,7 @@ func createDeploymentAWwith550CPU(context *context, name string) *arbv1.AppWrapp
 				"containers": [
 					{
 						"name": "` + name + `",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
 								"cpu": "550m"
@@ -830,7 +830,7 @@ func createDeploymentAWwith350CPU(context *context, name string) *arbv1.AppWrapp
 				"containers": [
 					{
 						"name": "aw-deployment-2-350cpu",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
 								"cpu": "350m"
@@ -907,7 +907,7 @@ func createDeploymentAWwith426CPU(context *context, name string) *arbv1.AppWrapp
 				"containers": [
 					{
 						"name": "` + name + `",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
 								"cpu": "427m"
@@ -984,7 +984,7 @@ func createDeploymentAWwith425CPU(context *context, name string) *arbv1.AppWrapp
 				"containers": [
 					{
 						"name": "aw-deployment-2-425cpu",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
 								"cpu": "425m"
@@ -1061,7 +1061,7 @@ func createGenericDeploymentAW(context *context, name string) *arbv1.AppWrapper 
 				"containers": [
 					{
 						"name": "aw-generic-deployment-3",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"ports": [
 							{
 								"containerPort": 80
@@ -1629,7 +1629,7 @@ func createGenericDeploymentAWWithMultipleItems(context *context, name string) *
 					"containers": [
 						{
 							"name": "` + name + `-deployment-1",
-							"image": "kicbase/echo-server:1.0",
+							"image": "quay.io/project-codeflare/echo-server:1.0",
 							"ports": [
 								{
 									"containerPort": 80
@@ -1671,7 +1671,7 @@ func createGenericDeploymentAWWithMultipleItems(context *context, name string) *
 				"containers": [
 					{
 						"name": "` + name + `-deployment-2",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"ports": [
 							{
 								"containerPort": 80
@@ -1752,7 +1752,7 @@ func createGenericDeploymentWithCPUAW(context *context, name string, cpuDemand s
 				"containers": [
 					{
 						"name": "%s",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
 								"cpu": "%s"
@@ -1831,7 +1831,7 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(context *context, name s
 				"containers": [
 					{
 						"name": "%s",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
 								"cpu": "%s"
@@ -1990,7 +1990,7 @@ func createStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
 				"containers": [
 					{
 						"name": "aw-statefulset-2",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"imagePullPolicy": "Never",
 						"ports": [
 							{
@@ -2063,7 +2063,7 @@ func createGenericStatefulSetAW(context *context, name string) *arbv1.AppWrapper
 				"containers": [
 					{
 						"name": "aw-generic-statefulset-2",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"imagePullPolicy": "Never",
 						"ports": [
 							{
@@ -2125,7 +2125,7 @@ func createBadPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 			"containers": [
 				{
 					"name": "aw-bad-podtemplate-2",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"ports": [
 						{
 							"containerPort": 80
@@ -2179,7 +2179,7 @@ func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 			"containers": [
 				{
 					"name": "aw-podtemplate-1",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"ports": [
 						{
 							"containerPort": 80
@@ -2203,7 +2203,7 @@ func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 			"containers": [
 				{
 					"name": "aw-podtemplate-2",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"ports": [
 						{
 							"containerPort": 80
@@ -2262,7 +2262,7 @@ func createPodCheckFailedStatusAW(context *context, name string) *arbv1.AppWrapp
 			"containers": [
 				{
 					"name": "aw-checkfailedstatus-1",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"ports": [
 						{
 							"containerPort": 80
@@ -2330,7 +2330,7 @@ func createGenericPodAWCustomDemand(context *context, name string, cpuDemand str
 			"containers": [
 					{
 						"name": "%s",
-						"image": "kicbase/echo-server:1.0",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"limits": {
 								"cpu": "%s"
@@ -2402,7 +2402,7 @@ func createGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 			"containers": [
 				{
 					"name": "aw-generic-pod-1",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"resources": {
 						"limits": {
 							"memory": "150Mi"
@@ -2473,7 +2473,7 @@ func createGenericPodTooBigAW(context *context, name string) *arbv1.AppWrapper {
 			"containers": [
 				{
 					"name": "aw-generic-big-pod-1",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"resources": {
 						"limits": {
 							"cpu": "100",
@@ -2544,7 +2544,7 @@ func createBadGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 			"containers": [
 				{
 					"name": "aw-bad-generic-pod-1",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"ports": [
 						{
 							"containerPort": 80
@@ -2637,7 +2637,7 @@ func createBadGenericPodTemplateAW(context *context, name string) (*arbv1.AppWra
 			"containers": [
 				{
 					"name": "aw-generic-podtemplate-2",
-					"image": "kicbase/echo-server:1.0",
+					"image": "quay.io/project-codeflare/echo-server:1.0",
 					"ports": [
 						{
 							"containerPort": 80
