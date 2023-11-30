@@ -198,7 +198,7 @@ func createGenericAWTimeoutWithStatus(context *context, name string) *arbv1.AppW
 								"-c",
 								"--"
 							],
-							"image": "ubuntu:latest",
+							"image": "quay.io/quay/ubuntu:latest",
 							"imagePullPolicy": "IfNotPresent",
 							"name": "aw-test-jobtimeout-with-comp-1",
 							"resources": {
@@ -1131,7 +1131,7 @@ func createGenericJobAWWithStatus(context *context, name string) *arbv1.AppWrapp
 								"-c",
 								"--"
 							],
-							"image": "ubuntu:latest",
+							"image": "quay.io/quay/ubuntu:latest",
 							"imagePullPolicy": "IfNotPresent",
 							"name": "aw-test-job-with-comp-1",
 							"resources": {
@@ -1210,7 +1210,7 @@ func createGenericJobAWWithMultipleStatus(context *context, name string) *arbv1.
 								"-c",
 								"--"
 							],
-							"image": "ubuntu:latest",
+							"image": "quay.io/quay/ubuntu:latest",
 							"imagePullPolicy": "IfNotPresent",
 							"name": "aw-test-job-with-comp-ms-21-1",
 							"resources": {
@@ -1258,7 +1258,7 @@ func createGenericJobAWWithMultipleStatus(context *context, name string) *arbv1.
 								"-c",
 								"--"
 							],
-							"image": "ubuntu:latest",
+							"image": "quay.io/quay/ubuntu:latest",
 							"imagePullPolicy": "IfNotPresent",
 							"name": "aw-test-job-with-comp-ms-21-2",
 							"resources": {
@@ -1384,7 +1384,7 @@ func createGenericJobAWWithScheduleSpec(context *context, name string) *arbv1.Ap
 							"args": [
 								"sleep 5"
 							],
-							"image": "ubuntu:latest",
+							"image": "quay.io/quay/ubuntu:latest",
 							"imagePullPolicy": "IfNotPresent",
 							"name": "aw-test-job-with-scheduling-spec",
 							"resources": {
@@ -1462,7 +1462,7 @@ func createGenericJobAWtWithLargeCompute(context *context, name string) *arbv1.A
 								"-c",
 								"--"
 							],
-							"image": "ubuntu:latest",
+							"image": "quay.io/quay/ubuntu:latest",
 							"imagePullPolicy": "IfNotPresent",
 							"name": "aw-test-job-with-comp-1",
 							"resources": {
