@@ -31,34 +31,61 @@ type AppWrapperSpec struct {
 	// Priority slope
 	DoNotUsePrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
 
-	// Scheduling specification
-	Scheduling SchedulingSpec `json:"schedulingSpec,omitempty"`
+	DoNotUseService AppWrapperService `json:"service,omitempty"`
 
 	// Wrapped resources
 	Resources AppWrapperResources `json:"resources"`
+
+	DoNotUseSelector *metav1.LabelSelector `json:"selector,omitempty"`
+
+	// Scheduling specifies the parameters used for scheduling the wrapped resources.
+	// It defines the policy for requeuing jobs based on the number of running pods.
+	Scheduling SchedulingSpec `json:"schedulingSpec,omitempty"`
 }
 
 type SchedulingSpec struct {
+	DoNotUseNodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
 	// Minimum number of expected running and successful pods
 	MinAvailable int32 `json:"minAvailable,omitempty"`
 
 	// Requeuing specification
 	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
+
+	DoNotUseDispatchDuration DoNotUseDispatchDurationSpec `json:"dispatchDuration,omitempty"`
+}
+
+type DoNotUseDispatchDurationSpec struct {
+	Expected int32 `json:"expected,omitempty"`
+	Limit    int32 `json:"limit,omitempty"`
+	Overrun  bool  `json:"overrun,omitempty"`
 }
 
 type RequeuingSpec struct {
+	DoNotUseInitialTimeInSeconds int64 `json:"initialTimeInSeconds,omitempty"`
+
 	// Initial waiting time before requeuing conditions are checked
 	// +kubebuilder:default=300
 	TimeInSeconds int64 `json:"timeInSeconds,omitempty"`
+
+	// +kubebuilder:default=0
+	DoNotUseMaxTimeInSeconds int64 `json:"maxTimeInSeconds,omitempty"`
+
+	// +kubebuilder:default=exponential
+	DoNotUseGrowthType string `json:"growthType,omitempty"`
+
+	// +kubebuilder:default=0
+	DoNotUseNumRequeuings int32 `json:"numRequeuings,omitempty"`
+
+	// Max requeuings permitted (infinite if zero)
+	// +kubebuilder:default=0
+	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 
 	// Enable forced deletion after delay if nonzero
 	ForceDeletionTimeInSeconds int64 `json:"forceDeletionTimeInSeconds,omitempty"`
 
 	// Wait time before trying to dispatch again after requeuing
 	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
-
-	// Max requeuings permitted (infinite if zero)
-	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper
@@ -120,24 +147,37 @@ const (
 	Deleting AppWrapperStep = "deleting"
 )
 
+// AppWrapperService
+type AppWrapperService struct {
+	Spec v1.ServiceSpec `json:"spec"`
+}
+
 // AppWrapper resources
 type AppWrapperResources struct {
-	// Array of GenericItems
-	GenericItems []GenericItem `json:"GenericItems"`
+	GenericItems []GenericItem `json:"GenericItems,omitempty"`
 }
 
 // AppWrapper resource
 type GenericItem struct {
 	DoNotUseReplicas int32 `json:"replicas,omitempty"`
 
+	DoNotUseMinAvailable *int32 `json:"minavailable,omitempty"`
+
+	DoNotUseAllocated int32 `json:"allocated,omitempty"`
+
+	DoNotUsePriority int32 `json:"priority,omitempty"`
+
+	DoNotUsePrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
+
+	// The template for the resource
+	// +kubebuilder:pruning:PreserveUnknownFields
+	GenericTemplate runtime.RawExtension `json:"generictemplate,omitempty"`
+
 	// Array of resource requests
 	CustomPodResources []CustomPodResource `json:"custompodresources,omitempty"`
 
 	// A comma-separated list of keywords to match against condition types
 	CompletionStatus string `json:"completionstatus,omitempty"`
-
-	// Resource template
-	GenericTemplate runtime.RawExtension `json:"generictemplate"`
 }
 
 // Resource requests
