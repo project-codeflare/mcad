@@ -51,7 +51,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: busybox
-            image: busybox
+            image: quay.io/project-codeflare/busybox
             command: ["sh", "-c", "sleep 1"]
       custompodresources:
       - replicas: 3

@@ -73,7 +73,7 @@ spec:
               restartPolicy: Never
               containers:
                 - name: busybox
-                  image: busybox
+                  image: quay.io/project-codeflare/busybox
                   imagePullPolicy: IfNotPresent
                   command: ["sh", "-c", "sleep 10"]
                   resources:
