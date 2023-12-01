@@ -149,7 +149,7 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 		available[priority].Add(r.ClusterCapacity)
 		available[priority].Sub(request)
 		if expired {
-			mcadLog.Info("Available capacity", "priority", priority, "capacity", available)
+			mcadLog.Info("Available capacity", "priority", priority, "capacity", available[priority])
 		}
 	}
 	if expired {
