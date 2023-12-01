@@ -214,6 +214,8 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
+	// initialize periodic dispatch invocation
+	r.triggerDispatch()
 	// watch AppWrapper pods, jobs, watch events
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mcadv1beta1.AppWrapper{}).
