@@ -15,7 +15,6 @@
 export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
 export CLUSTER_CONTEXT="--name test"
-# Using older image due to older version of kubernetes cluster"
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
 export IMAGE_UBUNTU_LATEST="quay.io/quay/ubuntu:latest"
 export IMAGE_UBI_LATEST="registry.access.redhat.com/ubi8/ubi:latest"
