@@ -41,19 +41,25 @@ type PodCounts struct {
 	Succeeded int
 }
 
-const appWrapperNamespacePlaceholder = "<APPWRAPPER_NAMESPACE>"
-const appWrapperNamePlaceholder = "<APPWRAPPER_NAME>"
-
-// Replace placeholders in map with AppWrapper metadata
+// Add labels to metadata for subresources
 func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
-	for k, v := range m {
+	// assume an object with fields apiVersion, kind, and metadata is a subresource
+	_, hasApiVersion := m["apiVersion"]
+	_, hasKind := m["kind"]
+	metadata, hasMetadata := m["metadata"].(map[string]interface{})
+	if hasApiVersion && hasKind && hasMetadata {
+		// inject labels in metadata
+		labels, hasLabels := metadata["labels"].(map[string]interface{})
+		if !hasLabels {
+			labels = map[string]interface{}{}
+			metadata["labels"] = labels
+		}
+		labels[namespaceLabel] = appWrapper.Namespace
+		labels[nameLabel] = appWrapper.Name
+	}
+	// visit submaps and arrays
+	for _, v := range m {
 		switch v := v.(type) {
-		case string:
-			if strings.HasPrefix(v, appWrapperNamespacePlaceholder) {
-				m[k] = strings.Replace(v, appWrapperNamespacePlaceholder, appWrapper.Namespace, 1)
-			} else if strings.HasPrefix(v, appWrapperNamePlaceholder) {
-				m[k] = strings.Replace(v, appWrapperNamePlaceholder, appWrapper.Name, 1)
-			}
 		case map[string]interface{}:
 			fixMap(appWrapper, v)
 		case []interface{}:
@@ -62,16 +68,11 @@ func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
 	}
 }
 
-// Replace placeholders in array with AppWrapper metadata
+// Add labels to metadata for subresources
 func fixArray(appWrapper *mcadv1beta1.AppWrapper, a []interface{}) {
-	for k, v := range a {
+	// visit submaps and arrays
+	for _, v := range a {
 		switch v := v.(type) {
-		case string:
-			if strings.HasPrefix(v, appWrapperNamespacePlaceholder) {
-				a[k] = strings.Replace(v, appWrapperNamespacePlaceholder, appWrapper.Namespace, 1)
-			} else if strings.HasPrefix(v, appWrapperNamePlaceholder) {
-				a[k] = strings.Replace(v, appWrapperNamePlaceholder, appWrapper.Name, 1)
-			}
 		case map[string]interface{}:
 			fixMap(appWrapper, v)
 		case []interface{}:

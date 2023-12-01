@@ -11,10 +11,7 @@ spec:
         kind: Pod
         metadata:
           namespace: start-up-02
-          name: <APPWRAPPER_NAME>-pod-01
-          labels:
-            appwrapper.mcad.ibm.com/namespace: start-up-02
-            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
+          name: aw-02-pod-01
         spec:
           restartPolicy: Never
           containers:
