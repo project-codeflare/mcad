@@ -75,25 +75,6 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-.PHONY: run-test
-run-test: build envtest ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./internal/... -timeout 130m -count=1 -ginkgo.fail-fast -coverprofile cover.out
-
-# Assumes images are already built
-.PHONY: run-e2e-existing-images
-run-e2e-existing-images:
-ifeq ($(strip $(quay_repository)),)
-	echo "Running e2e with MCAD local image: mcad-controller ${TAG} IfNotPresent."
-	hack/run-e2e-kind.sh mcad-controller ${TAG} IfNotPresent
-else
-	echo "Running e2e with MCAD registry image image: ${quay_repository}/mcad-controller ${TAG}."
-	hack/run-e2e-kind.sh ${quay_repository}/mcad-controller ${TAG}
-endif
-
-.PHONY: run-e2e
-run-e2e: docker-build run-e2e-existing-images
-
-
 GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
 GOLANGCI_LINT_VERSION ?= v1.54.2
 golangci-lint:
@@ -110,15 +91,33 @@ lint: golangci-lint ## Run golangci-lint linter & yamllint
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
 
+.PHONY: run
+run: manifests generate fmt vet ## Run a controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+
+.PHONY: run-test
+run-test: build envtest ## Run unit tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./internal/... -timeout 130m -count=1 -ginkgo.fail-fast -coverprofile cover.out
+
+# Assumes images are already built
+.PHONY: run-e2e-existing-images
+run-e2e-existing-images:
+ifeq ($(strip $(quay_repository)),)
+	echo "Running e2e with MCAD local image: mcad-controller ${TAG} IfNotPresent."
+	hack/run-e2e-kind.sh mcad-controller ${TAG} IfNotPresent
+else
+	echo "Running e2e with MCAD registry image image: ${quay_repository}/mcad-controller ${TAG}."
+	hack/run-e2e-kind.sh ${quay_repository}/mcad-controller ${TAG}
+endif
+
+.PHONY: run-e2e
+run-e2e: docker-build run-e2e-existing-images ## Build docker image and run end-to-end test suite
+
 ##@ Build
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
-
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.

@@ -106,7 +106,11 @@ See [https://pre-commit.com](https://pre-commit.com) for prerequisites.
 
 ## Running tests locally
 
-See the detailed instructons in [test/README.md](test/README.md)
+You can do `make run-e2e` to build MCAD and run the entire
+test suite against it on freshly created `kind` cluster in
+a fully automated fashion.  For development purposes, other
+modes are also supported. See the detailed instructons in
+[test/README.md](test/README.md) for more details.
 
 ## License
 
