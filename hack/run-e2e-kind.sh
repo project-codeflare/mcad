@@ -19,7 +19,6 @@ export MCAD_IMAGE_PULL_POLICY="${3-Always}"
 export IMAGE_MCAD="${IMAGE_REPOSITORY_MCAD}:${IMAGE_TAG_MCAD}"
 export GORACE=1
 export CLUSTER_STARTED="false"
-export USE_EXISTING_MCAD="false"
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
@@ -30,8 +29,8 @@ kind_up_cluster
 extend_resources
 setup_mcad_env
 
-kuttl_tests
 mcad_up
+kuttl_tests
 go test ./test/e2e -v -timeout 130m -count=1 -ginkgo.failFast
 
 RC=$?

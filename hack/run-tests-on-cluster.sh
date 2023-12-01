@@ -18,7 +18,6 @@ export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 export GORACE=1
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"false"}
 export CLUSTER_STARTED="true"
-export USE_EXISTING_MCAD="true"
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 

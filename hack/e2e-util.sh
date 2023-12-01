@@ -56,9 +56,9 @@ function update_test_host {
   which kind >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
-    # Download kind binary (0.20.0)
+    # Download kind binary (0.19.0)
     echo "Downloading and installing kind...."
-    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.20.0/kind-linux-${arch} && \
+    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.19.0/kind-linux-${arch} && \
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
@@ -386,7 +386,6 @@ function extend_resources {
 
 function kuttl_tests {
   for kuttl_test in ${KUTTL_TEST_SUITES[@]}; do
-    # NOTE: TestSuite installs the mcad helm chart configured as needed for the test unless USE_EXISTING_MCAD is true
     echo "kubectl kuttl test --config ${kuttl_test}"
     kubectl kuttl test --config ${kuttl_test}
     if [ $? -ne 0 ]
@@ -394,9 +393,5 @@ function kuttl_tests {
       echo "kuttl e2e test '${kuttl_test}' failure, exiting."
       exit 1
     fi
-    if [[ "$USE_EXISTING_MCAD" != "true" ]]; then
-       undeploy_mcad_helm
-    fi
   done
-  rm -f kubeconfig
 }
