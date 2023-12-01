@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
 	"k8s.io/apimachinery/pkg/util/wait"
