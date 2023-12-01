@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -150,7 +150,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		})
 	*/
 
-	It("MCAD CPU Requeuing - Deletion After Maximum Requeuing Times Test", func() {
+	It("MCAD CPU Requeuing - Deletion After Maximum Requeuing Times Test", Label("slow"), func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD CPU Requeuing - Deletion After Maximum Requeuing Times Test - Started.\n")
 
 		context := initTestContext()
@@ -661,7 +661,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 	})
 
-	It("MCAD Job Completion No-requeue Test", func() {
+	It("MCAD Job Completion No-requeue Test", Label("slow"), func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Completion No-requeue Test - Started.\n")
 		context := initTestContext()
 		var appwrappers []*arbv1.AppWrapper
