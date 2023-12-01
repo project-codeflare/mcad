@@ -73,9 +73,10 @@ make manifests
 
 Alternatively, MCAD can be installed on a cluster using Helm.
 
-Install the CRDs and controller in the `kube-system` namespace:
+Install the CRDs and controller in the `mcad-system` namespace:
 ```sh
-helm install --namespace kube-system mcad-controller deployment/mcad-controller \
+helm install --namespace mcad-system mcad-controller deployment/mcad-controller \
+  --create-namespace \
   --set image.repository=<image-name> \
   --set image.tag=<image-tag> \
   --set resources.requests.cpu=100m \
@@ -84,9 +85,9 @@ helm install --namespace kube-system mcad-controller deployment/mcad-controller 
   --set resources.limits.memory=4096Mi
 ```
 
-Uninstall from `kube-system` namespace:
+Uninstall from `mcad-system` namespace:
 ```sh
-helm uninstall mcad-controller -n kube-system
+helm uninstall mcad-controller -n mcad-system
 ```
 
 Uninstall CRDs:
@@ -105,11 +106,11 @@ See [https://pre-commit.com](https://pre-commit.com) for prerequisites.
 
 ## Running tests locally
 
-Make sure Kind and Helm v3 are installed on your laptop. To run kuttl tests locally use command:
-
-```sh
-sh hack/run-e2e-kind.sh <image-name> <image-tag>
-```
+You can do `make run-e2e` to build MCAD and run the entire
+test suite against it on freshly created `kind` cluster in
+a fully automated fashion.  For development purposes, other
+modes are also supported. See the detailed instructons in
+[test/README.md](test/README.md) for more details.
 
 ## License
 

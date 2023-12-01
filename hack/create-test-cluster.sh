@@ -12,31 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Create and configure a kind cluster for running the e2e tests
+# Does NOT install mcad
+
 export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
-export IMAGE_REPOSITORY_MCAD="${1}"
-export IMAGE_TAG_MCAD="${2}"
-export MCAD_IMAGE_PULL_POLICY="${3-Always}"
-export IMAGE_MCAD="${IMAGE_REPOSITORY_MCAD}:${IMAGE_TAG_MCAD}"
-export GORACE=1
-export CLUSTER_STARTED="false"
+CLUSTER_STARTED="false"
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
-trap cleanup EXIT
 update_test_host
 check_prerequisites
 kind_up_cluster
 extend_resources
 setup_mcad_env
-
-mcad_up
-kuttl_tests
-go test ./test/e2e -v -timeout 130m -count=1 -ginkgo.failFast
-
-RC=$?
-if [ ${RC} -eq 0 ]
-then
-  DUMP_LOGS="false"
-fi
-echo "End to end test script return code set to ${RC}"
-exit ${RC}

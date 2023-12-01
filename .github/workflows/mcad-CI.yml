@@ -38,7 +38,7 @@ jobs:
       run: make build
 
     - name: Run Unit tests
-      run: make test
+      run: make run-test
 
     - name: Build Image
       run: |
@@ -46,4 +46,4 @@ jobs:
 
     - name: Run E2E tests
       run: |
-        make run-e2e -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+        make run-e2e-existing-images -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
