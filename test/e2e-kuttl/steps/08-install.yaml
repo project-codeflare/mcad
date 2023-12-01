@@ -13,18 +13,11 @@ spec:
         kind: Job
         metadata:
           namespace: start-up-02
-          name: <APPWRAPPER_NAME>-aw-08
-          labels:
-            appwrapper.mcad.ibm.com/namespace: start-up-02
-            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
+          name: aw-08-job-01
         spec:
           template:
             metadata:
               namespace: start-up-02
-              name: <APPWRAPPER_NAME>-aw-08
-              labels:
-                appwrapper.mcad.ibm.com/namespace: start-up-02
-                appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
             spec:
               containers:
               - name: busybox

@@ -10,23 +10,18 @@ spec:
         apiVersion: apps/v1
         kind: Deployment
         metadata:
-          name: <APPWRAPPER_NAME>-aw-01
+          name: aw-01
           namespace: start-up-03
-          labels:
-            appwrapper.mcad.ibm.com/namespace: start-up-03
-            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
         spec:
           replicas: 2
           selector:
             matchLabels:
-              app: <APPWRAPPER_NAME>-aw-01
+              app: aw-01
           template:
             metadata:
               namespace: start-up-03
               labels:
-                appwrapper.mcad.ibm.com/namespace: start-up-03
-                appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
-                app: <APPWRAPPER_NAME>-aw-01
+                app: aw-01
             spec:
               containers:
               - name: nginx

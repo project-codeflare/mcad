@@ -18,11 +18,7 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
-          name: <APPWRAPPER_NAME>-1
-          labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
-            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
+          name: appwrapper-sample-1
         spec:
           restartPolicy: Never
           containers:
@@ -42,11 +38,7 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
-          name: <APPWRAPPER_NAME>-2
-          labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
-            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
+          name: appwrapper-sample-2
         spec:
           restartPolicy: Never
           containers:

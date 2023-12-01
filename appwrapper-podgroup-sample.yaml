@@ -14,7 +14,6 @@ spec:
         apiVersion: scheduling.sigs.k8s.io/v1alpha1
         kind: PodGroup
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
           name: podgroup-1
         spec:
           minMember: 2
@@ -26,11 +25,8 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
-          name: <APPWRAPPER_NAME>-1
+          name: appwrapper-podgroup-sample-1
           labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
-            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
             pod-group.scheduling.sigs.k8s.io: podgroup-1
         spec:
           schedulerName: scheduler-plugins-scheduler
@@ -52,11 +48,8 @@ spec:
         apiVersion: v1
         kind: Pod
         metadata:
-          namespace: <APPWRAPPER_NAMESPACE>
-          name: <APPWRAPPER_NAME>-2
+          name: appwrapper-podgroup-sample-2
           labels:
-            appwrapper.mcad.ibm.com/namespace: <APPWRAPPER_NAMESPACE>
-            appwrapper.mcad.ibm.com: <APPWRAPPER_NAME>
             pod-group.scheduling.sigs.k8s.io: podgroup-1
         spec:
           schedulerName: scheduler-plugins-scheduler
