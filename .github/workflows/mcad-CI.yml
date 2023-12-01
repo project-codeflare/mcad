@@ -38,7 +38,7 @@ jobs:
       run: make build
 
     - name: Run Unit tests
-      run: make test
+      run: make run-test
 
     - name: Build Image
       run: |
