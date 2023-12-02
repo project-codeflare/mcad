@@ -43,17 +43,22 @@ type PodCounts struct {
 
 // Add labels to metadata for subresources
 func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
-	// assume an object with fields apiVersion, kind, and metadata is a subresource
-	_, hasApiVersion := m["apiVersion"]
-	_, hasKind := m["kind"]
-	metadata, hasMetadata := m["metadata"].(map[string]interface{})
-	if hasApiVersion && hasKind && hasMetadata {
-		// inject labels in metadata
-		labels, hasLabels := metadata["labels"].(map[string]interface{})
-		if !hasLabels {
-			labels = map[string]interface{}{}
-			metadata["labels"] = labels
+	// inject metadata in templates
+	if template, ok := m["template"].(map[string]interface{}); ok {
+		if _, ok := template["spec"]; ok {
+			if _, ok := template["metadata"]; !ok {
+				template["metadata"] = map[string]interface{}{}
+			}
 		}
+	}
+	// inject labels in metadata
+	if metadata, ok := m["metadata"].(map[string]interface{}); ok {
+		if _, ok := metadata["labels"]; !ok {
+			metadata["labels"] = map[string]interface{}{}
+		}
+	}
+	// inject appwrapper labels
+	if labels, ok := m["labels"].(map[string]interface{}); ok {
 		labels[namespaceLabel] = appWrapper.Namespace
 		labels[nameLabel] = appWrapper.Name
 	}
