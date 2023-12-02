@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -93,8 +94,11 @@ func parseResource(appWrapper *mcadv1beta1.AppWrapper, raw []byte) (*unstructure
 		return nil, err
 	}
 	fixMap(appWrapper, obj.UnstructuredContent())
-	if obj.GetNamespace() == "" {
-		obj.SetNamespace("default")
+	namespace := obj.GetNamespace()
+	if namespace == "" {
+		obj.SetNamespace(appWrapper.Namespace)
+	} else if namespace != appWrapper.Namespace {
+		return nil, fmt.Errorf("generic item namespace \"%s\" is different from AppWrapper namespace \"%s\"", namespace, appWrapper.Namespace)
 	}
 	return obj, nil
 }
