@@ -18,25 +18,17 @@ to:
 apiVersion: workload.codeflare.dev/v1beta1
 kind: AppWrapper
 ```
-Second add a namespace label to wrapped resources and pod specs. Concretely,
-replace every instance of:
+Second add a label to pod specs:
 ```yaml
-  labels:
-    appwrapper.mcad.ibm.com: my-appwrapper-name
+appwrapper.mcad.ibm.com: placeholder
 ```
-with:
-```yaml
-  labels:
-    appwrapper.mcad.ibm.com/namespace: my-appwrapper-namespace
-    appwrapper.mcad.ibm.com: my-appwrapper-name
-```
+The label value is not important.
 
 Here is a complete example:
 ```yaml
 apiVersion: workload.codeflare.dev/v1beta1 # new apiVersion
 kind: AppWrapper
 metadata:
-  namespace: default
   name: appwrapper-sample
 spec:
   priority: 5
@@ -57,18 +49,13 @@ spec:
         metadata:
           namespace: default
           name: sample-job
-          labels:
-            appwrapper.mcad.ibm.com/namespace: default # new namespace label
-            appwrapper.mcad.ibm.com: appwrapper-sample
         spec:
           parallelism: 1
           completions: 1
           template:
             metadata:
-              namespace: default
               labels:
-                appwrapper.mcad.ibm.com/namespace: default # new namespace label
-                appwrapper.mcad.ibm.com: appwrapper-sample
+                appwrapper.mcad.ibm.com: placeholder # pod spec label
             spec:
               restartPolicy: Never
               containers:

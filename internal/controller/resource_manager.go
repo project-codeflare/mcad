@@ -42,26 +42,30 @@ type PodCounts struct {
 	Succeeded int
 }
 
-// Add labels to metadata for subresources
+// Fix labels in maps
 func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
-	// inject metadata in templates
-	if template, ok := m["template"].(map[string]interface{}); ok {
-		if _, ok := template["spec"]; ok {
-			if _, ok := template["metadata"]; !ok {
-				template["metadata"] = map[string]interface{}{}
+	// inject placeholder in pod specs
+	if spec, ok := m["spec"].(map[string]interface{}); ok {
+		if _, ok := spec["containers"]; ok {
+			metadata, ok := m["metadata"].(map[string]interface{})
+			if !ok {
+				metadata = map[string]interface{}{}
+				m["metadata"] = metadata
 			}
+			labels, ok := metadata["labels"].(map[string]interface{})
+			if !ok {
+				labels = map[string]interface{}{}
+				metadata["labels"] = labels
+			}
+			labels[nameLabel] = "placeholder"
 		}
 	}
-	// inject labels in metadata
-	if metadata, ok := m["metadata"].(map[string]interface{}); ok {
-		if _, ok := metadata["labels"]; !ok {
-			metadata["labels"] = map[string]interface{}{}
-		}
-	}
-	// inject appwrapper labels
+	// replace placeholder with actual labels
 	if labels, ok := m["labels"].(map[string]interface{}); ok {
-		labels[namespaceLabel] = appWrapper.Namespace
-		labels[nameLabel] = appWrapper.Name
+		if _, ok := labels[nameLabel]; ok {
+			labels[namespaceLabel] = appWrapper.Namespace
+			labels[nameLabel] = appWrapper.Name
+		}
 	}
 	// visit submaps and arrays
 	for _, v := range m {
@@ -74,7 +78,7 @@ func fixMap(appWrapper *mcadv1beta1.AppWrapper, m map[string]interface{}) {
 	}
 }
 
-// Add labels to metadata for subresources
+// Fix labels in arrays
 func fixArray(appWrapper *mcadv1beta1.AppWrapper, a []interface{}) {
 	// visit submaps and arrays
 	for _, v := range a {
