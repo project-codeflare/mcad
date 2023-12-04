@@ -31,7 +31,7 @@ setup_mcad_env
 
 mcad_up
 kuttl_tests
-go test ./test/e2e -v -timeout 130m -count=1 -ginkgo.failFast
+go test ./test/e2e -v -timeout 130m -count=1 -ginkgo.fail-fast
 
 RC=$?
 if [ ${RC} -eq 0 ]
