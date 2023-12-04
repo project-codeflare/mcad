@@ -168,133 +168,109 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	/*
-			TODO: DAVE - DISABLED BECAUSE OF APPARENT BUG in v2 CONTROLLER when a resource is being deleted out from under it -- keeps attempting to recreate it
-		It("Create AppWrapper - StatefulSet Only - 2 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - StatefulSet Only - 2 Pods - Started.\n")
+	It("Create AppWrapper - StatefulSet Only - 2 Pods", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - StatefulSet Only - 2 Pods - Started.\n")
 
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-			aw := createStatefulSetAW(context, "aw-statefulset-2")
-			appwrappers = append(appwrappers, aw)
+		aw := createStatefulSetAW(context, "aw-statefulset-2")
+		appwrappers = append(appwrappers, aw)
 
-			err := waitAWPodsReady(context, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	*/
+		err := waitAWPodsReady(context, aw)
+		Expect(err).NotTo(HaveOccurred())
+	})
 
-	/*
-			TODO: DAVE - DISABLED BECAUSE OF APPARENT BUG in v2 CONTROLLER when a resource is being deleted out from under it
-		It("Create AppWrapper - Generic StatefulSet Only - 2 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Generic StatefulSet Only - 2 Pods - Started.\n")
+	It("Create AppWrapper - Generic StatefulSet Only - 2 Pods", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Generic StatefulSet Only - 2 Pods - Started.\n")
 
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-			aw := createGenericStatefulSetAW(context, "aw-generic-statefulset-2")
-			appwrappers = append(appwrappers, aw)
+		aw := createGenericStatefulSetAW(context, "aw-generic-statefulset-2")
+		appwrappers = append(appwrappers, aw)
 
-			err := waitAWPodsReady(context, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	*/
+		err := waitAWPodsReady(context, aw)
+		Expect(err).NotTo(HaveOccurred())
+	})
 
-	/*
-			TODO: DAVE - DISABLED BECAUSE OF APPARENT BUG in v2 CONTROLLER when a resource is being deleted out from under it
-		It("Create AppWrapper - Deployment Only - 3 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Deployment Only 3 Pods - Started.\n")
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+	It("Create AppWrapper - Deployment Only - 3 Pods", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Deployment Only 3 Pods - Started.\n")
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-			aw := createDeploymentAW(context, "aw-deployment-3")
-			appwrappers = append(appwrappers, aw)
+		aw := createDeploymentAW(context, "aw-deployment-3")
+		appwrappers = append(appwrappers, aw)
 
-			fmt.Fprintf(GinkgoWriter, "[e2e] Awaiting %d pods running for AW %s.\n", aw.Spec.Scheduling.MinAvailable, aw.Name)
-			err := waitAWPodsReady(context, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	*/
+		fmt.Fprintf(GinkgoWriter, "[e2e] Awaiting %d pods running for AW %s.\n", aw.Spec.Scheduling.MinAvailable, aw.Name)
+		err := waitAWPodsReady(context, aw)
+		Expect(err).NotTo(HaveOccurred())
+	})
 
-	/*
-				TODO: DAVE - DISABLED BECAUSE OF APPARENT BUG in v2 CONTROLLER when a resource is being deleted out from under it
+	It("Create AppWrapper - Generic Deployment Only - 3 pods", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Generic Deployment Only - 3 pods - Started.\n")
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-		It("Create AppWrapper - Generic Deployment Only - 3 pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Generic Deployment Only - 3 pods - Started.\n")
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+		aw := createGenericDeploymentAW(context, "aw-generic-deployment-3")
+		appwrappers = append(appwrappers, aw)
 
-			aw := createGenericDeploymentAW(context, "aw-generic-deployment-3")
-			appwrappers = append(appwrappers, aw)
-
-			err := waitAWPodsReady(context, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	*/
+		err := waitAWPodsReady(context, aw)
+		Expect(err).NotTo(HaveOccurred())
+	})
 
 	// NOTE: Recommend this test not to be the last test in the test suite it may pass
 	//      the local test but may cause controller to fail which is not
 	//      part of this test's validation.
+	It("Create AppWrapper- Bad PodTemplate", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper- Bad PodTemplate - Started.\n")
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-	/*
-		TODO: DAVE DISABLED BECASUE TEST FAILS WITH v2 CONTROLLER
-		It("Create AppWrapper- Bad PodTemplate", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper- Bad PodTemplate - Started.\n")
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+		aw := createBadPodTemplateAW(context, "aw-bad-podtemplate-2")
+		appwrappers = append(appwrappers, aw)
 
-			aw := createBadPodTemplateAW(context, "aw-bad-podtemplate-2")
+		err := waitAWPodsExists(context, aw, 30*time.Second)
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Create AppWrapper  - Bad Generic PodTemplate Only", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Bad Generic PodTemplate Only - Started.\n")
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
+
+		aw, err := createBadGenericPodTemplateAW(context, "aw-generic-podtemplate-2")
+		if err == nil {
 			appwrappers = append(appwrappers, aw)
+		}
+		Expect(err).To(HaveOccurred())
+	})
 
-			err := waitAWPodsExists(context, aw, 30*time.Second)
-			Expect(err).To(HaveOccurred())
-		})
-	*/
+	It("Create AppWrapper  - PodTemplate Only - 2 Pods", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - PodTemplate Only - 2 Pods - Started.\n")
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-	/*
-			TODO: DAVE DISABLED BECASUE TEST FAILS WITH v2 CONTROLLER
-		It("Create AppWrapper  - Bad Generic PodTemplate Only", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Bad Generic PodTemplate Only - Started.\n")
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+		aw := createPodTemplateAW(context, "aw-podtemplate-2")
+		appwrappers = append(appwrappers, aw)
 
-			aw, err := createBadGenericPodTemplateAW(context, "aw-generic-podtemplate-2")
-			if err == nil {
-				appwrappers = append(appwrappers, aw)
-			}
-			Expect(err).To(HaveOccurred())
-		})
-	*/
-
-	/*
-				TODO: DAVE - DISABLED BECAUSE OF APPARENT BUG in v2 CONTROLLER when a resource is being deleted out from under it
-
-		It("Create AppWrapper  - PodTemplate Only - 2 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - PodTemplate Only - 2 Pods - Started.\n")
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
-
-			aw := createPodTemplateAW(context, "aw-podtemplate-2")
-			appwrappers = append(appwrappers, aw)
-
-			err := waitAWPodsReady(context, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	*/
+		err := waitAWPodsReady(context, aw)
+		Expect(err).NotTo(HaveOccurred())
+	})
 
 	/* TODO: DAVE -- STATUS
 	It("Create AppWrapper  - Check failed pod status", func() {
@@ -328,23 +304,19 @@ var _ = Describe("AppWrapper E2E Test", func() {
 	})
 	*/
 
-	/*
-				TODO: DAVE - DISABLED BECAUSE OF APPARENT BUG in v2 CONTROLLER when a resource is being deleted out from under it
+	It("Create AppWrapper  - Generic Pod Only - 1 Pod", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Generic Pod Only - 1 Pod - Started.\n")
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-		It("Create AppWrapper  - Generic Pod Only - 1 Pod", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Generic Pod Only - 1 Pod - Started.\n")
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+		aw := createGenericPodAW(context, "aw-generic-pod-1")
+		appwrappers = append(appwrappers, aw)
 
-			aw := createGenericPodAW(context, "aw-generic-pod-1")
-			appwrappers = append(appwrappers, aw)
-
-			err := waitAWPodsReady(context, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	*/
+		err := waitAWPodsReady(context, aw)
+		Expect(err).NotTo(HaveOccurred())
+	})
 
 	/*
 		TODO: DAVE TEST DISABLED BECASUE V2 DOESEN'T PARSE GENERIC RESOURCES TO OBTAIN RESOURCE INFO
@@ -429,29 +401,25 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 	// })
 
-	/*
-				TODO: DAVE - DISABLED BECAUSE OF APPARENT BUG in v2 CONTROLLER when a resource is being deleted out from under it
+	It("MCAD Custom Pod Resources Test", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] MCAD Custom Pod Resources Test - Started.\n")
+		context := initTestContext()
+		var appwrappers []*arbv1.AppWrapper
+		appwrappersPtr := &appwrappers
+		defer cleanupTestObjectsPtr(context, appwrappersPtr)
 
-		It("MCAD Custom Pod Resources Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Custom Pod Resources Test - Started.\n")
-			context := initTestContext()
-			var appwrappers []*arbv1.AppWrapper
-			appwrappersPtr := &appwrappers
-			defer cleanupTestObjectsPtr(context, appwrappersPtr)
+		// This should fit on cluster with customPodResources matching deployment resource demands so AW pods are created
+		aw := createGenericDeploymentCustomPodResourcesWithCPUAW(
+			context, "aw-deployment-2-550-vs-550-cpu", "550m", "550m", 2, 60)
 
-			// This should fit on cluster with customPodResources matching deployment resource demands so AW pods are created
-			aw := createGenericDeploymentCustomPodResourcesWithCPUAW(
-				context, "aw-deployment-2-550-vs-550-cpu", "550m", "550m", 2, 60)
+		appwrappers = append(appwrappers, aw)
 
-			appwrappers = append(appwrappers, aw)
+		err := waitAWAnyPodsExists(context, aw)
+		Expect(err).NotTo(HaveOccurred(), "Expecting any pods for app wrapper: aw-deployment-2-550-vs-550-cpu")
 
-			err := waitAWAnyPodsExists(context, aw)
-			Expect(err).NotTo(HaveOccurred(), "Expecting any pods for app wrapper: aw-deployment-2-550-vs-550-cpu")
-
-			err = waitAWPodsReady(context, aw)
-			Expect(err).NotTo(HaveOccurred(), "Expecting pods to be ready for app wrapper: aw-deployment-2-550-vs-550-cpu")
-		})
-	*/
+		err = waitAWPodsReady(context, aw)
+		Expect(err).NotTo(HaveOccurred(), "Expecting pods to be ready for app wrapper: aw-deployment-2-550-vs-550-cpu")
+	})
 
 	/* TODO: DAVE STATUS
 	It("MCAD Scheduling Fail Fast Preemption Test", func() {
