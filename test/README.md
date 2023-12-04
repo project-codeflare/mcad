@@ -8,7 +8,7 @@ available (eg `nvida.com/gpu`).
 The [../hack/](../hack) directory contains scripts that can be used to
 create an appropriately configured test cluster using `kind` and to run
 the tests.  The tests can be run in two primary modes:
-  1. ***Fully automated***  The script [../hack/run-e2e.sh](../hack/run-e2e-sh)
+  1. ***Fully automated***  The script [../hack/run-e2e-kind.sh](../hack/run-e2e-kind.sh)
     fully automates creating a properly configured `kind` cluster, deploying
     MCAD on the cluster, running all tests on the cluster, and then
     deleting the cluster when the tests are completed. For easy of use,
@@ -17,6 +17,6 @@ the tests.  The tests can be run in two primary modes:
   2. ***Development mode*** The script [../hack/create-test-cluster.sh](../hack/create-test-cluster.sh)
      can be used to create a correctly configured test cluster without MCAD.
      You can then use either `make install; make run` or `make install; make kind-push; make deploy` to deploy MCAD onto the cluster.
-     You can then either run test cases individually or use the script
+     After MCAD is deployed on the cluster, you can then either run test cases individually or use the script
      [../hack/run-tests-on-cluster.sh](../hack/run-tests-on-cluster.sh) to
-     run the entire test suite against your manually deployed MCAD.
+     run the entire test suite against the MCAD you just deployed.
