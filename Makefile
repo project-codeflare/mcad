@@ -1,14 +1,13 @@
 
-GIT_BRANCH:=$(shell git symbolic-ref --short HEAD 2>&1 | grep -v fatal)
-TAG:=$(shell echo "")
-# Check for current branch name and update 'RELEASE_VER' and 'TAG'
+GIT_BRANCH := $(shell git symbolic-ref --short HEAD 2>&1 | grep -v fatal)
 ifneq ($(strip $(GIT_BRANCH)),)
-	RELEASE_VER:= $(shell git describe --tags --abbrev=0)
-	TAG:=${TAG}${GIT_BRANCH}
 	# replace invalid characters that might exist in the branch name
-	TAG:=$(shell echo ${TAG} | sed 's/[^a-zA-Z0-9]/-/g')
-	TAG:=${TAG}-${RELEASE_VER}
+	TAG := $(shell echo ${GIT_BRANCH} | sed 's/[^a-zA-Z0-9]/-/g')
+else
+	TAG := detached
 endif
+RELEASE_VER := $(shell git describe --tags --abbrev=0)
+TAG := ${TAG}-${RELEASE_VER}
 
 ifeq ($(strip $(quay_repository)),)
 IMG=mcad-controller:${TAG}
@@ -36,6 +35,17 @@ CONTAINER_TOOL ?= docker
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
+
+BUILD_DATE := $(shell date +%Y-%m-%d\ %H:%M)
+BUILD_TAG_SHA := $(shell git rev-list --abbrev-commit --tags --max-count=1)
+BUILD_SHA := $(shell git rev-parse --short HEAD)
+BUILD_VERSION := ${TAG}
+ifneq ($(BUILD_SHA), $(BUILD_TAG_SHA))
+	BUILD_VERSION := ${BUILD_VERSION}-${BUILD_SHA}
+endif
+ifneq ($(shell git status --porcelain),)
+	BUILD_VERSION := ${BUILD_VERSION}-dirty
+endif
 
 .PHONY: all
 all: run-test
@@ -117,7 +127,12 @@ run-e2e: docker-build run-e2e-existing-images ## Build docker image and run end-
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build \
+		-ldflags " \
+			-X 'main.BuildVersion=$(BUILD_VERSION)' \
+			-X 'main.BuildDate=$(BUILD_DATE)' \
+		" \
+		-o bin/manager cmd/main.go
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
