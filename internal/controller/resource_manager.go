@@ -27,8 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -131,14 +129,7 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, appWrapper *
 			if apierrors.IsAlreadyExists(err) {
 				continue // ignore existing resources
 			}
-			if discovery.IsGroupDiscoveryFailedError(err) ||
-				meta.IsNoMatchError(err) ||
-				runtime.IsMissingVersion(err) ||
-				runtime.IsMissingKind(err) ||
-				apierrors.IsInvalid(err) {
-				return err, true // fatal
-			}
-			return err, false // may be retried
+			return err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
 		}
 	}
 	return nil, false
