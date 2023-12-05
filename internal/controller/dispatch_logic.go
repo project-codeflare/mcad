@@ -79,21 +79,21 @@ func updateMetrics(capacity Weights, node v1.Node) {
 	// https://github.com/go-inf/inf/issues/7#issuecomment-504729949
 	capacityCpu, err := strconv.ParseFloat(capacity["cpu"].String(), 64)
 	if err != nil {
-		mcadLog.V(1).Error(err, "Unable to get CPU capacity", "node", node.Name)
+		mcadLog.Error(err, "Unable to get CPU capacity", "node", node.Name)
 	} else {
 		totalCapacityCpu.WithLabelValues(node.Name).Set(capacityCpu)
 	}
 
 	capacityMemory, err := strconv.ParseFloat(capacity["memory"].String(), 64)
 	if err != nil {
-		mcadLog.V(1).Error(err, "Unable to get memory capacity", "node", node.Name)
+		mcadLog.Error(err, "Unable to get memory capacity", "node", node.Name)
 	} else {
 		totalCapacityMemory.WithLabelValues(node.Name).Set(capacityMemory)
 	}
 
 	capacityGpu, err := strconv.ParseFloat(capacity["nvidia.com/gpu"].String(), 64)
 	if err != nil {
-		mcadLog.V(1).Error(err, "Unable to get gpu capacity", "node", node.Name)
+		mcadLog.Error(err, "Unable to get gpu capacity", "node", node.Name)
 	} else {
 		totalCapacityGpu.WithLabelValues(node.Name).Set(capacityGpu)
 	}
