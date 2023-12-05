@@ -134,7 +134,8 @@ func (r *AppWrapperReconciler) createResources(ctx context.Context, appWrapper *
 			if discovery.IsGroupDiscoveryFailedError(err) ||
 				meta.IsNoMatchError(err) ||
 				runtime.IsMissingVersion(err) ||
-				runtime.IsMissingKind(err) {
+				runtime.IsMissingKind(err) ||
+				apierrors.IsInvalid(err) {
 				return err, true // fatal
 			}
 			return err, false // may be retried

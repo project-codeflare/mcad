@@ -661,7 +661,7 @@ func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 		"template": {
 			"metadata": {
 				"labels": {
-					"app": "` + name + `",
+					"app": "` + name + `"
 				}
 			},
 			"spec": {
@@ -2080,7 +2080,7 @@ func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 	"kind": "Pod",
 	"metadata": {
 		"name": "aw-podtemplate-1",
-		"namespace": "test",
+		"namespace": "test"
 	},
 	"spec": {
 			"containers": [
