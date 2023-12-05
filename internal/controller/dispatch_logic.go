@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	"gopkg.in/inf.v0"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,28 +76,33 @@ LOOP:
 
 // Update metrics
 func updateMetrics(capacity Weights, node v1.Node) {
-	// In general, it's not recommended to convert Dec to float64. However, we have no choice since Prometheus works with float64.
-	// https://github.com/go-inf/inf/issues/7#issuecomment-504729949
-	capacityCpu, err := strconv.ParseFloat(capacity["cpu"].String(), 64)
+	capacityCpu, err := Dec2float64(capacity["cpu"])
 	if err != nil {
 		mcadLog.Error(err, "Unable to get CPU capacity", "node", node.Name)
 	} else {
 		totalCapacityCpu.WithLabelValues(node.Name).Set(capacityCpu)
 	}
 
-	capacityMemory, err := strconv.ParseFloat(capacity["memory"].String(), 64)
+	capacityMemory, err := Dec2float64(capacity["memory"])
 	if err != nil {
 		mcadLog.Error(err, "Unable to get memory capacity", "node", node.Name)
 	} else {
 		totalCapacityMemory.WithLabelValues(node.Name).Set(capacityMemory)
 	}
 
-	capacityGpu, err := strconv.ParseFloat(capacity["nvidia.com/gpu"].String(), 64)
+	capacityGpu, err := Dec2float64(capacity["nvidia.com/gpu"])
 	if err != nil {
 		mcadLog.Error(err, "Unable to get gpu capacity", "node", node.Name)
 	} else {
 		totalCapacityGpu.WithLabelValues(node.Name).Set(capacityGpu)
 	}
+}
+
+// Dec2float64 converts inf.Dec to float64
+func Dec2float64(d *inf.Dec) (float64, error) {
+	// In general, it's not recommended to convert Dec to float64. However, we have no choice since Prometheus works with float64.
+	// https://github.com/go-inf/inf/issues/7#issuecomment-504729949
+	return strconv.ParseFloat(d.String(), 64)
 }
 
 // Compute resources reserved by AppWrappers at every priority level for the specified cluster
