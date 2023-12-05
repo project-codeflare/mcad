@@ -186,6 +186,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 			// reset status to queued/idle
 			appWrapper.Status.Restarts += 1
+			appWrapper.Status.RequeueTimestamp = metav1.Now() // overwrite requeue decision time with completion time
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 		}
 
