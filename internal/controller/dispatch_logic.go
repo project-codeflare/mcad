@@ -90,11 +90,13 @@ func updateMetrics(capacity Weights, node v1.Node) {
 		totalCapacityMemory.WithLabelValues(node.Name).Set(capacityMemory)
 	}
 
-	capacityGpu, err := Dec2float64(capacity["nvidia.com/gpu"])
-	if err != nil {
-		mcadLog.Error(err, "Unable to get gpu capacity", "node", node.Name)
-	} else {
-		totalCapacityGpu.WithLabelValues(node.Name).Set(capacityGpu)
+	if val, exists := capacity["nvidia.com/gpu"]; exists {
+		capacityGpu, err := Dec2float64(val)
+		if err != nil {
+			mcadLog.Error(err, "Unable to get GPU capacity", "node", node.Name)
+		} else {
+			totalCapacityGpu.WithLabelValues(node.Name).Set(capacityGpu)
+		}
 	}
 }
 
