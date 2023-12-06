@@ -20,6 +20,8 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -33,31 +35,32 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = Describe("Quota E2E Test", func() {
-	var context *testContext
+	var ctx context.Context
 	var appwrappers []*arbv1.AppWrapper
 
 	BeforeEach(func() {
-		context = initTestContext()
 		appwrappers = []*arbv1.AppWrapper{}
+		ctx = extendContextWithClient(context.Background())
+		ensureNamespaceExists(ctx)
 	})
 
 	AfterEach(func() {
-		cleanupTestObjectsPtr(context, &appwrappers)
+		cleanupTestObjectsPtr(ctx, &appwrappers)
 	})
 
 	It("Create AppWrapper  - Generic Pod Only - Sufficient Quota 1 Tree", func() {
-		aw := createGenericPodAW(context, "aw-generic-pod-1")
+		aw := createGenericPodAW(ctx, "aw-generic-pod-1")
 		appwrappers = append(appwrappers, aw)
 
-		err := waitAWPodsReady(context, aw)
+		err := waitAWPodsReady(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Create AppWrapper  - Generic Pod Only - Insufficient Quota 1 Tree", func() {
-		aw := createGenericPodAWCustomDemand(context, "aw-generic-large-cpu-pod-1", "9000m")
+		aw := createGenericPodAWCustomDemand(ctx, "aw-generic-large-cpu-pod-1", "9000m")
 		appwrappers = append(appwrappers, aw)
 
-		err := waitAWPodsReady(context, aw)
+		err := waitAWPodsReady(ctx, aw)
 		Expect(err).To(HaveOccurred())
 	})
 })
