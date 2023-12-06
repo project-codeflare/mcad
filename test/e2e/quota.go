@@ -22,18 +22,30 @@ package e2e
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
 )
 
+var _ = BeforeSuite(func() {
+	log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+})
+
 var _ = Describe("Quota E2E Test", func() {
+	var context *testContext
+	var appwrappers []*arbv1.AppWrapper
+
+	BeforeEach(func() {
+		context = initTestContext()
+		appwrappers = []*arbv1.AppWrapper{}
+	})
+
+	AfterEach(func() {
+		cleanupTestObjectsPtr(context, &appwrappers)
+	})
 
 	It("Create AppWrapper  - Generic Pod Only - Sufficient Quota 1 Tree", func() {
-		context := initTestContext()
-		var appwrappers []*arbv1.AppWrapper
-		appwrappersPtr := &appwrappers
-		defer cleanupTestObjectsPtr(context, appwrappersPtr)
-
 		aw := createGenericPodAW(context, "aw-generic-pod-1")
 		appwrappers = append(appwrappers, aw)
 
@@ -42,16 +54,10 @@ var _ = Describe("Quota E2E Test", func() {
 	})
 
 	It("Create AppWrapper  - Generic Pod Only - Insufficient Quota 1 Tree", func() {
-		context := initTestContext()
-		var appwrappers []*arbv1.AppWrapper
-		appwrappersPtr := &appwrappers
-		defer cleanupTestObjectsPtr(context, appwrappersPtr)
-
 		aw := createGenericPodAWCustomDemand(context, "aw-generic-large-cpu-pod-1", "9000m")
 		appwrappers = append(appwrappers, aw)
 
 		err := waitAWPodsReady(context, aw)
 		Expect(err).To(HaveOccurred())
-
 	})
 })

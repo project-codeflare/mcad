@@ -20,8 +20,6 @@ import (
 	gcontext "context"
 	"fmt"
 	"math/rand"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -47,30 +45,15 @@ var threeMinutes = 180 * time.Second
 var tenMinutes = 600 * time.Second
 var threeHundredSeconds = 300 * time.Second
 
-var oneCPU = v1.ResourceList{"cpu": resource.MustParse("1000m")}
-var twoCPU = v1.ResourceList{"cpu": resource.MustParse("2000m")}
-var threeCPU = v1.ResourceList{"cpu": resource.MustParse("3000m")}
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
+type testContext struct {
+	client    client.Client
+	namespace string
+	ctx       gcontext.Context
 }
 
-type context struct {
-	client                 client.Client
-	namespace              string
-	queues                 []string
-	enableNamespaceAsQueue bool
-	ctx                    gcontext.Context
-}
-
-func initTestContext() *context {
-	enableNamespaceAsQueue, _ := strconv.ParseBool(os.Getenv("ENABLE_NAMESPACES_AS_QUEUE"))
-	cxt := &context{
+func initTestContext() *testContext {
+	cxt := &testContext{
 		namespace: "test",
-		queues:    []string{"q1", "q2"},
 	}
 
 	scheme := runtime.NewScheme()
@@ -80,8 +63,6 @@ func initTestContext() *context {
 	kubeclient, err := client.New(kubeconfig, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
 	cxt.client = kubeclient
-
-	cxt.enableNamespaceAsQueue = enableNamespaceAsQueue
 
 	_ = cxt.client.Create(gcontext.Background(), &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -111,7 +92,7 @@ func initTestContext() *context {
 	return cxt
 }
 
-func cleanupTestContextExtendedTime(cxt *context, seconds time.Duration) {
+func cleanupTestContextExtendedTime(cxt *testContext, seconds time.Duration) {
 	// foreground := metav1.DeletePropagationForeground
 	/* err := cxt.kubeclient.CoreV1().Namespaces().Delete(gcontext.Background(), cxt.namespace, metav1.DeleteOptions{
 		PropagationPolicy: &foreground,
@@ -136,41 +117,11 @@ func cleanupTestContextExtendedTime(cxt *context, seconds time.Duration) {
 	// Expect(err).NotTo(HaveOccurred())
 }
 
-func cleanupTestContext(cxt *context) {
+func cleanupTestContext(cxt *testContext) {
 	cleanupTestContextExtendedTime(cxt, ninetySeconds)
 }
 
-type taskSpec struct {
-	min, rep int32
-	img      string
-	hostport int32
-	req      v1.ResourceList
-	affinity *v1.Affinity
-	labels   map[string]string
-}
-
-type jobSpec struct {
-	name      string
-	namespace string
-	queue     string
-	tasks     []taskSpec
-}
-
-func getNS(context *context, job *jobSpec) string {
-	if len(job.namespace) != 0 {
-		return job.namespace
-	}
-
-	if context.enableNamespaceAsQueue {
-		if len(job.queue) != 0 {
-			return job.queue
-		}
-	}
-
-	return context.namespace
-}
-
-func createGenericAWTimeoutWithStatus(context *context, name string) *arbv1.AppWrapper {
+func createGenericAWTimeoutWithStatus(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -247,7 +198,7 @@ func createGenericAWTimeoutWithStatus(context *context, name string) *arbv1.AppW
 	return aw
 }
 
-func anyPodsExist(ctx *context, awNamespace string, awName string) wait.ConditionFunc {
+func anyPodsExist(ctx *testContext, awNamespace string, awName string) wait.ConditionFunc {
 	return func() (bool, error) {
 		podList := &v1.PodList{}
 		err := ctx.client.List(gcontext.Background(), podList, &client.ListOptions{Namespace: awNamespace})
@@ -271,7 +222,7 @@ func anyPodsExist(ctx *context, awNamespace string, awName string) wait.Conditio
 	}
 }
 
-func podPhase(ctx *context, awNamespace string, awName string, pods []*v1.Pod, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
+func podPhase(ctx *testContext, awNamespace string, awName string, pods []*v1.Pod, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
 	return func() (bool, error) {
 		podList := &v1.PodList{}
 		err := ctx.client.List(gcontext.Background(), podList, &client.ListOptions{Namespace: awNamespace})
@@ -323,11 +274,11 @@ func podPhase(ctx *context, awNamespace string, awName string, pods []*v1.Pod, p
 	}
 }
 
-func cleanupTestObjectsPtr(context *context, appwrappersPtr *[]*arbv1.AppWrapper) {
+func cleanupTestObjectsPtr(context *testContext, appwrappersPtr *[]*arbv1.AppWrapper) {
 	cleanupTestObjectsPtrVerbose(context, appwrappersPtr, true)
 }
 
-func cleanupTestObjectsPtrVerbose(context *context, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
+func cleanupTestObjectsPtrVerbose(context *testContext, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
 	if appwrappersPtr == nil {
 		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjectsPtr] No  AppWrappers to cleanup.\n")
 	} else {
@@ -335,19 +286,17 @@ func cleanupTestObjectsPtrVerbose(context *context, appwrappersPtr *[]*arbv1.App
 	}
 }
 
-func cleanupTestObjects(context *context, appwrappers []*arbv1.AppWrapper) {
+func cleanupTestObjects(context *testContext, appwrappers []*arbv1.AppWrapper) {
 	cleanupTestObjectsVerbose(context, appwrappers, true)
 }
 
-func cleanupTestObjectsVerbose(context *context, appwrappers []*arbv1.AppWrapper, verbose bool) {
+func cleanupTestObjectsVerbose(context *testContext, appwrappers []*arbv1.AppWrapper, verbose bool) {
 	if appwrappers == nil {
 		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
 		return
 	}
 
 	for _, aw := range appwrappers {
-		// context.karclient.ArbV1().AppWrappers(context.namespace).Delete(aw.Name, &metav1.DeleteOptions{PropagationPolicy: &foreground})
-
 		pods := getPodsOfAppWrapper(context, aw)
 		awNamespace := aw.Namespace
 		awName := aw.Name
@@ -367,8 +316,8 @@ func cleanupTestObjectsVerbose(context *context, appwrappers []*arbv1.AppWrapper
 			var podsStillExisting []*v1.Pod
 			for _, pod := range pods {
 				podExist := &v1.Pod{}
-				_ = context.client.Get(context.ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
-				if podExist != nil {
+				err = context.client.Get(context.ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
+				if err != nil {
 					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
 					podsStillExisting = append(podsStillExisting, podExist)
 				}
@@ -382,7 +331,7 @@ func cleanupTestObjectsVerbose(context *context, appwrappers []*arbv1.AppWrapper
 	cleanupTestContext(context)
 }
 
-func awPodPhase(ctx *context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quite bool) wait.ConditionFunc {
+func awPodPhase(ctx *testContext, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quite bool) wait.ConditionFunc {
 	return func() (bool, error) {
 		defer GinkgoRecover()
 		awIgnored := &arbv1.AppWrapper{}
@@ -445,16 +394,7 @@ func awPodPhase(ctx *context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum
 	}
 }
 
-func waitAWNonComputeResourceActive(ctx *context, aw *arbv1.AppWrapper) error {
-	return waitAWNamespaceActive(ctx, aw)
-}
-
-func waitAWNamespaceActive(ctx *context, aw *arbv1.AppWrapper) error {
-	return wait.Poll(100*time.Millisecond, ninetySeconds, awNamespacePhase(ctx, aw,
-		[]v1.NamespacePhase{v1.NamespaceActive}))
-}
-
-func awNamespacePhase(ctx *context, aw *arbv1.AppWrapper, phase []v1.NamespacePhase) wait.ConditionFunc {
+func awNamespacePhase(ctx *testContext, aw *arbv1.AppWrapper, phase []v1.NamespacePhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		awIgnored := &arbv1.AppWrapper{}
 		err := ctx.client.Get(ctx.ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
@@ -482,81 +422,81 @@ func awNamespacePhase(ctx *context, aw *arbv1.AppWrapper, phase []v1.NamespacePh
 	}
 }
 
-func waitAWPodsReady(ctx *context, aw *arbv1.AppWrapper) error {
+func waitAWPodsReady(ctx *testContext, aw *arbv1.AppWrapper) error {
 	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
-func waitAWPodsCompleted(ctx *context, aw *arbv1.AppWrapper, timeout time.Duration) error {
+func waitAWPodsCompleted(ctx *testContext, aw *arbv1.AppWrapper, timeout time.Duration) error {
 	return waitAWPodsCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false, timeout)
 }
 
-func waitAWPodsNotCompleted(ctx *context, aw *arbv1.AppWrapper) error {
+func waitAWPodsNotCompleted(ctx *testContext, aw *arbv1.AppWrapper) error {
 	return waitAWPodsNotCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
-func waitAWReadyQuiet(ctx *context, aw *arbv1.AppWrapper) error {
+func waitAWReadyQuiet(ctx *testContext, aw *arbv1.AppWrapper) error {
 	return waitAWPodsReadyEx(ctx, aw, threeHundredSeconds, int(aw.Spec.Scheduling.MinAvailable), true)
 }
 
-func waitAWAnyPodsExists(ctx *context, aw *arbv1.AppWrapper) error {
+func waitAWAnyPodsExists(ctx *testContext, aw *arbv1.AppWrapper) error {
 	return waitAWPodsExists(ctx, aw, ninetySeconds)
 }
 
-func waitAWPodsExists(ctx *context, aw *arbv1.AppWrapper, timeout time.Duration) error {
+func waitAWPodsExists(ctx *testContext, aw *arbv1.AppWrapper, timeout time.Duration) error {
 	return wait.Poll(100*time.Millisecond, timeout, anyPodsExist(ctx, aw.Namespace, aw.Name))
 }
 
-func waitAWDeleted(ctx *context, aw *arbv1.AppWrapper, pods []*v1.Pod) error {
+func waitAWDeleted(ctx *testContext, aw *arbv1.AppWrapper, pods []*v1.Pod) error {
 	return waitAWPodsTerminatedEx(ctx, aw.Namespace, aw.Name, pods, 0)
 }
 
-func waitAWPodsDeleted(ctx *context, awNamespace string, awName string, pods []*v1.Pod) error {
+func waitAWPodsDeleted(ctx *testContext, awNamespace string, awName string, pods []*v1.Pod) error {
 	return waitAWPodsDeletedVerbose(ctx, awNamespace, awName, pods, true)
 }
 
-func waitAWPodsDeletedVerbose(ctx *context, awNamespace string, awName string, pods []*v1.Pod, verbose bool) error {
+func waitAWPodsDeletedVerbose(ctx *testContext, awNamespace string, awName string, pods []*v1.Pod, verbose bool) error {
 	return waitAWPodsTerminatedEx(ctx, awNamespace, awName, pods, 0)
 }
 
-func waitAWPending(ctx *context, aw *arbv1.AppWrapper) error {
+func waitAWPending(ctx *testContext, aw *arbv1.AppWrapper) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodPending}, int(aw.Spec.Scheduling.MinAvailable), false))
 }
 
-func waitAWPodsReadyEx(ctx *context, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int, quite bool) error {
+func waitAWPodsReadyEx(ctx *testContext, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int, quite bool) error {
 	return wait.Poll(100*time.Millisecond, waitDuration, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded}, taskNum, quite))
 }
 
-func waitAWPodsCompletedEx(ctx *context, aw *arbv1.AppWrapper, taskNum int, quite bool, timeout time.Duration) error {
+func waitAWPodsCompletedEx(ctx *testContext, aw *arbv1.AppWrapper, taskNum int, quite bool, timeout time.Duration) error {
 	return wait.Poll(100*time.Millisecond, timeout, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodSucceeded}, taskNum, quite))
 }
 
-func waitAWPodsNotCompletedEx(ctx *context, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
+func waitAWPodsNotCompletedEx(ctx *testContext, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
 	return wait.Poll(100*time.Millisecond, threeMinutes, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodPending, v1.PodRunning, v1.PodFailed, v1.PodUnknown}, taskNum, quite))
 }
 
-func waitAWPodsPending(ctx *context, aw *arbv1.AppWrapper) error {
+func waitAWPodsPending(ctx *testContext, aw *arbv1.AppWrapper) error {
 	return waitAWPodsPendingEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
-func waitAWPodsPendingEx(ctx *context, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
+func waitAWPodsPendingEx(ctx *testContext, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodPending}, taskNum, quite))
 }
 
-func waitAWPodsTerminatedEx(ctx *context, namespace string, name string, pods []*v1.Pod, taskNum int) error {
+func waitAWPodsTerminatedEx(ctx *testContext, namespace string, name string, pods []*v1.Pod, taskNum int) error {
 	return waitAWPodsTerminatedExVerbose(ctx, namespace, name, pods, taskNum, true)
 }
 
-func waitAWPodsTerminatedExVerbose(ctx *context, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
+func waitAWPodsTerminatedExVerbose(ctx *testContext, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, podPhase(ctx, namespace, name, pods,
 		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded, v1.PodUnknown, v1.PodFailed, v1.PodPending}, taskNum))
 }
 
-func createJobAWWithInitContainer(context *context, name string, requeuingTimeInSeconds int, requeuingGrowthType string, requeuingMaxNumRequeuings int) *arbv1.AppWrapper {
+func createJobAWWithInitContainer(context *testContext, name string, requeuingTimeInSeconds int, requeuingGrowthType string, requeuingMaxNumRequeuings int) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "batch/v1",
 		"kind": "Job",
 	"metadata": {
@@ -641,7 +581,7 @@ func createJobAWWithInitContainer(context *context, name string, requeuingTimeIn
 	return aw
 }
 
-func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
+func createDeploymentAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -709,7 +649,7 @@ func createDeploymentAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createDeploymentAWwith550CPU(context *context, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith550CPU(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -782,7 +722,7 @@ func createDeploymentAWwith550CPU(context *context, name string) *arbv1.AppWrapp
 	return aw
 }
 
-func createDeploymentAWwith350CPU(context *context, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith350CPU(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -855,7 +795,7 @@ func createDeploymentAWwith350CPU(context *context, name string) *arbv1.AppWrapp
 	return aw
 }
 
-func createDeploymentAWwith426CPU(context *context, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith426CPU(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 	"kind": "Deployment",
 	"metadata": {
@@ -928,7 +868,7 @@ func createDeploymentAWwith426CPU(context *context, name string) *arbv1.AppWrapp
 	return aw
 }
 
-func createDeploymentAWwith425CPU(context *context, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith425CPU(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 	"kind": "Deployment",
 	"metadata": {
@@ -1001,7 +941,7 @@ func createDeploymentAWwith425CPU(context *context, name string) *arbv1.AppWrapp
 	return aw
 }
 
-func createGenericDeploymentAW(context *context, name string) *arbv1.AppWrapper {
+func createGenericDeploymentAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -1070,7 +1010,7 @@ func createGenericDeploymentAW(context *context, name string) *arbv1.AppWrapper 
 	return aw
 }
 
-func createGenericJobAWWithStatus(context *context, name string) *arbv1.AppWrapper {
+func createGenericJobAWWithStatus(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1144,7 +1084,7 @@ func createGenericJobAWWithStatus(context *context, name string) *arbv1.AppWrapp
 	return aw
 }
 
-func createGenericJobAWWithMultipleStatus(context *context, name string) *arbv1.AppWrapper {
+func createGenericJobAWWithMultipleStatus(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1264,7 +1204,7 @@ func createGenericJobAWWithMultipleStatus(context *context, name string) *arbv1.
 	return aw
 }
 
-func createAWGenericItemWithoutStatus(context *context, name string) *arbv1.AppWrapper {
+func createAWGenericItemWithoutStatus(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "scheduling.sigs.k8s.io/v1alpha1",
                         "kind": "PodGroup",
@@ -1305,7 +1245,7 @@ func createAWGenericItemWithoutStatus(context *context, name string) *arbv1.AppW
 	return aw
 }
 
-func createGenericJobAWWithScheduleSpec(context *context, name string) *arbv1.AppWrapper {
+func createGenericJobAWWithScheduleSpec(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1378,7 +1318,7 @@ func createGenericJobAWWithScheduleSpec(context *context, name string) *arbv1.Ap
 	return aw
 }
 
-func createGenericJobAWtWithLargeCompute(context *context, name string) *arbv1.AppWrapper {
+func createGenericJobAWtWithLargeCompute(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1454,77 +1394,7 @@ func createGenericJobAWtWithLargeCompute(context *context, name string) *arbv1.A
 	return aw
 }
 
-func createGenericServiceAWWithNoStatus(context *context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{
-		"apiVersion": "v1",
-		"kind": "Service",
-		"metadata": {
-			"labels": {
-				"resourceName": "test-dep-job-item-svc"
-			},
-			"name": "test-dep-job-item-svc",
-			"namespace": "test"
-		},
-		"spec": {
-			"ports": [
-				{
-					"name": "client",
-					"port": 10001,
-					"protocol": "TCP",
-					"targetPort": 10001
-				},
-				{
-					"name": "dashboard",
-					"port": 8265,
-					"protocol": "TCP",
-					"targetPort": 8265
-				},
-				{
-					"name": "redis",
-					"port": 6379,
-					"protocol": "TCP",
-					"targetPort": 6379
-				}
-			],
-			"selector": {
-				"component": "test-dep-job-item-svc"
-			},
-			"sessionAffinity": "None",
-			"type": "ClusterIP"
-		}
-	}`)
-	// var schedSpecMin int = 1
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "test",
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				// MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 1,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-						CompletionStatus: "Complete",
-					},
-				},
-			},
-		},
-	}
-
-	err := context.client.Create(context.ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createGenericDeploymentAWWithMultipleItems(context *context, name string) *arbv1.AppWrapper {
+func createGenericDeploymentAWWithMultipleItems(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 		"metadata": {
@@ -1650,7 +1520,7 @@ func createGenericDeploymentAWWithMultipleItems(context *context, name string) *
 	return aw
 }
 
-func createGenericDeploymentWithCPUAW(context *context, name string, cpuDemand string, replicas int) *arbv1.AppWrapper {
+func createGenericDeploymentWithCPUAW(context *testContext, name string, cpuDemand string, replicas int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
 	"kind": "Deployment",
@@ -1725,7 +1595,7 @@ func createGenericDeploymentWithCPUAW(context *context, name string, cpuDemand s
 	return aw
 }
 
-func createGenericDeploymentCustomPodResourcesWithCPUAW(context *context, name string, customPodCpuDemand string, cpuDemand string, replicas int, requeuingTimeInSeconds int) *arbv1.AppWrapper {
+func createGenericDeploymentCustomPodResourcesWithCPUAW(context *testContext, name string, customPodCpuDemand string, cpuDemand string, replicas int, requeuingTimeInSeconds int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
 	"kind": "Deployment",
@@ -1809,79 +1679,7 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(context *context, name s
 	return aw
 }
 
-func createNamespaceAW(context *context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "v1",
-		"kind": "Namespace",
-	"metadata": {
-		"name": "aw-namespace-0",
-		"labels": {
-			"app": "aw-namespace-0"
-		}
-	}} `)
-	var schedSpecMin int32 = 0
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 1,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := context.client.Create(context.ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createGenericNamespaceAW(context *context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "v1",
-		"kind": "Namespace",
-	"metadata": {
-		"name": "aw-generic-namespace-0",
-		"labels": {
-			"app": "aw-generic-namespace-0"
-		}
-	}} `)
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 0,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := context.client.Create(context.ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
+func createStatefulSetAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "StatefulSet",
 	"metadata": {
@@ -1950,7 +1748,7 @@ func createStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createGenericStatefulSetAW(context *context, name string) *arbv1.AppWrapper {
+func createGenericStatefulSetAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "StatefulSet",
 	"metadata": {
@@ -2018,12 +1816,7 @@ func createGenericStatefulSetAW(context *context, name string) *arbv1.AppWrapper
 	return aw
 }
 
-// NOTE:
-//
-//	Recommend this test not to be the last test in the test suite it may pass
-//	the local test but may cause controller to fail which is not
-//	part of this test's validation.
-func createBadPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
+func createBadPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "v1",
 		"kind": "Pod",
 		"metadata": {
@@ -2075,7 +1868,7 @@ func createBadPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
+func createPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "v1",
 	"kind": "Pod",
 	"metadata": {
@@ -2151,7 +1944,7 @@ func createPodTemplateAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createPodCheckFailedStatusAW(context *context, name string) *arbv1.AppWrapper {
+func createPodCheckFailedStatusAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 	"apiVersion": "v1",
 	"kind": "Pod",
@@ -2212,7 +2005,7 @@ func createPodCheckFailedStatusAW(context *context, name string) *arbv1.AppWrapp
 	return aw
 }
 
-func createGenericPodAWCustomDemand(context *context, name string, cpuDemand string) *arbv1.AppWrapper {
+func createGenericPodAWCustomDemand(context *testContext, name string, cpuDemand string) *arbv1.AppWrapper {
 	genericItems := fmt.Sprintf(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2280,7 +2073,7 @@ func createGenericPodAWCustomDemand(context *context, name string, cpuDemand str
 	return aw
 }
 
-func createGenericPodAW(context *context, name string) *arbv1.AppWrapper {
+func createGenericPodAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2347,7 +2140,7 @@ func createGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createGenericPodTooBigAW(context *context, name string) *arbv1.AppWrapper {
+func createGenericPodTooBigAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2416,7 +2209,7 @@ func createGenericPodTooBigAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createBadGenericPodAW(context *context, name string) *arbv1.AppWrapper {
+func createBadGenericPodAW(context *testContext, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2468,7 +2261,7 @@ func createBadGenericPodAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createBadGenericItemAW(context *context, name string) *arbv1.AppWrapper {
+func createBadGenericItemAW(context *testContext, name string) *arbv1.AppWrapper {
 	// rb := []byte(`""`)
 	var schedSpecMin int32 = 1
 
@@ -2499,7 +2292,7 @@ func createBadGenericItemAW(context *context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createBadGenericPodTemplateAW(context *context, name string) (*arbv1.AppWrapper, error) {
+func createBadGenericPodTemplateAW(context *testContext, name string) (*arbv1.AppWrapper, error) {
 	rb := []byte(`{"metadata":
 	{
 		"name": "aw-generic-podtemplate-2",
@@ -2557,7 +2350,7 @@ func createBadGenericPodTemplateAW(context *context, name string) (*arbv1.AppWra
 	return aw, err
 }
 
-func deleteAppWrapper(ctx *context, name string) error {
+func deleteAppWrapper(ctx *testContext, name string) error {
 	foreground := metav1.DeletePropagationForeground
 	aw := &arbv1.AppWrapper{ObjectMeta: metav1.ObjectMeta{
 		Name:      name,
@@ -2567,7 +2360,7 @@ func deleteAppWrapper(ctx *context, name string) error {
 
 }
 
-func getPodsOfAppWrapper(ctx *context, aw *arbv1.AppWrapper) []*v1.Pod {
+func getPodsOfAppWrapper(ctx *testContext, aw *arbv1.AppWrapper) []*v1.Pod {
 	awIgnored := &arbv1.AppWrapper{}
 	err := ctx.client.Get(ctx.ctx, client.ObjectKeyFromObject(aw), awIgnored) // TODO: Do we actually need to do this Get?
 	Expect(err).NotTo(HaveOccurred())
@@ -2602,7 +2395,7 @@ func appendRandomString(value string) string {
 	return fmt.Sprintf("%s-%s", value, string(b))
 }
 
-func AppWrapper(context *context, namespace string, name string) func(g gomega.Gomega) *arbv1.AppWrapper {
+func AppWrapper(context *testContext, namespace string, name string) func(g gomega.Gomega) *arbv1.AppWrapper {
 	return func(g gomega.Gomega) *arbv1.AppWrapper {
 		aw := &arbv1.AppWrapper{}
 		err := context.client.Get(context.ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
