@@ -112,7 +112,7 @@ function check_prerequisites {
     echo "kubectl not installed, exiting."
     exit 1
   else
-    echo -n "found kubectl, " && kubectl version
+    echo -n "found kubectl, " && kubectl version --client
   fi
   kubectl kuttl version >/dev/null 2>&1
   if [ $? -ne 0 ]
