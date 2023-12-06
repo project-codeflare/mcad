@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	"gopkg.in/inf.v0"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,8 +50,8 @@ LOOP:
 				continue LOOP
 			}
 		}
-		// add allocatable capacity on the node
-		capacity.Add(NewWeights(node.Status.Allocatable))
+		// compute allocatable capacity on the node
+		nodeCapacity := NewWeights(node.Status.Allocatable)
 		// subtract requests from non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
@@ -63,11 +64,47 @@ LOOP:
 		}
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-				capacity.Sub(NewWeightsForPod(&pod))
+				nodeCapacity.Sub(NewWeightsForPod(&pod))
 			}
 		}
+		// add allocatable capacity on the node
+		capacity.Add(nodeCapacity)
+		updateMetrics(capacity, node)
 	}
 	return capacity, nil
+}
+
+// Update metrics
+func updateMetrics(capacity Weights, node v1.Node) {
+	capacityCpu, err := Dec2float64(capacity["cpu"])
+	if err != nil {
+		mcadLog.Error(err, "Unable to get CPU capacity", "node", node.Name)
+	} else {
+		totalCapacityCpu.WithLabelValues(node.Name).Set(capacityCpu)
+	}
+
+	capacityMemory, err := Dec2float64(capacity["memory"])
+	if err != nil {
+		mcadLog.Error(err, "Unable to get memory capacity", "node", node.Name)
+	} else {
+		totalCapacityMemory.WithLabelValues(node.Name).Set(capacityMemory)
+	}
+
+	if val, exists := capacity["nvidia.com/gpu"]; exists {
+		capacityGpu, err := Dec2float64(val)
+		if err != nil {
+			mcadLog.Error(err, "Unable to get GPU capacity", "node", node.Name)
+		} else {
+			totalCapacityGpu.WithLabelValues(node.Name).Set(capacityGpu)
+		}
+	}
+}
+
+// Dec2float64 converts inf.Dec to float64
+func Dec2float64(d *inf.Dec) (float64, error) {
+	// In general, it's not recommended to convert Dec to float64. However, we have no choice since Prometheus works with float64.
+	// https://github.com/go-inf/inf/issues/7#issuecomment-504729949
+	return strconv.ParseFloat(d.String(), 64)
 }
 
 // Compute resources reserved by AppWrappers at every priority level for the specified cluster

@@ -34,10 +34,28 @@ var (
 		Name:      "appwrappers_count",
 		Help:      "AppWrappers count per phase, step and priority",
 	}, []string{"phase", "step", "priority"})
+	totalCapacityCpu = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "mcad",
+		Name:      "capacity_cpu",
+		Help:      "Available CPU capacity per node, excluding non-AppWrapper pods",
+	}, []string{"node"})
+	totalCapacityMemory = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "mcad",
+		Name:      "capacity_memory",
+		Help:      "Available memory capacity per node, excluding non-AppWrapper pods",
+	}, []string{"node"})
+	totalCapacityGpu = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "mcad",
+		Name:      "capacity_gpu",
+		Help:      "Available GPU capacity per node, excluding non-AppWrapper pods",
+	}, []string{"node"})
 )
 
 func init() {
 	metrics.Registry.MustRegister(
 		appWrappersCount,
+		totalCapacityCpu,
+		totalCapacityMemory,
+		totalCapacityGpu,
 	)
 }
