@@ -17,7 +17,7 @@ limitations under the License.
 package e2e
 
 import (
-	gcontext "context"
+	"context"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -40,88 +40,41 @@ import (
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
 )
 
+const testNamespace = "test"
+
 var ninetySeconds = 90 * time.Second
 var threeMinutes = 180 * time.Second
 var tenMinutes = 600 * time.Second
 var threeHundredSeconds = 300 * time.Second
 
-type testContext struct {
-	client    client.Client
-	namespace string
-	ctx       gcontext.Context
+type myKey struct {
+	key string
 }
 
-func initTestContext() *testContext {
-	cxt := &testContext{
-		namespace: "test",
-	}
+func getClient(ctx context.Context) client.Client {
+	kubeClient := ctx.Value(myKey{key: "kubeclient"})
+	return kubeClient.(client.Client)
+}
 
+func extendContextWithClient(ctx context.Context) context.Context {
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = arbv1.AddToScheme(scheme)
-	kubeconfig := ctrl.GetConfigOrDie()
-	kubeclient, err := client.New(kubeconfig, client.Options{Scheme: scheme})
+	kubeclient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
-	cxt.client = kubeclient
+	return context.WithValue(ctx, myKey{key: "kubeclient"}, kubeclient)
+}
 
-	_ = cxt.client.Create(gcontext.Background(), &v1.Namespace{
+func ensureNamespaceExists(ctx context.Context) {
+	err := getClient(ctx).Create(ctx, &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: cxt.namespace,
+			Name: testNamespace,
 		},
 	})
-	// Expect(err).NotTo(HaveOccurred())
-
-	/* 	_, err = cxt.kubeclient.SchedulingV1beta1().PriorityClasses().Create(gcontext.Background(), &schedv1.PriorityClass{
-	   		ObjectMeta: metav1.ObjectMeta{
-	   			Name: masterPriority,
-	   		},
-	   		Value:         100,
-	   		GlobalDefault: false,
-	   	}, metav1.CreateOptions{})
-	   	Expect(err).NotTo(HaveOccurred())
-
-	   	_, err = cxt.kubeclient.SchedulingV1beta1().PriorityClasses().Create(gcontext.Background(), &schedv1.PriorityClass{
-	   		ObjectMeta: metav1.ObjectMeta{
-	   			Name: workerPriority,
-	   		},
-	   		Value:         1,
-	   		GlobalDefault: false,
-	   	}, metav1.CreateOptions{})
-	   	Expect(err).NotTo(HaveOccurred()) */
-	cxt.ctx = gcontext.Background()
-	return cxt
+	Expect(client.IgnoreAlreadyExists(err)).NotTo(HaveOccurred())
 }
 
-func cleanupTestContextExtendedTime(cxt *testContext, seconds time.Duration) {
-	// foreground := metav1.DeletePropagationForeground
-	/* err := cxt.kubeclient.CoreV1().Namespaces().Delete(gcontext.Background(), cxt.namespace, metav1.DeleteOptions{
-		PropagationPolicy: &foreground,
-	})
-	Expect(err).NotTo(HaveOccurred()) */
-
-	// err := cxt.kubeclient.SchedulingV1beta1().PriorityClasses().Delete(gcontext.Background(), masterPriority, metav1.DeleteOptions{
-	// 	PropagationPolicy: &foreground,
-	// })
-	// Expect(err).NotTo(HaveOccurred())
-
-	// err = cxt.kubeclient.SchedulingV1beta1().PriorityClasses().Delete(gcontext.Background(), workerPriority, metav1.DeleteOptions{
-	// 	PropagationPolicy: &foreground,
-	// })
-	// Expect(err).NotTo(HaveOccurred())
-
-	// Wait for namespace deleted.
-	// err = wait.Poll(100*time.Millisecond, seconds, namespaceNotExist(cxt))
-	// if err != nil {
-	// 	fmt.Fprintf(GinkgoWriter, "[cleanupTestContextExtendedTime] Failure check for namespace: %s.\n", cxt.namespace)
-	// }
-	// Expect(err).NotTo(HaveOccurred())
-}
-
-func cleanupTestContext(cxt *testContext) {
-	cleanupTestContextExtendedTime(cxt, ninetySeconds)
-}
-
-func createGenericAWTimeoutWithStatus(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericAWTimeoutWithStatus(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -169,7 +122,7 @@ func createGenericAWTimeoutWithStatus(context *testContext, name string) *arbv1.
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "test",
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -192,16 +145,16 @@ func createGenericAWTimeoutWithStatus(context *testContext, name string) *arbv1.
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func anyPodsExist(ctx *testContext, awNamespace string, awName string) wait.ConditionFunc {
+func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
 	return func() (bool, error) {
 		podList := &v1.PodList{}
-		err := ctx.client.List(gcontext.Background(), podList, &client.ListOptions{Namespace: awNamespace})
+		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		Expect(err).NotTo(HaveOccurred())
 
 		podExistsNum := 0
@@ -222,10 +175,10 @@ func anyPodsExist(ctx *testContext, awNamespace string, awName string) wait.Cond
 	}
 }
 
-func podPhase(ctx *testContext, awNamespace string, awName string, pods []*v1.Pod, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
+func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
 	return func() (bool, error) {
 		podList := &v1.PodList{}
-		err := ctx.client.List(gcontext.Background(), podList, &client.ListOptions{Namespace: awNamespace})
+		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		Expect(err).NotTo(HaveOccurred())
 
 		if podList == nil || podList.Size() < 1 {
@@ -274,34 +227,34 @@ func podPhase(ctx *testContext, awNamespace string, awName string, pods []*v1.Po
 	}
 }
 
-func cleanupTestObjectsPtr(context *testContext, appwrappersPtr *[]*arbv1.AppWrapper) {
-	cleanupTestObjectsPtrVerbose(context, appwrappersPtr, true)
+func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {
+	cleanupTestObjectsPtrVerbose(ctx, appwrappersPtr, true)
 }
 
-func cleanupTestObjectsPtrVerbose(context *testContext, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
+func cleanupTestObjectsPtrVerbose(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
 	if appwrappersPtr == nil {
 		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjectsPtr] No  AppWrappers to cleanup.\n")
 	} else {
-		cleanupTestObjects(context, *appwrappersPtr)
+		cleanupTestObjects(ctx, *appwrappersPtr)
 	}
 }
 
-func cleanupTestObjects(context *testContext, appwrappers []*arbv1.AppWrapper) {
-	cleanupTestObjectsVerbose(context, appwrappers, true)
+func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
+	cleanupTestObjectsVerbose(ctx, appwrappers, true)
 }
 
-func cleanupTestObjectsVerbose(context *testContext, appwrappers []*arbv1.AppWrapper, verbose bool) {
+func cleanupTestObjectsVerbose(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
 	if appwrappers == nil {
 		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
 		return
 	}
 
 	for _, aw := range appwrappers {
-		pods := getPodsOfAppWrapper(context, aw)
+		pods := getPodsOfAppWrapper(ctx, aw)
 		awNamespace := aw.Namespace
 		awName := aw.Name
 		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
-		err := deleteAppWrapper(context, aw.Name)
+		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Wait for the pods of the deleted the appwrapper to be destroyed
@@ -309,37 +262,36 @@ func cleanupTestObjectsVerbose(context *testContext, appwrappers []*arbv1.AppWra
 			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Awaiting pod %s/%s to be deleted for AW %s.\n",
 				pod.Namespace, pod.Name, aw.Name)
 		}
-		err = waitAWPodsDeleted(context, awNamespace, awName, pods)
+		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
 
 		// Final check to see if pod exists
 		if err != nil {
 			var podsStillExisting []*v1.Pod
 			for _, pod := range pods {
 				podExist := &v1.Pod{}
-				err = context.client.Get(context.ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
+				err = getClient(ctx).Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
 				if err != nil {
 					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
 					podsStillExisting = append(podsStillExisting, podExist)
 				}
 			}
 			if len(podsStillExisting) > 0 {
-				err = waitAWPodsDeleted(context, awNamespace, awName, podsStillExisting)
+				err = waitAWPodsDeleted(ctx, awNamespace, awName, podsStillExisting)
 			}
 		}
 		Expect(err).NotTo(HaveOccurred())
 	}
-	cleanupTestContext(context)
 }
 
-func awPodPhase(ctx *testContext, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quite bool) wait.ConditionFunc {
+func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quite bool) wait.ConditionFunc {
 	return func() (bool, error) {
 		defer GinkgoRecover()
 		awIgnored := &arbv1.AppWrapper{}
-		err := ctx.client.Get(ctx.ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
 		Expect(err).NotTo(HaveOccurred())
 
 		podList := &v1.PodList{}
-		err = ctx.client.List(ctx.ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
+		err = getClient(ctx).List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
 		Expect(err).NotTo(HaveOccurred())
 
 		if podList == nil || podList.Size() < 1 {
@@ -394,14 +346,14 @@ func awPodPhase(ctx *testContext, aw *arbv1.AppWrapper, phase []v1.PodPhase, tas
 	}
 }
 
-func awNamespacePhase(ctx *testContext, aw *arbv1.AppWrapper, phase []v1.NamespacePhase) wait.ConditionFunc {
+func awNamespacePhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.NamespacePhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		awIgnored := &arbv1.AppWrapper{}
-		err := ctx.client.Get(ctx.ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
 		Expect(err).NotTo(HaveOccurred())
 
 		namespaces := &v1.NamespaceList{}
-		err = ctx.client.List(ctx.ctx, namespaces)
+		err = getClient(ctx).List(ctx, namespaces)
 		Expect(err).NotTo(HaveOccurred())
 
 		readyTaskNum := 0
@@ -422,81 +374,81 @@ func awNamespacePhase(ctx *testContext, aw *arbv1.AppWrapper, phase []v1.Namespa
 	}
 }
 
-func waitAWPodsReady(ctx *testContext, aw *arbv1.AppWrapper) error {
+func waitAWPodsReady(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
-func waitAWPodsCompleted(ctx *testContext, aw *arbv1.AppWrapper, timeout time.Duration) error {
+func waitAWPodsCompleted(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
 	return waitAWPodsCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false, timeout)
 }
 
-func waitAWPodsNotCompleted(ctx *testContext, aw *arbv1.AppWrapper) error {
+func waitAWPodsNotCompleted(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return waitAWPodsNotCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
-func waitAWReadyQuiet(ctx *testContext, aw *arbv1.AppWrapper) error {
+func waitAWReadyQuiet(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return waitAWPodsReadyEx(ctx, aw, threeHundredSeconds, int(aw.Spec.Scheduling.MinAvailable), true)
 }
 
-func waitAWAnyPodsExists(ctx *testContext, aw *arbv1.AppWrapper) error {
+func waitAWAnyPodsExists(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return waitAWPodsExists(ctx, aw, ninetySeconds)
 }
 
-func waitAWPodsExists(ctx *testContext, aw *arbv1.AppWrapper, timeout time.Duration) error {
+func waitAWPodsExists(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
 	return wait.Poll(100*time.Millisecond, timeout, anyPodsExist(ctx, aw.Namespace, aw.Name))
 }
 
-func waitAWDeleted(ctx *testContext, aw *arbv1.AppWrapper, pods []*v1.Pod) error {
+func waitAWDeleted(ctx context.Context, aw *arbv1.AppWrapper, pods []*v1.Pod) error {
 	return waitAWPodsTerminatedEx(ctx, aw.Namespace, aw.Name, pods, 0)
 }
 
-func waitAWPodsDeleted(ctx *testContext, awNamespace string, awName string, pods []*v1.Pod) error {
+func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod) error {
 	return waitAWPodsDeletedVerbose(ctx, awNamespace, awName, pods, true)
 }
 
-func waitAWPodsDeletedVerbose(ctx *testContext, awNamespace string, awName string, pods []*v1.Pod, verbose bool) error {
+func waitAWPodsDeletedVerbose(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod, verbose bool) error {
 	return waitAWPodsTerminatedEx(ctx, awNamespace, awName, pods, 0)
 }
 
-func waitAWPending(ctx *testContext, aw *arbv1.AppWrapper) error {
+func waitAWPending(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodPending}, int(aw.Spec.Scheduling.MinAvailable), false))
 }
 
-func waitAWPodsReadyEx(ctx *testContext, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int, quite bool) error {
+func waitAWPodsReadyEx(ctx context.Context, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int, quite bool) error {
 	return wait.Poll(100*time.Millisecond, waitDuration, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded}, taskNum, quite))
 }
 
-func waitAWPodsCompletedEx(ctx *testContext, aw *arbv1.AppWrapper, taskNum int, quite bool, timeout time.Duration) error {
+func waitAWPodsCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, quite bool, timeout time.Duration) error {
 	return wait.Poll(100*time.Millisecond, timeout, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodSucceeded}, taskNum, quite))
 }
 
-func waitAWPodsNotCompletedEx(ctx *testContext, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
+func waitAWPodsNotCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
 	return wait.Poll(100*time.Millisecond, threeMinutes, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodPending, v1.PodRunning, v1.PodFailed, v1.PodUnknown}, taskNum, quite))
 }
 
-func waitAWPodsPending(ctx *testContext, aw *arbv1.AppWrapper) error {
+func waitAWPodsPending(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return waitAWPodsPendingEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
 }
 
-func waitAWPodsPendingEx(ctx *testContext, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
+func waitAWPodsPendingEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
 		[]v1.PodPhase{v1.PodPending}, taskNum, quite))
 }
 
-func waitAWPodsTerminatedEx(ctx *testContext, namespace string, name string, pods []*v1.Pod, taskNum int) error {
+func waitAWPodsTerminatedEx(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int) error {
 	return waitAWPodsTerminatedExVerbose(ctx, namespace, name, pods, taskNum, true)
 }
 
-func waitAWPodsTerminatedExVerbose(ctx *testContext, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
+func waitAWPodsTerminatedExVerbose(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, podPhase(ctx, namespace, name, pods,
 		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded, v1.PodUnknown, v1.PodFailed, v1.PodPending}, taskNum))
 }
 
-func createJobAWWithInitContainer(context *testContext, name string, requeuingTimeInSeconds int, requeuingGrowthType string, requeuingMaxNumRequeuings int) *arbv1.AppWrapper {
+func createJobAWWithInitContainer(ctx context.Context, name string, requeuingTimeInSeconds int, requeuingGrowthType string, requeuingMaxNumRequeuings int) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "batch/v1",
 		"kind": "Job",
 	"metadata": {
@@ -550,7 +502,7 @@ func createJobAWWithInitContainer(context *testContext, name string, requeuingTi
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -575,13 +527,13 @@ func createJobAWWithInitContainer(context *testContext, name string, requeuingTi
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createDeploymentAW(context *testContext, name string) *arbv1.AppWrapper {
+func createDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -624,7 +576,7 @@ func createDeploymentAW(context *testContext, name string) *arbv1.AppWrapper {
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -643,13 +595,13 @@ func createDeploymentAW(context *testContext, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createDeploymentAWwith550CPU(context *testContext, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith550CPU(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -697,7 +649,7 @@ func createDeploymentAWwith550CPU(context *testContext, name string) *arbv1.AppW
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -716,13 +668,13 @@ func createDeploymentAWwith550CPU(context *testContext, name string) *arbv1.AppW
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createDeploymentAWwith350CPU(context *testContext, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith350CPU(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -770,7 +722,7 @@ func createDeploymentAWwith350CPU(context *testContext, name string) *arbv1.AppW
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -789,13 +741,13 @@ func createDeploymentAWwith350CPU(context *testContext, name string) *arbv1.AppW
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createDeploymentAWwith426CPU(context *testContext, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith426CPU(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 	"kind": "Deployment",
 	"metadata": {
@@ -843,7 +795,7 @@ func createDeploymentAWwith426CPU(context *testContext, name string) *arbv1.AppW
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -862,13 +814,13 @@ func createDeploymentAWwith426CPU(context *testContext, name string) *arbv1.AppW
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createDeploymentAWwith425CPU(context *testContext, name string) *arbv1.AppWrapper {
+func createDeploymentAWwith425CPU(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 	"kind": "Deployment",
 	"metadata": {
@@ -916,7 +868,7 @@ func createDeploymentAWwith425CPU(context *testContext, name string) *arbv1.AppW
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -935,13 +887,13 @@ func createDeploymentAWwith425CPU(context *testContext, name string) *arbv1.AppW
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericDeploymentAW(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 	"metadata": {
@@ -984,7 +936,7 @@ func createGenericDeploymentAW(context *testContext, name string) *arbv1.AppWrap
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1004,13 +956,13 @@ func createGenericDeploymentAW(context *testContext, name string) *arbv1.AppWrap
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericJobAWWithStatus(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericJobAWWithStatus(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1058,7 +1010,7 @@ func createGenericJobAWWithStatus(context *testContext, name string) *arbv1.AppW
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "test",
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1078,13 +1030,13 @@ func createGenericJobAWWithStatus(context *testContext, name string) *arbv1.AppW
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericJobAWWithMultipleStatus(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericJobAWWithMultipleStatus(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1174,7 +1126,7 @@ func createGenericJobAWWithMultipleStatus(context *testContext, name string) *ar
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "test",
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Resources: arbv1.AppWrapperResources{
@@ -1198,13 +1150,13 @@ func createGenericJobAWWithMultipleStatus(context *testContext, name string) *ar
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createAWGenericItemWithoutStatus(context *testContext, name string) *arbv1.AppWrapper {
+func createAWGenericItemWithoutStatus(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "scheduling.sigs.k8s.io/v1alpha1",
                         "kind": "PodGroup",
@@ -1220,7 +1172,7 @@ func createAWGenericItemWithoutStatus(context *testContext, name string) *arbv1.
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "test",
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1239,13 +1191,13 @@ func createAWGenericItemWithoutStatus(context *testContext, name string) *arbv1.
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericJobAWWithScheduleSpec(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericJobAWWithScheduleSpec(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1294,7 +1246,7 @@ func createGenericJobAWWithScheduleSpec(context *testContext, name string) *arbv
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "test",
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1312,13 +1264,13 @@ func createGenericJobAWWithScheduleSpec(context *testContext, name string) *arbv
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericJobAWtWithLargeCompute(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericJobAWtWithLargeCompute(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
 		"kind": "Job",
@@ -1368,7 +1320,7 @@ func createGenericJobAWtWithLargeCompute(context *testContext, name string) *arb
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "test",
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1388,13 +1340,13 @@ func createGenericJobAWtWithLargeCompute(context *testContext, name string) *arb
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericDeploymentAWWithMultipleItems(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericDeploymentAWWithMultipleItems(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
 		"metadata": {
@@ -1488,7 +1440,7 @@ func createGenericDeploymentAWWithMultipleItems(context *testContext, name strin
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "test",
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1514,13 +1466,13 @@ func createGenericDeploymentAWWithMultipleItems(context *testContext, name strin
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericDeploymentWithCPUAW(context *testContext, name string, cpuDemand string, replicas int) *arbv1.AppWrapper {
+func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDemand string, replicas int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
 	"kind": "Deployment",
@@ -1570,7 +1522,7 @@ func createGenericDeploymentWithCPUAW(context *testContext, name string, cpuDema
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1589,13 +1541,13 @@ func createGenericDeploymentWithCPUAW(context *testContext, name string, cpuDema
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericDeploymentCustomPodResourcesWithCPUAW(context *testContext, name string, customPodCpuDemand string, cpuDemand string, replicas int, requeuingTimeInSeconds int) *arbv1.AppWrapper {
+func createGenericDeploymentCustomPodResourcesWithCPUAW(ctx context.Context, name string, customPodCpuDemand string, cpuDemand string, replicas int, requeuingTimeInSeconds int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
 	"kind": "Deployment",
@@ -1646,7 +1598,7 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(context *testContext, na
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1673,13 +1625,13 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(context *testContext, na
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createStatefulSetAW(context *testContext, name string) *arbv1.AppWrapper {
+func createStatefulSetAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "StatefulSet",
 	"metadata": {
@@ -1723,7 +1675,7 @@ func createStatefulSetAW(context *testContext, name string) *arbv1.AppWrapper {
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1742,13 +1694,13 @@ func createStatefulSetAW(context *testContext, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericStatefulSetAW(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericStatefulSetAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "StatefulSet",
 	"metadata": {
@@ -1792,7 +1744,7 @@ func createGenericStatefulSetAW(context *testContext, name string) *arbv1.AppWra
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1810,13 +1762,13 @@ func createGenericStatefulSetAW(context *testContext, name string) *arbv1.AppWra
 			},
 		},
 	}
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createBadPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper {
+func createBadPodTemplateAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "v1",
 		"kind": "Pod",
 		"metadata": {
@@ -1843,7 +1795,7 @@ func createBadPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1862,13 +1814,13 @@ func createBadPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper {
+func createPodTemplateAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "v1",
 	"kind": "Pod",
 	"metadata": {
@@ -1915,7 +1867,7 @@ func createPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper {
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1938,13 +1890,13 @@ func createPodTemplateAW(context *testContext, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createPodCheckFailedStatusAW(context *testContext, name string) *arbv1.AppWrapper {
+func createPodCheckFailedStatusAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 	"apiVersion": "v1",
 	"kind": "Pod",
@@ -1980,7 +1932,7 @@ func createPodCheckFailedStatusAW(context *testContext, name string) *arbv1.AppW
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -1999,13 +1951,13 @@ func createPodCheckFailedStatusAW(context *testContext, name string) *arbv1.AppW
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericPodAWCustomDemand(context *testContext, name string, cpuDemand string) *arbv1.AppWrapper {
+func createGenericPodAWCustomDemand(ctx context.Context, name string, cpuDemand string) *arbv1.AppWrapper {
 	genericItems := fmt.Sprintf(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2048,7 +2000,7 @@ func createGenericPodAWCustomDemand(context *testContext, name string, cpuDemand
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 			Labels:    labels,
 		},
 		Spec: arbv1.AppWrapperSpec{
@@ -2067,13 +2019,13 @@ func createGenericPodAWCustomDemand(context *testContext, name string, cpuDemand
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericPodAW(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericPodAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2115,7 +2067,7 @@ func createGenericPodAW(context *testContext, name string) *arbv1.AppWrapper {
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 			Labels:    labels,
 		},
 		Spec: arbv1.AppWrapperSpec{
@@ -2134,13 +2086,13 @@ func createGenericPodAW(context *testContext, name string) *arbv1.AppWrapper {
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createGenericPodTooBigAW(context *testContext, name string) *arbv1.AppWrapper {
+func createGenericPodTooBigAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2184,7 +2136,7 @@ func createGenericPodTooBigAW(context *testContext, name string) *arbv1.AppWrapp
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 			Labels:    labels,
 		},
 		Spec: arbv1.AppWrapperSpec{
@@ -2203,13 +2155,13 @@ func createGenericPodTooBigAW(context *testContext, name string) *arbv1.AppWrapp
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createBadGenericPodAW(context *testContext, name string) *arbv1.AppWrapper {
+func createBadGenericPodAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
@@ -2237,7 +2189,7 @@ func createBadGenericPodAW(context *testContext, name string) *arbv1.AppWrapper 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -2255,20 +2207,20 @@ func createBadGenericPodAW(context *testContext, name string) *arbv1.AppWrapper 
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createBadGenericItemAW(context *testContext, name string) *arbv1.AppWrapper {
+func createBadGenericItemAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	// rb := []byte(`""`)
 	var schedSpecMin int32 = 1
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -2286,13 +2238,13 @@ func createBadGenericItemAW(context *testContext, name string) *arbv1.AppWrapper
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).NotTo(HaveOccurred())
 
 	return aw
 }
 
-func createBadGenericPodTemplateAW(context *testContext, name string) (*arbv1.AppWrapper, error) {
+func createBadGenericPodTemplateAW(ctx context.Context, name string) (*arbv1.AppWrapper, error) {
 	rb := []byte(`{"metadata":
 	{
 		"name": "aw-generic-podtemplate-2",
@@ -2326,7 +2278,7 @@ func createBadGenericPodTemplateAW(context *testContext, name string) (*arbv1.Ap
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: context.namespace,
+			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
@@ -2345,28 +2297,28 @@ func createBadGenericPodTemplateAW(context *testContext, name string) (*arbv1.Ap
 		},
 	}
 
-	err := context.client.Create(context.ctx, aw)
+	err := getClient(ctx).Create(ctx, aw)
 	Expect(err).To(HaveOccurred())
 	return aw, err
 }
 
-func deleteAppWrapper(ctx *testContext, name string) error {
+func deleteAppWrapper(ctx context.Context, name string, namespace string) error {
 	foreground := metav1.DeletePropagationForeground
 	aw := &arbv1.AppWrapper{ObjectMeta: metav1.ObjectMeta{
 		Name:      name,
-		Namespace: ctx.namespace,
+		Namespace: namespace,
 	}}
-	return ctx.client.Delete(ctx.ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
+	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
 
 }
 
-func getPodsOfAppWrapper(ctx *testContext, aw *arbv1.AppWrapper) []*v1.Pod {
+func getPodsOfAppWrapper(ctx context.Context, aw *arbv1.AppWrapper) []*v1.Pod {
 	awIgnored := &arbv1.AppWrapper{}
-	err := ctx.client.Get(ctx.ctx, client.ObjectKeyFromObject(aw), awIgnored) // TODO: Do we actually need to do this Get?
+	err := getClient(ctx).Get(ctx, client.ObjectKeyFromObject(aw), awIgnored) // TODO: Do we actually need to do this Get?
 	Expect(err).NotTo(HaveOccurred())
 
 	pods := &v1.PodList{}
-	err = ctx.client.List(gcontext.Background(), pods, &client.ListOptions{Namespace: aw.Namespace})
+	err = getClient(ctx).List(context.Background(), pods, &client.ListOptions{Namespace: aw.Namespace})
 	Expect(err).NotTo(HaveOccurred())
 
 	var awpods []*v1.Pod
@@ -2395,10 +2347,10 @@ func appendRandomString(value string) string {
 	return fmt.Sprintf("%s-%s", value, string(b))
 }
 
-func AppWrapper(context *testContext, namespace string, name string) func(g gomega.Gomega) *arbv1.AppWrapper {
+func AppWrapper(ctx context.Context, namespace string, name string) func(g gomega.Gomega) *arbv1.AppWrapper {
 	return func(g gomega.Gomega) *arbv1.AppWrapper {
 		aw := &arbv1.AppWrapper{}
-		err := context.client.Get(context.ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 		return aw
 	}
