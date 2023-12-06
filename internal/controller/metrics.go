@@ -47,7 +47,7 @@ var (
 	totalCapacityGpu = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "mcad",
 		Name:      "capacity_gpu",
-		Help:      "Available gpu capacity per node, excluding non-AppWrapper pods",
+		Help:      "Available GPU capacity per node, excluding non-AppWrapper pods",
 	}, []string{"node"})
 )
 
