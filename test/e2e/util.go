@@ -73,6 +73,71 @@ func ensureNamespaceExists(ctx context.Context) {
 	Expect(client.IgnoreAlreadyExists(err)).NotTo(HaveOccurred())
 }
 
+func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {
+	cleanupTestObjectsPtrVerbose(ctx, appwrappersPtr, true)
+}
+
+func cleanupTestObjectsPtrVerbose(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
+	if appwrappersPtr == nil {
+		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjectsPtr] No  AppWrappers to cleanup.\n")
+	} else {
+		cleanupTestObjects(ctx, *appwrappersPtr)
+	}
+}
+
+func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
+	cleanupTestObjectsVerbose(ctx, appwrappers, true)
+}
+
+func cleanupTestObjectsVerbose(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
+	if appwrappers == nil {
+		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
+		return
+	}
+
+	for _, aw := range appwrappers {
+		pods := getPodsOfAppWrapper(ctx, aw)
+		awNamespace := aw.Namespace
+		awName := aw.Name
+		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
+		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Wait for the pods of the deleted the appwrapper to be destroyed
+		for _, pod := range pods {
+			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Awaiting pod %s/%s to be deleted for AW %s.\n",
+				pod.Namespace, pod.Name, aw.Name)
+		}
+		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
+
+		// Final check to see if pod exists
+		if err != nil {
+			var podsStillExisting []*v1.Pod
+			for _, pod := range pods {
+				podExist := &v1.Pod{}
+				err = getClient(ctx).Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
+					podsStillExisting = append(podsStillExisting, podExist)
+				}
+			}
+			if len(podsStillExisting) > 0 {
+				err = waitAWPodsDeleted(ctx, awNamespace, awName, podsStillExisting)
+			}
+		}
+		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func deleteAppWrapper(ctx context.Context, name string, namespace string) error {
+	foreground := metav1.DeletePropagationForeground
+	aw := &arbv1.AppWrapper{ObjectMeta: metav1.ObjectMeta{
+		Name:      name,
+		Namespace: namespace,
+	}}
+	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
+}
+
 func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
 	return func() (bool, error) {
 		podList := &v1.PodList{}
@@ -146,62 +211,6 @@ func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1
 		}
 
 		return taskNum == phaseListTaskNum, nil
-	}
-}
-
-func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {
-	cleanupTestObjectsPtrVerbose(ctx, appwrappersPtr, true)
-}
-
-func cleanupTestObjectsPtrVerbose(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
-	if appwrappersPtr == nil {
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjectsPtr] No  AppWrappers to cleanup.\n")
-	} else {
-		cleanupTestObjects(ctx, *appwrappersPtr)
-	}
-}
-
-func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
-	cleanupTestObjectsVerbose(ctx, appwrappers, true)
-}
-
-func cleanupTestObjectsVerbose(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
-	if appwrappers == nil {
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
-		return
-	}
-
-	for _, aw := range appwrappers {
-		pods := getPodsOfAppWrapper(ctx, aw)
-		awNamespace := aw.Namespace
-		awName := aw.Name
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
-		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
-		Expect(err).NotTo(HaveOccurred())
-
-		// Wait for the pods of the deleted the appwrapper to be destroyed
-		for _, pod := range pods {
-			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Awaiting pod %s/%s to be deleted for AW %s.\n",
-				pod.Namespace, pod.Name, aw.Name)
-		}
-		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
-
-		// Final check to see if pod exists
-		if err != nil {
-			var podsStillExisting []*v1.Pod
-			for _, pod := range pods {
-				podExist := &v1.Pod{}
-				err = getClient(ctx).Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
-					podsStillExisting = append(podsStillExisting, podExist)
-				}
-			}
-			if len(podsStillExisting) > 0 {
-				err = waitAWPodsDeleted(ctx, awNamespace, awName, podsStillExisting)
-			}
-		}
-		Expect(err).NotTo(HaveOccurred())
 	}
 }
 
@@ -340,16 +349,6 @@ func waitAWPodsTerminatedEx(ctx context.Context, namespace string, name string, 
 func waitAWPodsTerminatedExVerbose(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, podPhase(ctx, namespace, name, pods,
 		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded, v1.PodUnknown, v1.PodFailed, v1.PodPending}, taskNum))
-}
-
-func deleteAppWrapper(ctx context.Context, name string, namespace string) error {
-	foreground := metav1.DeletePropagationForeground
-	aw := &arbv1.AppWrapper{ObjectMeta: metav1.ObjectMeta{
-		Name:      name,
-		Namespace: namespace,
-	}}
-	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
-
 }
 
 func getPodsOfAppWrapper(ctx context.Context, aw *arbv1.AppWrapper) []*v1.Pod {
