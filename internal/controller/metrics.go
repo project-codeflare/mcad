@@ -22,8 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-type phaseStepPriority struct {
-	phase    mcadv1beta1.AppWrapperPhase
+type stateStepPriority struct {
+	state    mcadv1beta1.AppWrapperPhase
 	step     mcadv1beta1.AppWrapperStep
 	priority int
 }
@@ -32,8 +32,8 @@ var (
 	appWrappersCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "mcad",
 		Name:      "appwrappers_count",
-		Help:      "AppWrappers count per phase, step and priority",
-	}, []string{"phase", "step", "priority"})
+		Help:      "AppWrappers count per state, step and priority",
+	}, []string{"state", "step", "priority"})
 	totalCapacityCpu = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "mcad",
 		Name:      "capacity_cpu",
