@@ -261,298 +261,6 @@ func createDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createDeploymentAWwith550CPU(ctx context.Context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "Deployment",
-	"metadata": {
-		"name": "` + name + `",
-		"namespace": "test",
-		"labels": {
-			"app": "` + name + `"
-		}
-	},
-	"spec": {
-		"replicas": 2,
-		"selector": {
-			"matchLabels": {
-				"app": "` + name + `"
-			}
-		},
-		"template": {
-			"metadata": {
-				"labels": {
-					"app": "` + name + `"
-				}
-			},
-			"spec": {
-				"containers": [
-					{
-						"name": "` + name + `",
-						"image": "quay.io/project-codeflare/echo-server:1.0",
-						"resources": {
-							"requests": {
-								"cpu": "550m"
-							}
-						},
-						"ports": [
-							{
-								"containerPort": 80
-							}
-						]
-					}
-				]
-			}
-		}
-	}} `)
-	var schedSpecMin int32 = 2
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 1,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createDeploymentAWwith350CPU(ctx context.Context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "Deployment",
-	"metadata": {
-		"name": "aw-deployment-2-350cpu",
-		"namespace": "test",
-		"labels": {
-			"app": "aw-deployment-2-350cpu"
-		}
-	},
-	"spec": {
-		"replicas": 2,
-		"selector": {
-			"matchLabels": {
-				"app": "aw-deployment-2-350cpu"
-			}
-		},
-		"template": {
-			"metadata": {
-				"labels": {
-					"app": "aw-deployment-2-350cpu"
-				}
-			},
-			"spec": {
-				"containers": [
-					{
-						"name": "aw-deployment-2-350cpu",
-						"image": "quay.io/project-codeflare/echo-server:1.0",
-						"resources": {
-							"requests": {
-								"cpu": "350m"
-							}
-						},
-						"ports": [
-							{
-								"containerPort": 80
-							}
-						]
-					}
-				]
-			}
-		}
-	}} `)
-	var schedSpecMin int32 = 2
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 1,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createDeploymentAWwith426CPU(ctx context.Context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "apps/v1",
-	"kind": "Deployment",
-	"metadata": {
-		"name": "` + name + `",
-		"namespace": "test",
-		"labels": {
-			"app": "` + name + `"
-		}
-	},
-	"spec": {
-		"replicas": 2,
-		"selector": {
-			"matchLabels": {
-				"app": "` + name + `"
-			}
-		},
-		"template": {
-			"metadata": {
-				"labels": {
-					"app": "` + name + `"
-				}
-			},
-			"spec": {
-				"containers": [
-					{
-						"name": "` + name + `",
-						"image": "quay.io/project-codeflare/echo-server:1.0",
-						"resources": {
-							"requests": {
-								"cpu": "427m"
-							}
-						},
-						"ports": [
-							{
-								"containerPort": 80
-							}
-						]
-					}
-				]
-			}
-		}
-	}} `)
-	var schedSpecMin int32 = 2
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 1,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createDeploymentAWwith425CPU(ctx context.Context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "apps/v1",
-	"kind": "Deployment",
-	"metadata": {
-		"name": "aw-deployment-2-425cpu",
-		"namespace": "test",
-		"labels": {
-			"app": "aw-deployment-2-425cpu"
-		}
-	},
-	"spec": {
-		"replicas": 2,
-		"selector": {
-			"matchLabels": {
-				"app": "aw-deployment-2-425cpu"
-			}
-		},
-		"template": {
-			"metadata": {
-				"labels": {
-					"app": "aw-deployment-2-425cpu"
-				}
-			},
-			"spec": {
-				"containers": [
-					{
-						"name": "aw-deployment-2-425cpu",
-						"image": "quay.io/project-codeflare/echo-server:1.0",
-						"resources": {
-							"requests": {
-								"cpu": "425m"
-							}
-						},
-						"ports": [
-							{
-								"containerPort": 80
-							}
-						]
-					}
-				]
-			}
-		}
-	}} `)
-	var schedSpecMin int32 = 2
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 1,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
 func createGenericDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
@@ -1132,7 +840,7 @@ func createGenericDeploymentAWWithMultipleItems(ctx context.Context, name string
 	return aw
 }
 
-func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDemand string, replicas int) *arbv1.AppWrapper {
+func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDemand *resource.Quantity, replicas int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
 	"kind": "Deployment",
@@ -1177,8 +885,6 @@ func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDeman
 		}
 	}} `, name, name, replicas, name, name, name, cpuDemand))
 
-	var schedSpecMin int32 = int32(replicas)
-
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -1186,12 +892,15 @@ func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDeman
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
+				MinAvailable: int32(replicas),
 			},
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
-					{
-						DoNotUseReplicas: 1,
+					{CustomPodResources: []arbv1.CustomPodResource{
+						{
+							Replicas: int32(replicas),
+							Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: *cpuDemand}},
+					},
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},

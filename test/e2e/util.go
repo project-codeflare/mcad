@@ -28,6 +28,7 @@ import (
 	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -47,7 +48,7 @@ var ninetySeconds = 90 * time.Second
 var threeMinutes = 180 * time.Second
 var tenMinutes = 600 * time.Second
 var threeHundredSeconds = 300 * time.Second
-var clusterCapacity arcont.Weights = arcont.Weights{}
+var clusterCapacity v1.ResourceList = v1.ResourceList{}
 
 type myKey struct {
 	key string
@@ -76,7 +77,9 @@ func ensureNamespaceExists(ctx context.Context) {
 	Expect(client.IgnoreAlreadyExists(err)).NotTo(HaveOccurred())
 }
 
-// Compute available cluster capacity
+// Compute available cluster capacity to allow tests to scale their resources appropriately.
+// The code is a simplification of AppWrapperReconciler.computeCapacity and intended to be run
+// in BeforeSuite methods (thus it is not necessary to filter out AppWrapper-owned pods)
 func updateClusterCapacity(ctx context.Context) {
 	kc := getClient(ctx)
 	capacity := arcont.Weights{}
@@ -109,10 +112,16 @@ LOOP:
 		}
 	}
 
-	clusterCapacity = capacity
+	clusterCapacity = capacity.AsResources()
 
 	t, _ := json.Marshal(clusterCapacity)
 	fmt.Fprintf(GinkgoWriter, "Computed cluster capacity: %v\n", string(t))
+}
+
+func cpuDemand(fractionOfCluster float64) *resource.Quantity {
+	clusterCPU := clusterCapacity[v1.ResourceCPU]
+	milliDemand := int64(float64(clusterCPU.MilliValue()) * fractionOfCluster)
+	return resource.NewMilliQuantity(milliDemand, resource.DecimalSI)
 }
 
 func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {
