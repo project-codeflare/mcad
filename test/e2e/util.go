@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
+	arcont "github.com/project-codeflare/mcad/internal/controller"
 )
 
 const testNamespace = "test"
@@ -45,6 +47,7 @@ var ninetySeconds = 90 * time.Second
 var threeMinutes = 180 * time.Second
 var tenMinutes = 600 * time.Second
 var threeHundredSeconds = 300 * time.Second
+var clusterCapacity arcont.Weights = arcont.Weights{}
 
 type myKey struct {
 	key string
@@ -71,6 +74,45 @@ func ensureNamespaceExists(ctx context.Context) {
 		},
 	})
 	Expect(client.IgnoreAlreadyExists(err)).NotTo(HaveOccurred())
+}
+
+// Compute available cluster capacity
+func updateClusterCapacity(ctx context.Context) {
+	kc := getClient(ctx)
+	capacity := arcont.Weights{}
+	// add allocatable capacity for each schedulable node
+	nodes := &v1.NodeList{}
+	err := kc.List(ctx, nodes)
+	Expect(err).NotTo(HaveOccurred())
+
+LOOP:
+	for _, node := range nodes.Items {
+		// skip unschedulable nodes
+		if node.Spec.Unschedulable {
+			continue
+		}
+		for _, taint := range node.Spec.Taints {
+			if taint.Effect == v1.TaintEffectNoSchedule || taint.Effect == v1.TaintEffectNoExecute {
+				continue LOOP
+			}
+		}
+		// add allocatable capacity on the node
+		capacity.Add(arcont.NewWeights(node.Status.Allocatable))
+	}
+	// subtract requests from non-terminated pods
+	pods := &v1.PodList{}
+	err = kc.List(ctx, pods)
+	Expect(err).NotTo(HaveOccurred())
+	for _, pod := range pods.Items {
+		if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+			capacity.Sub(arcont.NewWeightsForPod(&pod))
+		}
+	}
+
+	clusterCapacity = capacity
+
+	t, _ := json.Marshal(clusterCapacity)
+	fmt.Fprintf(GinkgoWriter, "Computed cluster capacity: %v\n", string(t))
 }
 
 func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {

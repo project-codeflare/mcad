@@ -33,18 +33,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
+var ctx context.Context
+
 var _ = BeforeSuite(func() {
 	log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	ctx = extendContextWithClient(context.Background())
+	ensureNamespaceExists(ctx)
+	updateClusterCapacity(ctx)
 })
 
 var _ = Describe("AppWrapper E2E Tests", func() {
-	var ctx context.Context
 	var appwrappers []*arbv1.AppWrapper
 
 	BeforeEach(func() {
 		appwrappers = []*arbv1.AppWrapper{}
-		ctx = extendContextWithClient(context.Background())
-		ensureNamespaceExists(ctx)
 	})
 
 	AfterEach(func() {
