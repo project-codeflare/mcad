@@ -118,13 +118,13 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	requests := map[int]Weights{}        // total request per priority level
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 
-	appWrapperCount := map[phaseStepPriority]int{}
+	appWrapperCount := map[stateStepPriority]int{}
 
 	for _, appWrapper := range appWrappers.Items {
 		// get phase from cache if available as reconciler cache may be lagging
 		phase, step := r.getCachedPhase(&appWrapper)
 		priority := int(appWrapper.Spec.Priority)
-		key := phaseStepPriority{phase, step, priority}
+		key := stateStepPriority{phase, step, priority}
 		if _, exists := appWrapperCount[key]; !exists {
 			appWrapperCount[key] = 0
 		}
@@ -161,7 +161,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	appWrappersCount.Reset()
 	for key, count := range appWrapperCount {
 		appWrappersCount.With(
-			prometheus.Labels{"phase": string(key.phase), "step": string(key.step), "priority": strconv.Itoa(key.priority)},
+			prometheus.Labels{"state": string(key.state), "step": string(key.step), "priority": strconv.Itoa(key.priority)},
 		).Set(float64(count))
 	}
 	// propagate reservations at all priority levels to all levels below
