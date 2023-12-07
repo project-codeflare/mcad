@@ -268,34 +268,6 @@ func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, 
 	}
 }
 
-func awNamespacePhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.NamespacePhase) wait.ConditionFunc {
-	return func() (bool, error) {
-		awIgnored := &arbv1.AppWrapper{}
-		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
-		Expect(err).NotTo(HaveOccurred())
-
-		namespaces := &v1.NamespaceList{}
-		err = getClient(ctx).List(ctx, namespaces)
-		Expect(err).NotTo(HaveOccurred())
-
-		readyTaskNum := 0
-		for _, namespace := range namespaces.Items {
-			if awns, found := namespace.Labels["appwrapper.mcad.ibm.com"]; !found || awns != aw.Name {
-				continue
-			}
-
-			for _, p := range phase {
-				if namespace.Status.Phase == p {
-					readyTaskNum++
-					break
-				}
-			}
-		}
-
-		return 0 < readyTaskNum, nil
-	}
-}
-
 func waitAWPodsReady(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable), false)
 }
