@@ -180,7 +180,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 }
 
 // Find next AppWrapper to dispatch in queue order
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
+func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatracker *QuotaTracker) (*mcadv1beta1.AppWrapper, error) {
 	expired := time.Now().After(r.NextSync)
 	if expired {
 		capacity, err := r.computeCapacity(ctx)
@@ -217,7 +217,24 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 	// return first AppWrapper that fits if any
 	for _, appWrapper := range queue {
 		request := aggregateRequests(appWrapper)
-		if request.Fits(available[int(appWrapper.Spec.Priority)]) {
+
+		// get resourceQuota in AppWrapper namespace, if any
+		resourceQuotas := &v1.ResourceQuotaList{}
+		namespace := appWrapper.GetNamespace()
+		if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
+			&client.ListOptions{Namespace: namespace}); err != nil {
+			return nil, err
+		}
+		quotaFits := true
+		var appWrapperAskWeights *WeightsPair
+		if len(resourceQuotas.Items) > 0 {
+			appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
+			quotaFits = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
+		}
+
+		// check if AppWrapper passes both resource availability and ResourceQuota (if any)
+		if request.Fits(available[int(appWrapper.Spec.Priority)]) && quotaFits {
+			quotatracker.UpdateState(namespace, appWrapperAskWeights)
 			return appWrapper.DeepCopy(), nil // deep copy AppWrapper
 		}
 	}
@@ -234,6 +251,18 @@ func aggregateRequests(appWrapper *mcadv1beta1.AppWrapper) Weights {
 		}
 	}
 	return request
+}
+
+// Aggregate limits
+func aggregateLimits(appWrapper *mcadv1beta1.AppWrapper) Weights {
+	limit := Weights{}
+	for _, r := range appWrapper.Spec.Resources.GenericItems {
+		for _, cpr := range r.CustomPodResources {
+			// TODO: check why not use limits spec in custom pod resource?
+			limit.AddProd(cpr.Replicas, NewWeights(cpr.DoNotUseLimits))
+		}
+	}
+	return limit
 }
 
 // Propagate reservations at all priority levels to all levels below

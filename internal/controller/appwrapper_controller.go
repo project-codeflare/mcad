@@ -303,9 +303,11 @@ func (r *AppWrapperReconciler) triggerDispatch() {
 
 // Attempt to select and dispatch one appWrapper
 func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error) {
+	// used to track quota allocation to AppWrappers during a dispatching cycle
+	quotaTracker := NewQuotaTracker()
 	for {
 		// find next dispatch candidate according to priorities, precedence, and available resources
-		appWrapper, err := r.selectForDispatch(ctx)
+		appWrapper, err := r.selectForDispatch(ctx, quotaTracker)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
