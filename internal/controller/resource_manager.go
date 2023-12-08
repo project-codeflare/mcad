@@ -200,7 +200,7 @@ func (r *AppWrapperReconciler) deleteResources(ctx context.Context, appWrapper *
 		}
 		remaining++ // no error deleting resource, resource therefore still exists
 	}
-	if appWrapper.Spec.Scheduling.Requeuing.ForceDeletionTimeInSeconds == 0 {
+	if appWrapper.Spec.Scheduling.Requeuing.ForceDeletionTimeInSeconds <= 0 {
 		// force deletion is not enabled, return true iff no resources were found
 		return remaining == 0
 	}
