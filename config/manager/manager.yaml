@@ -100,3 +100,4 @@ spec:
             memory: 512Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
+      priorityClassName: system-node-critical

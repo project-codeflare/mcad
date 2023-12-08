@@ -18,6 +18,7 @@ spec:
         runAsNonRoot: true
       serviceAccountName: {{ .Values.serviceAccount }}
       terminationGracePeriodSeconds: 10
+      priorityClassName: system-node-critical
       containers:
       - args:
         - --secure-listen-address=0.0.0.0:8443
