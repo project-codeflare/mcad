@@ -153,7 +153,9 @@ spec:
                     description: Requeuing specification
                     properties:
                       forceDeletionTimeInSeconds:
-                        description: Enable forced deletion after delay if nonzero
+                        default: 570
+                        description: Enable forced deletion after delay if greater
+                          than zero
                         format: int64
                         type: integer
                       growthType:
@@ -176,12 +178,13 @@ spec:
                         format: int32
                         type: integer
                       pauseTimeInSeconds:
-                        description: Wait time before trying to dispatch again after
-                          requeuing
+                        default: 90
+                        description: Waiting time before trying to dispatch again
+                          after requeuing
                         format: int64
                         type: integer
                       timeInSeconds:
-                        default: 300
+                        default: 270
                         description: Initial waiting time before requeuing conditions
                           are checked
                         format: int64

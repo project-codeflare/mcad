@@ -65,7 +65,7 @@ type RequeuingSpec struct {
 	DoNotUseInitialTimeInSeconds int64 `json:"initialTimeInSeconds,omitempty"`
 
 	// Initial waiting time before requeuing conditions are checked
-	// +kubebuilder:default=300
+	// +kubebuilder:default=270
 	TimeInSeconds int64 `json:"timeInSeconds,omitempty"`
 
 	// +kubebuilder:default=0
@@ -81,10 +81,12 @@ type RequeuingSpec struct {
 	// +kubebuilder:default=0
 	MaxNumRequeuings int32 `json:"maxNumRequeuings,omitempty"`
 
-	// Enable forced deletion after delay if nonzero
+	// Enable forced deletion after delay if greater than zero
+	// +kubebuilder:default=570
 	ForceDeletionTimeInSeconds int64 `json:"forceDeletionTimeInSeconds,omitempty"`
 
-	// Wait time before trying to dispatch again after requeuing
+	// Waiting time before trying to dispatch again after requeuing
+	// +kubebuilder:default=90
 	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
 }
 
