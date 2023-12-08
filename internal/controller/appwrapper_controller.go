@@ -171,9 +171,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded, mcadv1beta1.Idle)
 			}
 			// check pod count if dispatched for a while
+			minAvailable := appWrapper.Spec.Scheduling.MinAvailable
+			if minAvailable == 0 {
+				minAvailable = 1 // default to expecting 1 running pod
+			}
 			if metav1.Now().After(appWrapper.Status.DispatchTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.TimeInSeconds)*time.Second)) &&
-				counts.Running+counts.Succeeded < int(appWrapper.Spec.Scheduling.MinAvailable) {
-				customMessage := "expected pods " + strconv.Itoa(int(appWrapper.Spec.Scheduling.MinAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
+				counts.Running+counts.Succeeded < int(minAvailable) {
+				customMessage := "expected pods " + strconv.Itoa(int(minAvailable)) + " but found pods " + strconv.Itoa(counts.Running+counts.Succeeded)
 				// requeue or fail if max retries exhausted with custom error message
 				return r.requeueOrFail(ctx, appWrapper, false, customMessage)
 			}
@@ -281,7 +285,7 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 
 // Set requeuing or failed status depending on error, configuration, and restarts count
 func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, fatal bool, reason string) (ctrl.Result, error) {
-	if appWrapper.Spec.Scheduling.MinAvailable == 0 {
+	if appWrapper.Spec.Scheduling.MinAvailable < 0 {
 		// set failed status and leave resources as is
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, appWrapper.Status.Step, reason)
 	} else if fatal || appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings > 0 && appWrapper.Status.Restarts >= appWrapper.Spec.Scheduling.Requeuing.MaxNumRequeuings {
