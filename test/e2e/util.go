@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
+	arcont "github.com/project-codeflare/mcad/internal/controller"
 )
 
 const testNamespace = "test"
@@ -45,6 +48,7 @@ var ninetySeconds = 90 * time.Second
 var threeMinutes = 180 * time.Second
 var tenMinutes = 600 * time.Second
 var threeHundredSeconds = 300 * time.Second
+var clusterCapacity v1.ResourceList = v1.ResourceList{}
 
 type myKey struct {
 	key string
@@ -71,6 +75,118 @@ func ensureNamespaceExists(ctx context.Context) {
 		},
 	})
 	Expect(client.IgnoreAlreadyExists(err)).NotTo(HaveOccurred())
+}
+
+// Compute available cluster capacity to allow tests to scale their resources appropriately.
+// The code is a simplification of AppWrapperReconciler.computeCapacity and intended to be run
+// in BeforeSuite methods (thus it is not necessary to filter out AppWrapper-owned pods)
+func updateClusterCapacity(ctx context.Context) {
+	kc := getClient(ctx)
+	capacity := arcont.Weights{}
+	// add allocatable capacity for each schedulable node
+	nodes := &v1.NodeList{}
+	err := kc.List(ctx, nodes)
+	Expect(err).NotTo(HaveOccurred())
+
+LOOP:
+	for _, node := range nodes.Items {
+		// skip unschedulable nodes
+		if node.Spec.Unschedulable {
+			continue
+		}
+		for _, taint := range node.Spec.Taints {
+			if taint.Effect == v1.TaintEffectNoSchedule || taint.Effect == v1.TaintEffectNoExecute {
+				continue LOOP
+			}
+		}
+		// add allocatable capacity on the node
+		capacity.Add(arcont.NewWeights(node.Status.Allocatable))
+	}
+	// subtract requests from non-terminated pods
+	pods := &v1.PodList{}
+	err = kc.List(ctx, pods)
+	Expect(err).NotTo(HaveOccurred())
+	for _, pod := range pods.Items {
+		if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+			capacity.Sub(arcont.NewWeightsForPod(&pod))
+		}
+	}
+
+	clusterCapacity = capacity.AsResources()
+
+	t, _ := json.Marshal(clusterCapacity)
+	fmt.Fprintf(GinkgoWriter, "Computed cluster capacity: %v\n", string(t))
+}
+
+func cpuDemand(fractionOfCluster float64) *resource.Quantity {
+	clusterCPU := clusterCapacity[v1.ResourceCPU]
+	milliDemand := int64(float64(clusterCPU.MilliValue()) * fractionOfCluster)
+	return resource.NewMilliQuantity(milliDemand, resource.DecimalSI)
+}
+
+func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {
+	cleanupTestObjectsPtrVerbose(ctx, appwrappersPtr, true)
+}
+
+func cleanupTestObjectsPtrVerbose(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
+	if appwrappersPtr == nil {
+		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjectsPtr] No  AppWrappers to cleanup.\n")
+	} else {
+		cleanupTestObjects(ctx, *appwrappersPtr)
+	}
+}
+
+func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
+	cleanupTestObjectsVerbose(ctx, appwrappers, true)
+}
+
+func cleanupTestObjectsVerbose(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
+	if appwrappers == nil {
+		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
+		return
+	}
+
+	for _, aw := range appwrappers {
+		pods := getPodsOfAppWrapper(ctx, aw)
+		awNamespace := aw.Namespace
+		awName := aw.Name
+		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
+		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Wait for the pods of the deleted the appwrapper to be destroyed
+		for _, pod := range pods {
+			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Awaiting pod %s/%s to be deleted for AW %s.\n",
+				pod.Namespace, pod.Name, aw.Name)
+		}
+		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
+
+		// Final check to see if pod exists
+		if err != nil {
+			var podsStillExisting []*v1.Pod
+			for _, pod := range pods {
+				podExist := &v1.Pod{}
+				err = getClient(ctx).Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
+					podsStillExisting = append(podsStillExisting, podExist)
+				}
+			}
+			if len(podsStillExisting) > 0 {
+				err = waitAWPodsDeleted(ctx, awNamespace, awName, podsStillExisting)
+			}
+		}
+		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func deleteAppWrapper(ctx context.Context, name string, namespace string) error {
+	foreground := metav1.DeletePropagationForeground
+	aw := &arbv1.AppWrapper{ObjectMeta: metav1.ObjectMeta{
+		Name:      name,
+		Namespace: namespace,
+	}}
+	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
 }
 
 func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
@@ -149,62 +265,6 @@ func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1
 	}
 }
 
-func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {
-	cleanupTestObjectsPtrVerbose(ctx, appwrappersPtr, true)
-}
-
-func cleanupTestObjectsPtrVerbose(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
-	if appwrappersPtr == nil {
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjectsPtr] No  AppWrappers to cleanup.\n")
-	} else {
-		cleanupTestObjects(ctx, *appwrappersPtr)
-	}
-}
-
-func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
-	cleanupTestObjectsVerbose(ctx, appwrappers, true)
-}
-
-func cleanupTestObjectsVerbose(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
-	if appwrappers == nil {
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
-		return
-	}
-
-	for _, aw := range appwrappers {
-		pods := getPodsOfAppWrapper(ctx, aw)
-		awNamespace := aw.Namespace
-		awName := aw.Name
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
-		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
-		Expect(err).NotTo(HaveOccurred())
-
-		// Wait for the pods of the deleted the appwrapper to be destroyed
-		for _, pod := range pods {
-			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Awaiting pod %s/%s to be deleted for AW %s.\n",
-				pod.Namespace, pod.Name, aw.Name)
-		}
-		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
-
-		// Final check to see if pod exists
-		if err != nil {
-			var podsStillExisting []*v1.Pod
-			for _, pod := range pods {
-				podExist := &v1.Pod{}
-				err = getClient(ctx).Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
-					podsStillExisting = append(podsStillExisting, podExist)
-				}
-			}
-			if len(podsStillExisting) > 0 {
-				err = waitAWPodsDeleted(ctx, awNamespace, awName, podsStillExisting)
-			}
-		}
-		Expect(err).NotTo(HaveOccurred())
-	}
-}
-
 func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quite bool) wait.ConditionFunc {
 	return func() (bool, error) {
 		defer GinkgoRecover()
@@ -265,34 +325,6 @@ func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, 
 		// DEBUG}
 
 		return taskNum <= readyTaskNum, nil
-	}
-}
-
-func awNamespacePhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.NamespacePhase) wait.ConditionFunc {
-	return func() (bool, error) {
-		awIgnored := &arbv1.AppWrapper{}
-		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
-		Expect(err).NotTo(HaveOccurred())
-
-		namespaces := &v1.NamespaceList{}
-		err = getClient(ctx).List(ctx, namespaces)
-		Expect(err).NotTo(HaveOccurred())
-
-		readyTaskNum := 0
-		for _, namespace := range namespaces.Items {
-			if awns, found := namespace.Labels["appwrapper.mcad.ibm.com"]; !found || awns != aw.Name {
-				continue
-			}
-
-			for _, p := range phase {
-				if namespace.Status.Phase == p {
-					readyTaskNum++
-					break
-				}
-			}
-		}
-
-		return 0 < readyTaskNum, nil
 	}
 }
 
@@ -368,16 +400,6 @@ func waitAWPodsTerminatedEx(ctx context.Context, namespace string, name string, 
 func waitAWPodsTerminatedExVerbose(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, podPhase(ctx, namespace, name, pods,
 		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded, v1.PodUnknown, v1.PodFailed, v1.PodPending}, taskNum))
-}
-
-func deleteAppWrapper(ctx context.Context, name string, namespace string) error {
-	foreground := metav1.DeletePropagationForeground
-	aw := &arbv1.AppWrapper{ObjectMeta: metav1.ObjectMeta{
-		Name:      name,
-		Namespace: namespace,
-	}}
-	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
-
 }
 
 func getPodsOfAppWrapper(ctx context.Context, aw *arbv1.AppWrapper) []*v1.Pod {
