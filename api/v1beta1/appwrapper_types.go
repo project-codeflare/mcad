@@ -46,7 +46,10 @@ type AppWrapperSpec struct {
 type SchedulingSpec struct {
 	DoNotUseNodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
-	// Minimum number of expected running and successful pods
+	// Minimum number of expected running and successful pods.
+	// Set to -1 to disable pod monitoring, cleanup on failure, and termination detection based on pod counts.
+	// Set to 0 to enable pod monitoring (at least 1 pod), cleanup on failure, and disable termination detection.
+	// Set to n>=1 to enable pod monitoring (at least n pods), cleanup on failure, and termination detection.
 	MinAvailable int32 `json:"minAvailable,omitempty"`
 
 	// Requeuing specification
