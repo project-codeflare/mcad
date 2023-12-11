@@ -188,7 +188,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		/*
-			TODO: DAVE TEST DISABLED BECASUE V2 DOESEN'T PARSE GENERIC RESOURCES TO OBTAIN RESOURCE INFO
+			TODO: DAVE TEST DISABLED BECAUSE V2 DOESN'T PARSE GENERIC RESOURCES TO OBTAIN RESOURCE INFO
 
 			It("Create AppWrapper  - Generic Pod Too Big - 1 Pod", func() {
 				fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Generic Pod Too Big - 1 Pod - Started.\n")
