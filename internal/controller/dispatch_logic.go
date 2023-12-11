@@ -183,7 +183,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			queue = append(queue, &copy)
 		}
 	}
-	// update AppWrapper count metric
+	// update AppWrapper count metrics
 	appWrappersCount.Reset()
 	for key, count := range appWrapperCount {
 		appWrappersCount.With(
@@ -193,7 +193,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 				"priority": strconv.Itoa(key.priority)},
 		).Set(float64(count))
 	}
-	// update requested resources metrices before assertPriorities()
+	// update requested resource metrics before assertPriorities()
 	resetRequestedMetrics()
 	for priority, request := range requests {
 		updateRequestedMetrics(request, priority)
