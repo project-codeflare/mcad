@@ -9,6 +9,14 @@ issues:
   # restore some of the defaults
   # (fill in the rest as needed)
   exclude-rules:
+  - path: "test/*"
+    linters:
+    - goconst
+    - lll
+    - prealloc
+    - staticcheck
+    - unparam
+    - unused
   - path: "api/*"
     linters:
     - lll
