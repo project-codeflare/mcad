@@ -29,14 +29,14 @@ type AppWrapperSpec struct {
 	Priority int32 `json:"priority,omitempty"`
 
 	// Priority slope
-	DoNotUsePrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
+	NotImplemented_PrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
 
-	DoNotUseService AppWrapperService `json:"service,omitempty"`
+	NotImplemented_Service AppWrapperService `json:"service,omitempty"`
 
 	// Wrapped resources
 	Resources AppWrapperResources `json:"resources"`
 
-	DoNotUseSelector *metav1.LabelSelector `json:"selector,omitempty"`
+	NotImplemented_Selector *metav1.LabelSelector `json:"selector,omitempty"`
 
 	// Scheduling specifies the parameters used for scheduling the wrapped resources.
 	// It defines the policy for requeuing jobs based on the number of running pods.
@@ -44,7 +44,7 @@ type AppWrapperSpec struct {
 }
 
 type SchedulingSpec struct {
-	DoNotUseNodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	NotImplemented_NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
 	// Minimum number of expected running and successful pods.
 	// Set to -1 to disable pod monitoring, cleanup on failure, and termination detection based on pod counts.
@@ -55,30 +55,30 @@ type SchedulingSpec struct {
 	// Requeuing specification
 	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
 
-	DoNotUseDispatchDuration DoNotUseDispatchDurationSpec `json:"dispatchDuration,omitempty"`
+	NotImplemented_DispatchDuration NotImplemented_DispatchDurationSpec `json:"dispatchDuration,omitempty"`
 }
 
-type DoNotUseDispatchDurationSpec struct {
+type NotImplemented_DispatchDurationSpec struct {
 	Expected int32 `json:"expected,omitempty"`
 	Limit    int32 `json:"limit,omitempty"`
 	Overrun  bool  `json:"overrun,omitempty"`
 }
 
 type RequeuingSpec struct {
-	DoNotUseInitialTimeInSeconds int64 `json:"initialTimeInSeconds,omitempty"`
+	NotImplemented_InitialTimeInSeconds int64 `json:"initialTimeInSeconds,omitempty"`
 
 	// Initial waiting time before requeuing conditions are checked
 	// +kubebuilder:default=270
 	TimeInSeconds int64 `json:"timeInSeconds,omitempty"`
 
 	// +kubebuilder:default=0
-	DoNotUseMaxTimeInSeconds int64 `json:"maxTimeInSeconds,omitempty"`
+	NotImplemented_MaxTimeInSeconds int64 `json:"maxTimeInSeconds,omitempty"`
 
 	// +kubebuilder:default=exponential
-	DoNotUseGrowthType string `json:"growthType,omitempty"`
+	NotImplemented_GrowthType string `json:"growthType,omitempty"`
 
 	// +kubebuilder:default=0
-	DoNotUseNumRequeuings int32 `json:"numRequeuings,omitempty"`
+	NotImplemented_NumRequeuings int32 `json:"numRequeuings,omitempty"`
 
 	// Max requeuings permitted (infinite if zero)
 	// +kubebuilder:default=0
@@ -164,15 +164,15 @@ type AppWrapperResources struct {
 
 // AppWrapper resource
 type GenericItem struct {
-	DoNotUseReplicas int32 `json:"replicas,omitempty"`
+	NotImplemented_Replicas int32 `json:"replicas,omitempty"`
 
-	DoNotUseMinAvailable *int32 `json:"minavailable,omitempty"`
+	NotImplemented_MinAvailable *int32 `json:"minavailable,omitempty"`
 
-	DoNotUseAllocated int32 `json:"allocated,omitempty"`
+	NotImplemented_Allocated int32 `json:"allocated,omitempty"`
 
-	DoNotUsePriority int32 `json:"priority,omitempty"`
+	NotImplemented_Priority int32 `json:"priority,omitempty"`
 
-	DoNotUsePrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
+	NotImplemented_PrioritySlope resource.Quantity `json:"priorityslope,omitempty"`
 
 	// The template for the resource
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -195,7 +195,7 @@ type CustomPodResource struct {
 	Requests v1.ResourceList `json:"requests"`
 
 	// Limits per replica
-	DoNotUseLimits v1.ResourceList `json:"limits,omitempty"`
+	NotImplemented_Limits v1.ResourceList `json:"limits,omitempty"`
 }
 
 // Phase transition
