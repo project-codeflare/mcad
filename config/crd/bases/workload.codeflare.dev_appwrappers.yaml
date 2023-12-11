@@ -609,7 +609,7 @@ spec:
                 format: int32
                 type: integer
               state:
-                description: Phase
+                description: State
                 type: string
               step:
                 description: Status of wrapped resources
@@ -621,13 +621,13 @@ spec:
               transitions:
                 description: Transition log
                 items:
-                  description: Phase transition
+                  description: State transition
                   properties:
                     reason:
                       description: Reason
                       type: string
                     state:
-                      description: Phase entered
+                      description: State entered
                       type: string
                     step:
                       description: Status of wrapped resources

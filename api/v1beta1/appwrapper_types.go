@@ -95,8 +95,8 @@ type RequeuingSpec struct {
 
 // AppWrapperStatus defines the observed state of AppWrapper
 type AppWrapperStatus struct {
-	// Phase
-	Phase AppWrapperPhase `json:"state,omitempty"`
+	// State
+	State AppWrapperState `json:"state,omitempty"`
 
 	// Status of wrapped resources
 	Step AppWrapperStep `json:"step,omitempty"`
@@ -117,27 +117,27 @@ type AppWrapperStatus struct {
 	TransitionCount int32 `json:"transitionCount,omitempty"`
 }
 
-// AppWrapperPhase is the label for the AppWrapper status
-type AppWrapperPhase string
+// AppWrapperState is the label for the AppWrapper status
+type AppWrapperState string
 
 // AppWrapperState is the status of wrapped resources
 type AppWrapperStep string
 
 const (
 	// Initial state upon creation of the AppWrapper object
-	Empty AppWrapperPhase = ""
+	Empty AppWrapperState = ""
 
 	// AppWrapper has not been dispatched yet or has been requeued
-	Queued AppWrapperPhase = "Pending"
+	Queued AppWrapperState = "Pending"
 
 	// AppWrapper has been dispatched and not requeued
-	Running AppWrapperPhase = "Running"
+	Running AppWrapperState = "Running"
 
 	// AppWrapper completed successfully
-	Succeeded AppWrapperPhase = "Completed"
+	Succeeded AppWrapperState = "Completed"
 
 	// AppWrapper failed and is not requeued
-	Failed AppWrapperPhase = "Failed"
+	Failed AppWrapperState = "Failed"
 
 	// Resources are not deployed
 	Idle AppWrapperStep = ""
@@ -198,7 +198,7 @@ type CustomPodResource struct {
 	NotImplemented_Limits v1.ResourceList `json:"limits,omitempty"`
 }
 
-// Phase transition
+// State transition
 type AppWrapperTransition struct {
 	// Timestamp
 	Time metav1.Time `json:"time"`
@@ -206,8 +206,8 @@ type AppWrapperTransition struct {
 	// Reason
 	Reason string `json:"reason,omitempty"`
 
-	// Phase entered
-	Phase AppWrapperPhase `json:"state"`
+	// State entered
+	State AppWrapperState `json:"state"`
 
 	// Status of wrapped resources
 	Step AppWrapperStep `json:"step,omitempty"`

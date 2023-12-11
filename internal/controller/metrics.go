@@ -23,7 +23,7 @@ import (
 )
 
 type stateStepPriority struct {
-	state    mcadv1beta1.AppWrapperPhase
+	state    mcadv1beta1.AppWrapperState
 	step     mcadv1beta1.AppWrapperStep
 	priority int
 }
