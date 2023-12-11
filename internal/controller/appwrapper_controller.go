@@ -123,13 +123,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 		// remove AppWrapper from cache
-		r.deleteCachedPhase(appWrapper)
+		r.deleteCachedAW(appWrapper)
 		log.FromContext(ctx).Info("Deleted")
 		return ctrl.Result{}, nil
 	}
 
-	// handle other phases
-	switch appWrapper.Status.Phase {
+	// handle other states
+	switch appWrapper.Status.State {
 	case mcadv1beta1.Empty:
 		// add finalizer
 		if controllerutil.AddFinalizer(appWrapper, finalizer) {
@@ -259,10 +259,10 @@ func (r *AppWrapperReconciler) jobMapFunc(ctx context.Context, obj client.Object
 }
 
 // Update AppWrapper status
-func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, phase mcadv1beta1.AppWrapperPhase, step mcadv1beta1.AppWrapperStep, reason ...string) (ctrl.Result, error) {
+func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, state mcadv1beta1.AppWrapperState, step mcadv1beta1.AppWrapperStep, reason ...string) (ctrl.Result, error) {
 	// log transition
 	now := metav1.Now()
-	transition := mcadv1beta1.AppWrapperTransition{Time: now, Phase: phase, Step: step}
+	transition := mcadv1beta1.AppWrapperTransition{Time: now, State: state, Step: step}
 	if len(reason) > 0 {
 		transition.Reason = reason[0]
 	}
@@ -271,15 +271,15 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mca
 		appWrapper.Status.Transitions = appWrapper.Status.Transitions[1:]
 	}
 	appWrapper.Status.TransitionCount++
-	appWrapper.Status.Phase = phase
+	appWrapper.Status.State = state
 	appWrapper.Status.Step = step
 	// update AppWrapper status in etcd, requeue reconciliation on failure
 	if err := r.Status().Update(ctx, appWrapper); err != nil {
 		return ctrl.Result{}, err
 	}
 	// cache AppWrapper status
-	r.addCachedPhase(appWrapper)
-	log.FromContext(ctx).Info(string(phase), "state", phase, "step", step)
+	r.addCachedAW(appWrapper)
+	log.FromContext(ctx).Info(string(state), "state", state, "step", step)
 	return ctrl.Result{}, nil
 }
 
@@ -325,8 +325,8 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 		if r.isStale(ctx, appWrapper) {
 			return ctrl.Result{Requeue: true}, nil
 		}
-		// check phase again to be extra safe
-		if appWrapper.Status.Phase != mcadv1beta1.Queued {
+		// check state again to be extra safe
+		if appWrapper.Status.State != mcadv1beta1.Queued {
 			log.FromContext(ctx).Error(errors.New("not queued"), "Internal error")
 			return ctrl.Result{Requeue: true}, nil
 		}

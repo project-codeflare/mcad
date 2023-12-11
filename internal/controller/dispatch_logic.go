@@ -147,10 +147,10 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 	appWrapperCount := map[stateStepPriority]int{}
 
 	for _, appWrapper := range appWrappers.Items {
-		// get phase from cache if available as reconciler cache may be lagging
-		phase, step := r.getCachedPhase(&appWrapper)
+		// get AppWrapper from cache if available as reconciler cache may be lagging
+		state, step := r.getCachedAW(&appWrapper)
 		priority := int(appWrapper.Spec.Priority)
-		key := stateStepPriority{phase, step, priority}
+		key := stateStepPriority{state, step, priority}
 		if _, exists := appWrapperCount[key]; !exists {
 			appWrapperCount[key] = 0
 		}
@@ -176,7 +176,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 			// compute max
 			awRequest.Max(podRequest)
 			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
-		} else if phase == mcadv1beta1.Queued &&
+		} else if state == mcadv1beta1.Queued &&
 			time.Now().After(appWrapper.Status.RequeueTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.PauseTimeInSeconds)*time.Second)) {
 			// add AppWrapper to queue
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
