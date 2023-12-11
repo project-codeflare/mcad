@@ -714,6 +714,72 @@ func createGenericJobAWtWithLargeCompute(ctx context.Context, name string) *arbv
 	return aw
 }
 
+func createGenericServiceAWWithNoStatus(ctx context.Context, name string) *arbv1.AppWrapper {
+	rb := []byte(`{
+		"apiVersion": "v1",
+		"kind": "Service",
+		"metadata": {
+			"labels": {
+				"appwrapper.mcad.ibm.com": "test-dep-job-item",
+				"resourceName": "test-dep-job-item-svc"
+			},
+			"name": "test-dep-job-item-svc",
+			"namespace": "test"
+		},
+		"spec": {
+			"ports": [
+				{
+					"name": "client",
+					"port": 10001,
+					"protocol": "TCP",
+					"targetPort": 10001
+				},
+				{
+					"name": "dashboard",
+					"port": 8265,
+					"protocol": "TCP",
+					"targetPort": 8265
+				},
+				{
+					"name": "redis",
+					"port": 6379,
+					"protocol": "TCP",
+					"targetPort": 6379
+				}
+			],
+			"selector": {
+				"component": "test-dep-job-item-svc"
+			},
+			"sessionAffinity": "None",
+			"type": "ClusterIP"
+		}
+	}`)
+
+	aw := &arbv1.AppWrapper{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: testNamespace,
+		},
+		Spec: arbv1.AppWrapperSpec{
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
+					{
+						GenericTemplate: runtime.RawExtension{
+							Raw: rb,
+						},
+						CompletionStatus: "Complete",
+					},
+				},
+			},
+		},
+	}
+
+	err := getClient(ctx).Create(ctx, aw)
+	Expect(err).NotTo(HaveOccurred())
+
+	return aw
+}
+
 func createGenericDeploymentAWWithMultipleItems(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "apps/v1",
 		"kind": "Deployment",
@@ -785,7 +851,7 @@ func createGenericDeploymentAWWithMultipleItems(ctx context.Context, name string
 			"metadata": {
 				"labels": {
 					"app": "` + name + `-deployment-2"
-				},
+				}
 			},
 			"spec": {
 				"containers": [
