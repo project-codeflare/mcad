@@ -115,6 +115,27 @@ func (w Weights) Fits(r Weights) bool {
 	return true
 }
 
+// Return the amounts by which the receiver exceeds (fails to Fit) the argument
+func (w Weights) Lacks(r Weights) Weights {
+	gap := Weights{}
+	zero := &inf.Dec{}    // shared zero, never mutated
+	for k, v := range w { // range over receiver not argument
+		// ignore 0 requests
+		if v.Cmp(zero) <= 0 {
+			continue
+		}
+		if r[k] == nil {
+			gap[k] = &inf.Dec{} // fresh zero
+			gap[k].Set(v)
+		} else if v.Cmp(r[k]) == 1 {
+			gap[k] = &inf.Dec{} // fresh zero
+			gap[k].Set(v)
+			gap[k].Sub(gap[k], r[k])
+		}
+	}
+	return gap
+}
+
 // Converts Weights to a ResourceList
 func (w Weights) AsResources() v1.ResourceList {
 	resources := v1.ResourceList{}

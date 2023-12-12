@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -30,6 +31,11 @@ import (
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+type QueuingDecision struct {
+	reason  mcadv1beta1.AppWrapperQueuedReason
+	message string
+}
 
 // Compute available cluster capacity
 func (r *AppWrapperReconciler) computeCapacity(ctx context.Context) (Weights, error) {
@@ -253,6 +259,10 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 		request := aggregateRequests(appWrapper)
 		if request.Fits(available[int(appWrapper.Spec.Priority)]) {
 			return appWrapper.DeepCopy(), nil // deep copy AppWrapper
+		} else {
+			gap := request.Lacks(available[int(appWrapper.Spec.Priority)])
+			msg := fmt.Sprintf("Resource gap is: %v", gap)
+			r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientResources, message: msg}
 		}
 	}
 	// no queued AppWrapper fits

@@ -19,11 +19,13 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -47,6 +49,7 @@ type AppWrapperReconciler struct {
 	Events          chan event.GenericEvent         // event channel to trigger dispatch
 	ClusterCapacity Weights                         // cluster capacity available to MCAD
 	NextSync        time.Time                       // when to refresh cluster capacity
+	Decisions       map[types.UID]*QueuingDecision  // transient log of queuing decisions to enable recording in AppWrapper Status
 }
 
 const (
@@ -141,8 +144,27 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 
 	case mcadv1beta1.Queued:
-		r.triggerDispatch()
-		return ctrl.Result{}, nil
+		// Propagate most recent queuing decision to AppWrapper's Queued Condition
+		if decision, ok := r.Decisions[appWrapper.UID]; ok {
+			meta.SetStatusCondition(&appWrapper.Status.Conditions, metav1.Condition{
+				Type:    string(mcadv1beta1.Queued),
+				Status:  metav1.ConditionTrue,
+				Reason:  string(decision.reason),
+				Message: decision.message,
+			})
+			if r.Status().Update(ctx, appWrapper) == nil {
+				// If successfully propagated, remove from in memory map
+				delete(r.Decisions, appWrapper.UID)
+			}
+		}
+
+		if meta.FindStatusCondition(appWrapper.Status.Conditions, string(mcadv1beta1.Queued)) == nil {
+			// Absence of Queued Condition strongly suggests AppWrapper is new; trigger dispatch and a short requeue
+			r.triggerDispatch()
+			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+		} else {
+			return ctrl.Result{RequeueAfter: queuedDelay}, nil
+		}
 
 	case mcadv1beta1.Running:
 		switch appWrapper.Status.Step {
@@ -193,6 +215,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			// reset status to queued/idle
 			appWrapper.Status.Restarts += 1
 			appWrapper.Status.RequeueTimestamp = metav1.Now() // overwrite requeue decision time with completion time
+			lastTransition := appWrapper.Status.Transitions[len(appWrapper.Status.Transitions)-1]
+			meta.SetStatusCondition(&appWrapper.Status.Conditions, metav1.Condition{
+				Type:    string(mcadv1beta1.Queued),
+				Status:  metav1.ConditionTrue,
+				Reason:  string(mcadv1beta1.QueuedRequeue),
+				Message: fmt.Sprintf("Requeued at %v because %s", lastTransition.Time.UTC().Format(time.RFC3339), lastTransition.Reason),
+			})
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 		}
 
@@ -332,6 +361,12 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 		}
 		// set dispatching time and status
 		appWrapper.Status.DispatchTimestamp = metav1.Now()
+		meta.SetStatusCondition(&appWrapper.Status.Conditions, metav1.Condition{
+			Type:    string(mcadv1beta1.Queued),
+			Status:  metav1.ConditionFalse,
+			Reason:  string(mcadv1beta1.QueuedDispatch),
+			Message: "Selected for dispatch",
+		})
 		if _, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Creating); err != nil {
 			return ctrl.Result{}, err
 		}
