@@ -103,7 +103,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		/*
-			 * TODO: Dave DISABLED BECASUSE V2 doesn't support exponential backoff of requeuing time
+			 * TODO: Dave DISABLED because V2 doesn't support exponential backoff of requeuing time
 			It("MCAD CPU Requeuing - Completion After Enough Requeuing Times Test", func() {
 				fmt.Fprintf(os.Stdout, "[e2e] Completion After Enough Requeuing Times Test - Started.\n")
 
@@ -188,8 +188,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		/*
-			TODO: DAVE TEST DISABLED BECAUSE V2 DOESN'T PARSE GENERIC RESOURCES TO OBTAIN RESOURCE INFO
-
+			TODO: DAVE DISABLED unimplemented feature of parsing generic resources to obtain resource requests
 			It("Create AppWrapper  - Generic Pod Too Big - 1 Pod", func() {
 				fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Generic Pod Too Big - 1 Pod - Started.\n")
 
@@ -245,7 +244,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 	})
 
-	/* TODO: DAVE -- STATUS
+	/* TODO: DAVE -- Unimplemented Status feature: PendingPodConditions
 	It("Create AppWrapper  - Check failed pod status", func() {
 		fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Check failed pod status - Started.\n")
 
@@ -289,7 +288,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		Expect(err).NotTo(HaveOccurred(), "Expecting pods to be ready for app wrapper: aw-deployment-2-550-vs-550-cpu")
 	})
 
-	/* TODO: DAVE STATUS
+	/* TODO: DAVE STATUS + test too long + unimplemented premption features + test sensitivity to cluster size
 	It("MCAD Scheduling Fail Fast Preemption Test", func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD Scheduling Fail Fast Preemption Test - Started.\n")
 
@@ -356,7 +355,10 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	*/
 
 	/*
-		TODO: DAVE -- Test disabled because it is too fragile -- redo with % of capacity calculation
+		TODO: DAVE -- Test disabled because:
+		             (1) fragile -  need to redo with % of capacity calculation
+		             (2) testing fringe/unimplemented behavior of inconsistent resource specifications
+
 		It("MCAD Bad Custom Pod Resources vs. Deployment Pod Resource Not Queuing Test", func() {
 			fmt.Fprintf(os.Stdout, "[e2e] MCAD Bad Custom Pod Resources vs. Deployment Pod Resource Not Queuing Test - Started.\n")
 
@@ -382,7 +384,9 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	*/
 
 	/*
-			TODO: DAVE -- Test disabled because it is too fragile -- redo with % of capacity calculation
+		TODO: DAVE -- Test disabled because:
+		             (1) fragile -  need to redo with % of capacity calculation
+		             (2) testing fringe/unimplemented behavior of inconsistent resource specifications
 		It("MCAD Bad Custom Pod Resources vs. Deployment Pod Resource Queuing Test 2", func() {
 			fmt.Fprintf(os.Stdout, "[e2e] MCAD Bad Custom Pod Resources vs. Deployment Pod Resource Queuing Test 2 - Started.\n")
 
@@ -406,7 +410,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 	*/
 
-	/*  TODO: DAVE: Status.State
+	/* TODO: Dave -- testing unimplemented feature -- DispatchDuration
 	It("MCAD app wrapper timeout Test", func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD app wrapper timeout Test - Started.\n")
 
@@ -430,42 +434,32 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	})
 	*/
 
-	/*  TODO: DAVE: Status.State
 	It("MCAD Job Completion Test", func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Completion Test - Started.\n")
 
 		aw := createGenericJobAWWithStatus(ctx, "aw-test-job-with-comp-1")
+		appwrappers = append(appwrappers, aw)
 		err1 := waitAWPodsReady(ctx, aw)
 		Expect(err1).NotTo(HaveOccurred())
-		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.AppWrapperStateCompleted)))
-		appwrappers = append(appwrappers, aw)
-		fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Completion Test - Completed.\n")
+		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.Succeeded)))
 	})
-	*/
 
-	/*  TODO: DAVE: Status.State
 	It("MCAD Multi-Item Job Completion Test", func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD Multi-Item Job Completion Test - Started.\n")
-		ctx := initTestContext()
-		var appwrappers []*arbv1.AppWrapper
-		appwrappersPtr := &appwrappers
-		defer cleanupTestObjectsPtr(ctx, appwrappersPtr)
 
 		aw := createGenericJobAWWithMultipleStatus(ctx, "aw-test-job-with-comp-ms-21")
+		appwrappers = append(appwrappers, aw)
 		err1 := waitAWPodsReady(ctx, aw)
 		Expect(err1).NotTo(HaveOccurred(), "Expecting pods to be ready for app wrapper: 'aw-test-job-with-comp-ms-21'")
-		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.AppWrapperStateCompleted)))
-		appwrappers = append(appwrappers, aw)
-		fmt.Fprintf(os.Stdout, "[e2e] MCAD Multi-Item Job Completion Test - Completed.\n")
+		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.Succeeded)))
 	})
-	*/
 
 	It("MCAD GenericItem Without Status Test", func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD GenericItem Without Status Test - Started.\n")
 
 		aw := createAWGenericItemWithoutStatus(ctx, "aw-test-job-with-comp-44")
-		err1 := waitAWPodsReady(ctx, aw)
 		appwrappers = append(appwrappers, aw)
+		err1 := waitAWPodsReady(ctx, aw)
 		fmt.Fprintf(GinkgoWriter, "The error is: %v", err1)
 		Expect(err1).To(HaveOccurred(), "Expecting for pods not to be ready for app wrapper: aw-test-job-with-comp-44")
 	})
@@ -486,20 +480,21 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		Expect(err3).To(HaveOccurred(), "Waiting for pods not to be completed")
 	})
 
-	/*  TODO: DAVE: Status.State
-	It("MCAD Job Large Compute Requirement Test", func() {
-		fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Large Compute Requirement Test - Started.\n")
+	/*
+		  TODO: DAVE -- test depends on extracting resoure requirements from generic items
+		It("MCAD Job Large Compute Requirement Test", Label("slow"), func() {
+			fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Large Compute Requirement Test - Started.\n")
 
-		aw := createGenericJobAWtWithLargeCompute(ctx, "aw-test-job-with-large-comp-1")
-		err1 := waitAWPodsReady(ctx, aw)
-		Expect(err1).NotTo(HaveOccurred())
-		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.AppWrapperStateEnqueued)))
-		appwrappers = append(appwrappers, aw)
-		fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Large Compute Requirement Test - Completed.\n")
-	})
+			aw := createGenericJobAWtWithLargeCompute(ctx, "aw-test-job-with-large-comp-1")
+			appwrappers = append(appwrappers, aw)
+			err1 := waitAWPodsReady(ctx, aw)
+			Expect(err1).NotTo(HaveOccurred())
+			Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.Queued)))
+			fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Large Compute Requirement Test - Completed.\n")
+		})
 	*/
 
-	/*  TODO: DAVE: Status.State
+	/* TODO: DAVE -- Testing unimplemented state in V2.  One of the wrapped resources completes, the other runs forever.  In V1 this was encoded as RunningHoldCompletion
 	It("MCAD Deployment RunningHoldCompletion Test", func() {
 		fmt.Fprintf(os.Stdout, "[e2e] MCAD Deployment RunningHoldCompletion Test - Started.\n")
 
@@ -512,18 +507,14 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	})
 	*/
 
-	/*  TODO: DAVE: Status.State
-	It("MCAD Service no RunningHoldCompletion or Complete Test", func() {
-		fmt.Fprintf(os.Stdout, "[e2e] MCAD Service no RunningHoldCompletion or Complete Test - Started.\n")
+	It("MCAD Service Created but not Succeeded/Failed", func() {
+		fmt.Fprintf(os.Stdout, "[e2e] MCAD Service Created but not Succeeded/Failed - Started.\n")
 
-		aw := createGenericServiceAWWithNoStatus(ctx, appendRandomString("aw-deployment-2-status"))
-		err1 := waitAWPodsReady(ctx, aw)
-		Expect(err1).NotTo(HaveOccurred())
-		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.AppWrapperStateActive)))
+		aw := createGenericServiceAWWithNoStatus(ctx, appendRandomString("aw-service-2-status"))
 		appwrappers = append(appwrappers, aw)
-		fmt.Fprintf(os.Stdout, "[e2e] MCAD Service no RuningHoldCompletion or Complete Test - Completed.\n")
+		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 30*time.Second).Should(WithTransform(AppWrapperStep, Equal(arbv1.Created)))
+		Consistently(AppWrapper(ctx, aw.Namespace, aw.Name), 30*time.Second).ShouldNot(WithTransform(AppWrapperState, Or(Equal(arbv1.Succeeded), Equal(arbv1.Failed))))
 	})
-	*/
 
 	Describe("Load Testing", Label("slow"), func() {
 

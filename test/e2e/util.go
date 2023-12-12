@@ -446,8 +446,10 @@ func AppWrapper(ctx context.Context, namespace string, name string) func(g gomeg
 	}
 }
 
-/* TODO: DAVE AppWrapperState
 func AppWrapperState(aw *arbv1.AppWrapper) arbv1.AppWrapperState {
 	return aw.Status.State
 }
-*/
+
+func AppWrapperStep(aw *arbv1.AppWrapper) arbv1.AppWrapperStep {
+	return aw.Status.Step
+}
