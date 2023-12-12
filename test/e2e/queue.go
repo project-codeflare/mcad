@@ -142,15 +142,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("Create AppWrapper - Generic StatefulSet Only - 2 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Generic StatefulSet Only - 2 Pods - Started.\n")
-
-			aw := createGenericStatefulSetAW(ctx, "aw-generic-statefulset-2")
-			appwrappers = append(appwrappers, aw)
-			err := waitAWPodsReady(ctx, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-
 		It("Create AppWrapper - Deployment Only - 3 Pods", func() {
 			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Deployment Only 3 Pods - Started.\n")
 
@@ -160,28 +151,19 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("Create AppWrapper - Generic Deployment Only - 3 pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Generic Deployment Only - 3 pods - Started.\n")
+		It("Create AppWrapper  - Pod Only - 1 Pod", func() {
+			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Pod Only - 1 Pod - Started.\n")
 
-			aw := createGenericDeploymentAW(ctx, "aw-generic-deployment-3")
+			aw := createGenericPodAW(ctx, "aw-pod-1")
 			appwrappers = append(appwrappers, aw)
 			err := waitAWPodsReady(ctx, aw)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("Create AppWrapper  - PodTemplate Only - 2 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - PodTemplate Only - 2 Pods - Started.\n")
+		It("Create AppWrapper  - PodTemplates Only - 2 Pods", func() {
+			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - PodTemplate Only - 2 Pods - Started.\n")
 
 			aw := createPodTemplateAW(ctx, "aw-podtemplate-2")
-			appwrappers = append(appwrappers, aw)
-			err := waitAWPodsReady(ctx, aw)
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		It("Create AppWrapper  - Generic Pod Only - 1 Pod", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Generic Pod Only - 1 Pod - Started.\n")
-
-			aw := createGenericPodAW(ctx, "aw-generic-pod-1")
 			appwrappers = append(appwrappers, aw)
 			err := waitAWPodsReady(ctx, aw)
 			Expect(err).NotTo(HaveOccurred())
@@ -204,33 +186,23 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 
 	Describe("Handling Invalid Resources", func() {
 
-		It("Create AppWrapper- Bad PodTemplate", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper- Bad PodTemplate - Started.\n")
+		It("Create AppWrapper- Bad Pod", func() {
+			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Bad Pod - Started.\n")
 
-			aw := createBadPodTemplateAW(ctx, "aw-bad-podtemplate-2")
+			aw := createBadPodAW(ctx, "aw-bad-podtemplate-2")
 			appwrappers = append(appwrappers, aw)
 			err := waitAWPodsExists(ctx, aw, 30*time.Second)
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("Create AppWrapper  - Bad Generic PodTemplate Only", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Bad Generic PodTemplate Only - Started.\n")
+		It("Create AppWrapper  - Bad PodTemplate Only", func() {
+			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Bad PodTemplate Only - Started.\n")
 
 			aw, err := createBadGenericPodTemplateAW(ctx, "aw-generic-podtemplate-2")
 			if err == nil {
 				appwrappers = append(appwrappers, aw)
 			}
 			Expect(err).To(HaveOccurred())
-		})
-
-		It("Create AppWrapper  - Bad Generic Pod Only", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Bad Generic Pod Only - Started.\n")
-
-			aw := createBadGenericPodAW(ctx, "aw-bad-generic-pod-1")
-			appwrappers = append(appwrappers, aw)
-			err := waitAWPodsCompleted(ctx, aw, 10*time.Second)
-			Expect(err).To(HaveOccurred())
-
 		})
 
 		It("Create AppWrapper  - Bad Generic Item Only", func() {
@@ -240,7 +212,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			appwrappers = append(appwrappers, aw)
 			err := waitAWPodsCompleted(ctx, aw, 10*time.Second)
 			Expect(err).To(HaveOccurred())
-
 		})
 	})
 

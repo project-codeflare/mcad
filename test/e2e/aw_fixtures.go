@@ -261,75 +261,6 @@ func createDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createGenericDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "Deployment",
-	"metadata": {
-		"name": "aw-generic-deployment-3",
-		"namespace": "test",
-		"labels": {
-			"app": "aw-generic-deployment-3"
-		}
-	},
-	"spec": {
-		"replicas": 3,
-		"selector": {
-			"matchLabels": {
-				"app": "aw-generic-deployment-3"
-			}
-		},
-		"template": {
-			"metadata": {
-				"labels": {
-					"app": "aw-generic-deployment-3"
-				}
-			},
-			"spec": {
-				"containers": [
-					{
-						"name": "aw-generic-deployment-3",
-						"image": "quay.io/project-codeflare/echo-server:1.0",
-						"ports": [
-							{
-								"containerPort": 80
-							}
-						]
-					}
-				]
-			}
-		}
-	}} `)
-	var schedSpecMin int32 = 3
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						NotImplemented_Replicas: 1,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-						CompletionStatus: "Progressing",
-					},
-				},
-			},
-		},
-	}
-
-	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
 func createGenericJobAWWithStatus(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{
 		"apiVersion": "batch/v1",
@@ -1135,75 +1066,7 @@ func createStatefulSetAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	return aw
 }
 
-func createGenericStatefulSetAW(ctx context.Context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{"apiVersion": "apps/v1",
-		"kind": "StatefulSet",
-	"metadata": {
-		"name": "aw-generic-statefulset-2",
-		"namespace": "test",
-		"labels": {
-			"app": "aw-generic-statefulset-2"
-		}
-	},
-	"spec": {
-		"replicas": 2,
-		"selector": {
-			"matchLabels": {
-				"app": "aw-generic-statefulset-2"
-			}
-		},
-		"template": {
-			"metadata": {
-				"labels": {
-					"app": "aw-generic-statefulset-2"
-				}
-			},
-			"spec": {
-				"containers": [
-					{
-						"name": "aw-generic-statefulset-2",
-						"image": "quay.io/project-codeflare/echo-server:1.0",
-						"imagePullPolicy": "Never",
-						"ports": [
-							{
-								"containerPort": 80
-							}
-						]
-					}
-				]
-			}
-		}
-	}} `)
-	var schedSpecMin int32 = 2
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						NotImplemented_Replicas: 2,
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createBadPodTemplateAW(ctx context.Context, name string) *arbv1.AppWrapper {
+func createBadPodAW(ctx context.Context, name string) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "v1",
 		"kind": "Pod",
 		"metadata": {
@@ -1573,58 +1436,6 @@ func createGenericPodTooBigAW(ctx context.Context, name string) *arbv1.AppWrappe
 			Name:      name,
 			Namespace: testNamespace,
 			Labels:    labels,
-		},
-		Spec: arbv1.AppWrapperSpec{
-			Scheduling: arbv1.SchedulingSpec{
-				MinAvailable: schedSpecMin,
-			},
-			Resources: arbv1.AppWrapperResources{
-				GenericItems: []arbv1.GenericItem{
-					{
-						GenericTemplate: runtime.RawExtension{
-							Raw: rb,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
-}
-
-func createBadGenericPodAW(ctx context.Context, name string) *arbv1.AppWrapper {
-	rb := []byte(`{
-		"apiVersion": "v1",
-		"kind": "Pod",
-		"metadata": {
-			"labels": {
-				"app": "aw-bad-generic-pod-1"
-			}
-		},
-		"spec": {
-			"containers": [
-				{
-					"name": "aw-bad-generic-pod-1",
-					"image": "quay.io/project-codeflare/echo-server:1.0",
-					"ports": [
-						{
-							"containerPort": 80
-						}
-					]
-				}
-			]
-		}
-	} `)
-	var schedSpecMin int32 = 1
-
-	aw := &arbv1.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
 		},
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
