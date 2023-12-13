@@ -83,8 +83,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			By("Request 50% of cluster CPU (will not fit; should be queued for insufficient resources)")
 			aw2 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-50-percent-cpu"), cpuDemand(0.25), 2)
 			appwrappers = append(appwrappers, aw2)
-			Eventually(AppWrapper(ctx, aw2.Namespace, aw2.Name), 30*time.Second).
-				Should(WithTransform(AppWrapperQueuedReason, Equal(arbv1.QueuedInsufficientResources)))
+			Eventually(AppWrapperQueuedReason(ctx, aw2.Namespace, aw2.Name), 30*time.Second).Should(Equal(arbv1.QueuedInsufficientResources))
 
 			By("Request 30% of cluster CPU")
 			aw3 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
@@ -129,9 +128,9 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			aw := createJobAWWithStuckInitContainer(ctx, "aw-job-3-init-container", rq)
 			appwrappers = append(appwrappers, aw)
 			By("Unready pods will trigger requeuing")
-			Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperQueuedReason, Equal(arbv1.QueuedRequeue)))
+			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(arbv1.QueuedRequeue))
 			By("After reaching requeuing limit job is failed")
-			Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 4*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.Failed)))
+			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 4*time.Minute).Should(Equal(arbv1.Failed))
 		})
 
 		It("Create AppWrapper - StatefulSet Only - 2 Pods", func() {
@@ -192,7 +191,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 
 			aw := createBadPodAW(ctx, "aw-bad-podtemplate-2")
 			appwrappers = append(appwrappers, aw)
-			Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(WithTransform(AppWrapperState, Equal(arbv1.Failed)))
+			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(Equal(arbv1.Failed))
 		})
 
 		It("Create AppWrapper  - Bad PodTemplate Only", func() {
@@ -210,7 +209,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 
 			aw := createBadGenericItemAW(ctx, "aw-bad-generic-item-1")
 			appwrappers = append(appwrappers, aw)
-			Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(WithTransform(AppWrapperState, Equal(arbv1.Failed)))
+			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(Equal(arbv1.Failed))
 		})
 	})
 
@@ -411,7 +410,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		appwrappers = append(appwrappers, aw)
 		err1 := waitAWPodsReady(ctx, aw)
 		Expect(err1).NotTo(HaveOccurred())
-		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.Succeeded)))
+		Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(arbv1.Succeeded))
 	})
 
 	It("MCAD Multi-Item Job Completion Test", func() {
@@ -421,7 +420,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		appwrappers = append(appwrappers, aw)
 		err1 := waitAWPodsReady(ctx, aw)
 		Expect(err1).NotTo(HaveOccurred(), "Expecting pods to be ready for app wrapper: 'aw-test-job-with-comp-ms-21'")
-		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(WithTransform(AppWrapperState, Equal(arbv1.Succeeded)))
+		Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(arbv1.Succeeded))
 	})
 
 	It("MCAD GenericItem Without Status Test", func() {
@@ -482,8 +481,8 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 
 		aw := createGenericServiceAWWithNoStatus(ctx, appendRandomString("aw-service-2-status"))
 		appwrappers = append(appwrappers, aw)
-		Eventually(AppWrapper(ctx, aw.Namespace, aw.Name), 30*time.Second).Should(WithTransform(AppWrapperStep, Equal(arbv1.Created)))
-		Consistently(AppWrapper(ctx, aw.Namespace, aw.Name), 30*time.Second).ShouldNot(WithTransform(AppWrapperState, Or(Equal(arbv1.Succeeded), Equal(arbv1.Failed))))
+		Eventually(AppWrapperStep(ctx, aw.Namespace, aw.Name), 30*time.Second).Should(Equal(arbv1.Created))
+		Consistently(AppWrapperState(ctx, aw.Namespace, aw.Name), 30*time.Second).ShouldNot(Or(Equal(arbv1.Succeeded), Equal(arbv1.Failed)))
 	})
 
 	Describe("Load Testing", Label("slow"), func() {

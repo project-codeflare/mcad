@@ -447,22 +447,33 @@ func AppWrapper(ctx context.Context, namespace string, name string) func(g gomeg
 	}
 }
 
-func AppWrapperState(aw *arbv1.AppWrapper) arbv1.AppWrapperState {
-	return aw.Status.State
+func AppWrapperState(ctx context.Context, namespace string, name string) func(g gomega.Gomega) arbv1.AppWrapperState {
+	return func(g gomega.Gomega) arbv1.AppWrapperState {
+		aw := &arbv1.AppWrapper{}
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		return aw.Status.State
+	}
 }
 
-func AppWrapperStep(aw *arbv1.AppWrapper) arbv1.AppWrapperStep {
-	return aw.Status.Step
+func AppWrapperStep(ctx context.Context, namespace string, name string) func(g gomega.Gomega) arbv1.AppWrapperStep {
+	return func(g gomega.Gomega) arbv1.AppWrapperStep {
+		aw := &arbv1.AppWrapper{}
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		return aw.Status.Step
+	}
 }
 
-func AppWrapperIsQueued(aw *arbv1.AppWrapper) bool {
-	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(arbv1.Queued))
-}
-
-func AppWrapperQueuedReason(aw *arbv1.AppWrapper) string {
-	if qc := meta.FindStatusCondition(aw.Status.Conditions, string(arbv1.Queued)); qc != nil && qc.Status == metav1.ConditionTrue {
-		return qc.Reason
-	} else {
-		return ""
+func AppWrapperQueuedReason(ctx context.Context, namespace string, name string) func(g gomega.Gomega) string {
+	return func(g gomega.Gomega) string {
+		aw := &arbv1.AppWrapper{}
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if qc := meta.FindStatusCondition(aw.Status.Conditions, string(arbv1.Queued)); qc != nil && qc.Status == metav1.ConditionTrue {
+			return qc.Reason
+		} else {
+			return ""
+		}
 	}
 }
