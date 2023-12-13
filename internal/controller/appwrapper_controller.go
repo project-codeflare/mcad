@@ -218,7 +218,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			msg := "Requeued by MCAD"
 			if decision, ok := r.Decisions[appWrapper.UID]; ok && decision.reason == mcadv1beta1.QueuedRequeue {
 				msg = fmt.Sprintf("Requeued because %s", decision.message)
-				delete(r.Decisions, appWrapper.UID)
 			}
 			meta.SetStatusCondition(&appWrapper.Status.Conditions, metav1.Condition{
 				Type:    string(mcadv1beta1.Queued),
@@ -226,7 +225,11 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  string(mcadv1beta1.QueuedRequeue),
 				Message: msg,
 			})
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
+			res, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
+			if err != nil {
+				delete(r.Decisions, appWrapper.UID)
+			}
+			return res, err
 		}
 
 	case mcadv1beta1.Failed:
