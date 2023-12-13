@@ -127,6 +127,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		// remove AppWrapper from cache
 		r.deleteCachedAW(appWrapper)
+		delete(r.Decisions, appWrapper.UID)
 		log.FromContext(ctx).Info("Deleted")
 		return ctrl.Result{}, nil
 	}
