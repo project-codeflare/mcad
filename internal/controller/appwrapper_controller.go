@@ -215,12 +215,16 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			// reset status to queued/idle
 			appWrapper.Status.Restarts += 1
 			appWrapper.Status.RequeueTimestamp = metav1.Now() // overwrite requeue decision time with completion time
-			lastTransition := appWrapper.Status.Transitions[len(appWrapper.Status.Transitions)-1]
+			msg := "Requeued by MCAD"
+			if decision, ok := r.Decisions[appWrapper.UID]; ok && decision.reason == mcadv1beta1.QueuedRequeue {
+				msg = fmt.Sprintf("Requeued because %s", decision.message)
+				delete(r.Decisions, appWrapper.UID)
+			}
 			meta.SetStatusCondition(&appWrapper.Status.Conditions, metav1.Condition{
 				Type:    string(mcadv1beta1.Queued),
 				Status:  metav1.ConditionTrue,
 				Reason:  string(mcadv1beta1.QueuedRequeue),
-				Message: fmt.Sprintf("Requeued at %v because %s", lastTransition.Time.UTC().Format(time.RFC3339), lastTransition.Reason),
+				Message: msg,
 			})
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 		}
@@ -324,6 +328,7 @@ func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mc
 	}
 	// requeue AppWrapper
 	appWrapper.Status.RequeueTimestamp = metav1.Now()
+	r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedRequeue, message: reason}
 	return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Deleting, reason)
 }
 
