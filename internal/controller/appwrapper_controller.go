@@ -162,7 +162,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if meta.FindStatusCondition(appWrapper.Status.Conditions, string(mcadv1beta1.Queued)) == nil {
 			// Absence of Queued Condition strongly suggests AppWrapper is new; trigger dispatch and a short requeue
 			r.triggerDispatch()
-			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: deletionDelay}, nil
 		} else {
 			return ctrl.Result{RequeueAfter: queuedDelay}, nil
 		}
