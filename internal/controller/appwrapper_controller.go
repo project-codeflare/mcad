@@ -226,7 +226,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Message: msg,
 			})
 			res, err := r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
-			if err != nil {
+			if err == nil {
 				delete(r.Decisions, appWrapper.UID)
 			}
 			return res, err
