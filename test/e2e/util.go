@@ -28,6 +28,7 @@ import (
 	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -452,4 +453,16 @@ func AppWrapperState(aw *arbv1.AppWrapper) arbv1.AppWrapperState {
 
 func AppWrapperStep(aw *arbv1.AppWrapper) arbv1.AppWrapperStep {
 	return aw.Status.Step
+}
+
+func AppWrapperIsQueued(aw *arbv1.AppWrapper) bool {
+	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(arbv1.Queued))
+}
+
+func AppWrapperQueuedReason(aw *arbv1.AppWrapper) string {
+	if qc := meta.FindStatusCondition(aw.Status.Conditions, string(arbv1.Queued)); qc != nil && qc.Status == metav1.ConditionTrue {
+		return qc.Reason
+	} else {
+		return ""
+	}
 }
