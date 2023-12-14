@@ -44,10 +44,8 @@ import (
 
 const testNamespace = "test"
 
-var ninetySeconds = 90 * time.Second
-var threeMinutes = 180 * time.Second
-var tenMinutes = 600 * time.Second
-var threeHundredSeconds = 300 * time.Second
+const ninetySeconds = 90 * time.Second
+
 var clusterCapacity v1.ResourceList = v1.ResourceList{}
 
 type myKey struct {
@@ -148,8 +146,8 @@ func deleteAppWrapper(ctx context.Context, name string, namespace string) error 
 	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
 }
 
-func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
-	return func() (bool, error) {
+func anyPodsExist(awNamespace string, awName string) wait.ConditionWithContextFunc {
+	return func(ctx context.Context) (bool, error) {
 		podList := &v1.PodList{}
 		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		if err != nil {
@@ -165,8 +163,8 @@ func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.C
 	}
 }
 
-func noPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
-	return func() (bool, error) {
+func noPodsExist(awNamespace string, awName string) wait.ConditionWithContextFunc {
+	return func(ctx context.Context) (bool, error) {
 		podList := &v1.PodList{}
 		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		if err != nil {
@@ -182,8 +180,8 @@ func noPodsExist(ctx context.Context, awNamespace string, awName string) wait.Co
 	}
 }
 
-func podsInPhase(ctx context.Context, awNamespace string, awName string, phase []v1.PodPhase, minimumPodCount int) wait.ConditionFunc {
-	return func() (bool, error) {
+func podsInPhase(awNamespace string, awName string, phase []v1.PodPhase, minimumPodCount int) wait.ConditionWithContextFunc {
+	return func(ctx context.Context) (bool, error) {
 		podList := &v1.PodList{}
 		err := getClient(ctx).List(ctx, podList, &client.ListOptions{Namespace: awNamespace})
 		if err != nil {
@@ -231,31 +229,31 @@ func waitAWPodsPending(ctx context.Context, aw *arbv1.AppWrapper) error {
 }
 
 func waitAWAnyPodsExistsEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
-	return wait.Poll(100*time.Millisecond, timeout, anyPodsExist(ctx, aw.Namespace, aw.Name))
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, anyPodsExist(aw.Namespace, aw.Name))
 }
 
 func waitAWPodsDeletedEx(ctx context.Context, awNamespace string, awName string, timeout time.Duration) error {
-	return wait.Poll(100*time.Millisecond, timeout, noPodsExist(ctx, awNamespace, awName))
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, noPodsExist(awNamespace, awName))
 }
 
 func waitAWPodsReadyEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
 	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
-	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, podsInPhase(aw.Namespace, aw.Name, phases, taskNum))
 }
 
 func waitAWPodsCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
 	phases := []v1.PodPhase{v1.PodSucceeded}
-	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, podsInPhase(aw.Namespace, aw.Name, phases, taskNum))
 }
 
 func waitAWPodsNotCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
 	phases := []v1.PodPhase{v1.PodPending, v1.PodRunning, v1.PodFailed, v1.PodUnknown}
-	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, podsInPhase(aw.Namespace, aw.Name, phases, taskNum))
 }
 
 func waitAWPodsPendingEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
 	phases := []v1.PodPhase{v1.PodPending}
-	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, podsInPhase(aw.Namespace, aw.Name, phases, taskNum))
 }
 
 const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
