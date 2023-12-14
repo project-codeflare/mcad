@@ -108,7 +108,7 @@ func createGenericAWTimeoutWithStatus(ctx context.Context, name string) *arbv1.A
 	return aw
 }
 
-func createJobAWWithInitContainer(ctx context.Context, name string, requeuingTimeInSeconds int, requeuingGrowthType string, requeuingMaxNumRequeuings int) *arbv1.AppWrapper {
+func createJobAWWithStuckInitContainer(ctx context.Context, name string, requeuingSpec arbv1.RequeuingSpec) *arbv1.AppWrapper {
 	rb := []byte(`{"apiVersion": "batch/v1",
 		"kind": "Job",
 	"metadata": {
@@ -133,7 +133,7 @@ func createJobAWWithInitContainer(ctx context.Context, name string, requeuingTim
 					{
 						"name": "job-init-container",
 						"image": "quay.io/project-codeflare/busybox:latest",
-						"command": ["sleep", "200"],
+						"command": ["sleep", "infinity"],
 						"resources": {
 							"requests": {
 								"cpu": "500m"
@@ -167,11 +167,7 @@ func createJobAWWithInitContainer(ctx context.Context, name string, requeuingTim
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: minAvailable,
-				Requeuing: arbv1.RequeuingSpec{
-					TimeInSeconds:             int64(requeuingTimeInSeconds),
-					NotImplemented_GrowthType: requeuingGrowthType,
-					MaxNumRequeuings:          int32(requeuingMaxNumRequeuings),
-				},
+				Requeuing:    requeuingSpec,
 			},
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{

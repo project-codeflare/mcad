@@ -100,7 +100,8 @@ func (w Weights) Max(r Weights) {
 
 // Compare receiver to argument
 // True if receiver is less than or equal to argument in every dimension
-func (w Weights) Fits(r Weights) bool {
+func (w Weights) Fits(r Weights) (bool, []v1.ResourceName) {
+	insufficient := []v1.ResourceName{}
 	zero := &inf.Dec{}    // shared zero, never mutated
 	for k, v := range w { // range over receiver not argument
 		// ignore 0 requests in case r does not contain k
@@ -109,10 +110,14 @@ func (w Weights) Fits(r Weights) bool {
 		}
 		// v > 0 so r[k] must be defined and no less than v
 		if r[k] == nil || v.Cmp(r[k]) == 1 {
-			return false
+			insufficient = append(insufficient, k)
 		}
 	}
-	return true
+	if len(insufficient) == 0 {
+		return true, nil
+	} else {
+		return false, insufficient
+	}
 }
 
 // Converts Weights to a ResourceList

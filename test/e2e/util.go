@@ -28,6 +28,7 @@ import (
 	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -446,10 +447,33 @@ func AppWrapper(ctx context.Context, namespace string, name string) func(g gomeg
 	}
 }
 
-func AppWrapperState(aw *arbv1.AppWrapper) arbv1.AppWrapperState {
-	return aw.Status.State
+func AppWrapperState(ctx context.Context, namespace string, name string) func(g gomega.Gomega) arbv1.AppWrapperState {
+	return func(g gomega.Gomega) arbv1.AppWrapperState {
+		aw := &arbv1.AppWrapper{}
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		return aw.Status.State
+	}
 }
 
-func AppWrapperStep(aw *arbv1.AppWrapper) arbv1.AppWrapperStep {
-	return aw.Status.Step
+func AppWrapperStep(ctx context.Context, namespace string, name string) func(g gomega.Gomega) arbv1.AppWrapperStep {
+	return func(g gomega.Gomega) arbv1.AppWrapperStep {
+		aw := &arbv1.AppWrapper{}
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		return aw.Status.Step
+	}
+}
+
+func AppWrapperQueuedReason(ctx context.Context, namespace string, name string) func(g gomega.Gomega) string {
+	return func(g gomega.Gomega) string {
+		aw := &arbv1.AppWrapper{}
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if qc := meta.FindStatusCondition(aw.Status.Conditions, string(arbv1.Queued)); qc != nil && qc.Status == metav1.ConditionTrue {
+			return qc.Reason
+		} else {
+			return ""
+		}
+	}
 }

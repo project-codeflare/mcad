@@ -115,6 +115,9 @@ type AppWrapperStatus struct {
 
 	// Number of transitions
 	TransitionCount int32 `json:"transitionCount,omitempty"`
+
+	// Conditions
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // AppWrapperState is the label for the AppWrapper status
@@ -122,6 +125,9 @@ type AppWrapperState string
 
 // AppWrapperState is the status of wrapped resources
 type AppWrapperStep string
+
+// AppWrapperQueuedReason is the Type for the Queued Condition
+type AppWrapperQueuedReason string
 
 const (
 	// Initial state upon creation of the AppWrapper object
@@ -150,6 +156,18 @@ const (
 
 	// MCAD is in the process of deleting the wrapped resources
 	Deleting AppWrapperStep = "deleting"
+
+	// Queued because of insufficient available resources
+	QueuedInsufficientResources = "InsufficientResources"
+
+	// Queued because of insufficient available quota
+	QueuedInsufficientQuota = "InsufficientQuota"
+
+	// Queued because it was Requeued
+	QueuedRequeue = "Requeued"
+
+	// Not Queued because it was Dispatched
+	QueuedDispatch = "Dispatched"
 )
 
 // AppWrapperService

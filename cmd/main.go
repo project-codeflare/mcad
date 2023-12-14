@@ -95,10 +95,11 @@ func main() {
 	}
 
 	if err = (&controller.AppWrapperReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
-		Events: make(chan event.GenericEvent, 1),             // channel to trigger dispatch
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Cache:     map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+		Events:    make(chan event.GenericEvent, 1),             // channel to trigger dispatch
+		Decisions: map[types.UID]*controller.QueuingDecision{},  // cache of recent queuing decisions
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
 		os.Exit(1)
