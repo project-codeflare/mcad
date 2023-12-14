@@ -226,7 +226,8 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 }
 
 // Find next AppWrapper to dispatch in queue order
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1beta1.AppWrapper, error) {
+func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppWrapper, error) {
+	selected := []*mcadv1beta1.AppWrapper{}
 	expired := time.Now().After(r.NextSync)
 	if expired {
 		capacity, err := r.computeCapacity(ctx)
@@ -260,12 +261,17 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 		}
 		mcadLog.Info("Queue", "queue", pretty)
 	}
-	// return first AppWrapper that fits if any
+	// return ordered slice of AppWrappers that fit (may be empty)
 	for _, appWrapper := range queue {
 		request := aggregateRequests(appWrapper)
 		fits, gaps := request.Fits(available[int(appWrapper.Spec.Priority)])
 		if fits {
-			return appWrapper.DeepCopy(), nil // deep copy AppWrapper
+			selected = append(selected, appWrapper.DeepCopy()) // deep copy AppWrapper
+			for priority, avail := range available {
+				if priority <= int(appWrapper.Spec.Priority) {
+					avail.Sub(request)
+				}
+			}
 		} else {
 			msg := ""
 			for _, resource := range gaps {
@@ -275,8 +281,7 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) (*mcadv1be
 			r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientResources, message: msg}
 		}
 	}
-	// no queued AppWrapper fits
-	return nil, nil
+	return selected, nil
 }
 
 // Aggregate requests
