@@ -75,7 +75,6 @@ func createGenericAWTimeoutWithStatus(ctx context.Context, name string) *arbv1.A
 		}
 	}`)
 	var schedSpecMin int32 = 1
-	var dispatchDurationSeconds int32 = 10
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -84,14 +83,10 @@ func createGenericAWTimeoutWithStatus(ctx context.Context, name string) *arbv1.A
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
-				NotImplemented_DispatchDuration: arbv1.NotImplemented_DispatchDurationSpec{
-					Limit: dispatchDurationSeconds,
-				},
 			},
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -172,7 +167,6 @@ func createJobAWWithStuckInitContainer(ctx context.Context, name string, requeui
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -241,7 +235,6 @@ func createDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -314,7 +307,6 @@ func createGenericJobAWWithStatus(ctx context.Context, name string) *arbv1.AppWr
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -427,14 +419,12 @@ func createGenericJobAWWithMultipleStatus(ctx context.Context, name string) *arb
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
 						CompletionStatus: "Complete",
 					},
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb2,
 						},
@@ -476,7 +466,6 @@ func createAWGenericItemWithoutStatus(ctx context.Context, name string) *arbv1.A
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -624,7 +613,6 @@ func createGenericJobAWtWithLargeCompute(ctx context.Context, name string) *arbv
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -810,14 +798,12 @@ func createGenericDeploymentAWWithMultipleItems(ctx context.Context, name string
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
 						CompletionStatus: "Progressing",
 					},
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb1,
 						},
@@ -1046,7 +1032,6 @@ func createStatefulSetAW(ctx context.Context, name string) *arbv1.AppWrapper {
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1098,7 +1083,6 @@ func createBadPodAW(ctx context.Context, name string) *arbv1.AppWrapper {
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 2,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1235,7 +1219,6 @@ func createPodCheckFailedStatusAW(ctx context.Context, name string) *arbv1.AppWr
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1529,7 +1512,6 @@ func createBadGenericPodTemplateAW(ctx context.Context, name string) (*arbv1.App
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 2,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},

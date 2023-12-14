@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 
@@ -116,7 +117,7 @@ LOOP:
 	clusterCapacity = capacity.AsResources()
 
 	t, _ := json.Marshal(clusterCapacity)
-	fmt.Fprintf(GinkgoWriter, "Computed cluster capacity: %v\n", string(t))
+	fmt.Fprintf(os.Stdout, "Computed cluster capacity: %v\n", string(t))
 }
 
 func cpuDemand(fractionOfCluster float64) *resource.Quantity {
@@ -125,25 +126,11 @@ func cpuDemand(fractionOfCluster float64) *resource.Quantity {
 	return resource.NewMilliQuantity(milliDemand, resource.DecimalSI)
 }
 
-func cleanupTestObjectsPtr(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper) {
-	cleanupTestObjectsPtrVerbose(ctx, appwrappersPtr, true)
-}
-
-func cleanupTestObjectsPtrVerbose(ctx context.Context, appwrappersPtr *[]*arbv1.AppWrapper, verbose bool) {
-	if appwrappersPtr == nil {
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjectsPtr] No  AppWrappers to cleanup.\n")
-	} else {
-		cleanupTestObjects(ctx, *appwrappersPtr)
-	}
-}
-
-func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
-	cleanupTestObjectsVerbose(ctx, appwrappers, true)
-}
-
-func cleanupTestObjectsVerbose(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
+func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
 	if appwrappers == nil {
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
+		if verbose {
+			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
+		}
 		return
 	}
 
@@ -151,32 +138,12 @@ func cleanupTestObjectsVerbose(ctx context.Context, appwrappers []*arbv1.AppWrap
 		pods := getPodsOfAppWrapper(ctx, aw)
 		awNamespace := aw.Namespace
 		awName := aw.Name
-		fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
+		if verbose {
+			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
+		}
 		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
 		Expect(err).NotTo(HaveOccurred())
-
-		// Wait for the pods of the deleted the appwrapper to be destroyed
-		for _, pod := range pods {
-			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Awaiting pod %s/%s to be deleted for AW %s.\n",
-				pod.Namespace, pod.Name, aw.Name)
-		}
-		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
-
-		// Final check to see if pod exists
-		if err != nil {
-			var podsStillExisting []*v1.Pod
-			for _, pod := range pods {
-				podExist := &v1.Pod{}
-				err = getClient(ctx).Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, podExist)
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Found pod %s/%s %s, not completedly deleted for AW %s.\n", podExist.Namespace, podExist.Name, podExist.Status.Phase, aw.Name)
-					podsStillExisting = append(podsStillExisting, podExist)
-				}
-			}
-			if len(podsStillExisting) > 0 {
-				err = waitAWPodsDeleted(ctx, awNamespace, awName, podsStillExisting)
-			}
-		}
+		err = waitAWPodsDeletedVerbose(ctx, awNamespace, awName, pods, verbose)
 		Expect(err).NotTo(HaveOccurred())
 	}
 }
@@ -206,8 +173,8 @@ func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.C
 				continue
 			}
 			podExistsNum++
-			fmt.Fprintf(GinkgoWriter, "[anyPodsExist] Found Pod %s in phase: %s as part of AppWrapper: %s, labels: %#v\n",
-				podFromPodList.Name, podFromPodList.Status.Phase, awName, podFromPodList.Labels)
+			// DEBUG  fmt.Fprintf(GinkgoWriter, "[anyPodsExist] Found Pod %s in phase: %s as part of AppWrapper: %s, labels: %#v\n",
+			// DBUEG	podFromPodList.Name, podFromPodList.Status.Phase, awName, podFromPodList.Labels)
 		}
 
 		return podExistsNum > 0, nil
@@ -231,8 +198,8 @@ func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1
 
 			// First find a pod from the list that is part of the AW
 			if awn, found := podFromPodList.Labels["appwrapper.mcad.ibm.com"]; !found || awn != awName {
-				fmt.Fprintf(GinkgoWriter, "[podPhase] Pod %s in phase: %s not part of AppWrapper: %s, labels: %#v\n",
-					podFromPodList.Name, podFromPodList.Status.Phase, awName, podFromPodList.Labels)
+				// DEBUG fmt.Fprintf(GinkgoWriter, "[podPhase] Pod %s in phase: %s not part of AppWrapper: %s, labels: %#v\n",
+				// DEBUG 	podFromPodList.Name, podFromPodList.Status.Phase, awName, podFromPodList.Labels)
 				continue
 			}
 
@@ -266,7 +233,7 @@ func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1
 	}
 }
 
-func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quite bool) wait.ConditionFunc {
+func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quiet bool) wait.ConditionFunc {
 	return func() (bool, error) {
 		defer GinkgoRecover()
 		awIgnored := &arbv1.AppWrapper{}
@@ -285,7 +252,7 @@ func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, 
 		readyTaskNum := 0
 		for _, pod := range podList.Items {
 			if awn, found := pod.Labels["appwrapper.mcad.ibm.com"]; !found || awn != aw.Name {
-				if !quite {
+				if !quiet {
 					fmt.Fprintf(GinkgoWriter, "[awPodPhase] Pod %s not part of AppWrapper: %s, labels: %s\n", pod.Name, aw.Name, pod.Labels)
 				}
 				continue
@@ -351,14 +318,6 @@ func waitAWAnyPodsExists(ctx context.Context, aw *arbv1.AppWrapper) error {
 
 func waitAWPodsExists(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
 	return wait.Poll(100*time.Millisecond, timeout, anyPodsExist(ctx, aw.Namespace, aw.Name))
-}
-
-func waitAWDeleted(ctx context.Context, aw *arbv1.AppWrapper, pods []*v1.Pod) error {
-	return waitAWPodsTerminatedEx(ctx, aw.Namespace, aw.Name, pods, 0)
-}
-
-func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod) error {
-	return waitAWPodsDeletedVerbose(ctx, awNamespace, awName, pods, true)
 }
 
 func waitAWPodsDeletedVerbose(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod, verbose bool) error {
