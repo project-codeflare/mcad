@@ -402,7 +402,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			appwrappers = append(appwrappers, aw)
 			err1 := waitAWPodsReady(ctx, aw)
 			Expect(err1).NotTo(HaveOccurred(), "Waiting for pods to be ready")
-			err2 := waitAWPodsCompleted(ctx, aw, 90*time.Second)
+			err2 := waitAWPodsCompleted(ctx, aw)
 			Expect(err2).NotTo(HaveOccurred(), "Waiting for pods to be completed")
 
 			// Once pods are completed, we wait for them to see if they change their status to anything BUT "Completed"

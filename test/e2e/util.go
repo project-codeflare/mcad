@@ -22,10 +22,8 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
@@ -132,12 +130,11 @@ func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
 	}
 
 	for _, aw := range appwrappers {
-		pods := getPodsOfAppWrapper(ctx, aw)
 		awNamespace := aw.Namespace
 		awName := aw.Name
 		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
 		Expect(err).NotTo(HaveOccurred())
-		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
+		err = waitAWPodsDeleted(ctx, awNamespace, awName)
 		Expect(err).NotTo(HaveOccurred())
 	}
 }
@@ -151,134 +148,61 @@ func deleteAppWrapper(ctx context.Context, name string, namespace string) error 
 	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
 }
 
-func getPodsOfAppWrapper(ctx context.Context, aw *arbv1.AppWrapper) []*v1.Pod {
-	pods := &v1.PodList{}
-	err := getClient(ctx).List(context.Background(), pods, &client.ListOptions{Namespace: aw.Namespace})
-	Expect(err).NotTo(HaveOccurred())
-
-	var awpods []*v1.Pod
-	for index := range pods.Items {
-		// Get a pointer to the pod in the list not a pointer to the podCopy
-		pod := &pods.Items[index]
-		if gn, found := pod.Labels["appwrapper.mcad.ibm.com"]; found && gn == aw.Name {
-			awpods = append(awpods, pod)
-		}
-	}
-	return awpods
-}
-
 func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
 	return func() (bool, error) {
-		defer GinkgoRecover()
 		podList := &v1.PodList{}
 		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
-		Expect(err).NotTo(HaveOccurred())
+		if err != nil {
+			return false, err
+		}
 
 		for _, podFromPodList := range podList.Items {
 			if awn, found := podFromPodList.Labels["appwrapper.mcad.ibm.com"]; found && awn == awName {
 				return true, nil
 			}
 		}
-
 		return false, nil
 	}
 }
 
-func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
+func noPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
 	return func() (bool, error) {
-		defer GinkgoRecover()
 		podList := &v1.PodList{}
 		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
-		Expect(err).NotTo(HaveOccurred())
-
-		phaseListTaskNum := 0
-
-		for _, podFromPodList := range podList.Items {
-
-			// First find a pod from the list that is part of the AW
-			if awn, found := podFromPodList.Labels["appwrapper.mcad.ibm.com"]; !found || awn != awName {
-				// DEBUG fmt.Fprintf(GinkgoWriter, "[podPhase] Pod %s in phase: %s not part of AppWrapper: %s, labels: %#v\n",
-				// DEBUG 	podFromPodList.Name, podFromPodList.Status.Phase, awName, podFromPodList.Labels)
-				continue
-			}
-
-			// Next check to see if it is a phase we are looking for
-			for _, p := range phase {
-
-				// If we found the phase make sure it is part of the list of pod provided in the input
-				if podFromPodList.Status.Phase == p {
-					matchToPodsFromInput := false
-					var inputPodIDs []string
-					for _, inputPod := range pods {
-						inputPodIDs = append(inputPodIDs, fmt.Sprintf("%s.%s", inputPod.Namespace, inputPod.Name))
-						if strings.Compare(podFromPodList.Namespace, inputPod.Namespace) == 0 &&
-							strings.Compare(podFromPodList.Name, inputPod.Name) == 0 {
-							phaseListTaskNum++
-							matchToPodsFromInput = true
-							break
-						}
-
-					}
-					if !matchToPodsFromInput {
-						fmt.Fprintf(GinkgoWriter, "[podPhase] Pod %s in phase: %s does not match any input pods: %#v \n",
-							podFromPodList.Name, podFromPodList.Status.Phase, inputPodIDs)
-					}
-					break
-				}
-			}
+		if err != nil {
+			return false, err
 		}
 
-		return taskNum == phaseListTaskNum, nil
+		for _, podFromPodList := range podList.Items {
+			if awn, found := podFromPodList.Labels["appwrapper.mcad.ibm.com"]; found && awn == awName {
+				return false, nil
+			}
+		}
+		return true, nil
 	}
 }
 
-func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
+func podsInPhase(ctx context.Context, awNamespace string, awName string, phase []v1.PodPhase, minimumPodCount int) wait.ConditionFunc {
 	return func() (bool, error) {
-		defer GinkgoRecover()
-
 		podList := &v1.PodList{}
-		err := getClient(ctx).List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
-		Expect(err).NotTo(HaveOccurred())
-
-		if podList == nil || podList.Size() < 1 {
-			fmt.Fprintf(GinkgoWriter, "[awPodPhase] Listing podList found for Namespace: %s resulting in no podList found that could match AppWrapper: %s \n",
-				aw.Namespace, aw.Name)
+		err := getClient(ctx).List(ctx, podList, &client.ListOptions{Namespace: awNamespace})
+		if err != nil {
+			return false, err
 		}
 
-		readyTaskNum := 0
+		matchingPodCount := 0
 		for _, pod := range podList.Items {
-			if awn, found := pod.Labels["appwrapper.mcad.ibm.com"]; !found || awn != aw.Name {
-				continue
-			}
-
-			for _, p := range phase {
-				if pod.Status.Phase == p {
-					readyTaskNum++
-					break
-				} else {
-					pMsg := pod.Status.Message
-					if len(pMsg) > 0 {
-						pReason := pod.Status.Reason
-						fmt.Fprintf(GinkgoWriter, "[awPodPhase] pod: %s, phase: %s, reason: %s, message: %s\n", pod.Name, p, pReason, pMsg)
-					}
-					containerStatuses := pod.Status.ContainerStatuses
-					for _, containerStatus := range containerStatuses {
-						waitingState := containerStatus.State.Waiting
-						if waitingState != nil {
-							wMsg := waitingState.Message
-							if len(wMsg) > 0 {
-								wReason := waitingState.Reason
-								containerName := containerStatus.Name
-								fmt.Fprintf(GinkgoWriter, "[awPodPhase] condition for pod: %s, phase: %s, container name: %s, "+
-									"reason: %s, message: %s\n", pod.Name, p, containerName, wReason, wMsg)
-							}
-						}
+			if awn, found := pod.Labels["appwrapper.mcad.ibm.com"]; found && awn == awName {
+				for _, p := range phase {
+					if pod.Status.Phase == p {
+						matchingPodCount++
+						break
 					}
 				}
 			}
 		}
 
-		return taskNum <= readyTaskNum, nil
+		return minimumPodCount <= matchingPodCount, nil
 	}
 }
 
@@ -286,62 +210,52 @@ func waitAWPodsReady(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable))
 }
 
-func waitAWPodsCompleted(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
-	return waitAWPodsCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), timeout)
+func waitAWPodsCompleted(ctx context.Context, aw *arbv1.AppWrapper) error {
+	return waitAWPodsCompletedEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable))
 }
 
 func waitAWPodsNotCompleted(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsNotCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable))
+	return waitAWPodsNotCompletedEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable))
 }
 
 func waitAWAnyPodsExists(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsExists(ctx, aw, ninetySeconds)
+	return waitAWAnyPodsExistsEx(ctx, aw, ninetySeconds)
 }
 
-func waitAWPodsExists(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
-	return wait.Poll(100*time.Millisecond, timeout, anyPodsExist(ctx, aw.Namespace, aw.Name))
-}
-
-func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod) error {
-	return waitAWPodsTerminatedEx(ctx, awNamespace, awName, pods, 0)
-}
-
-func waitAWPending(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodPending}, int(aw.Spec.Scheduling.MinAvailable)))
-}
-
-func waitAWPodsReadyEx(ctx context.Context, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int) error {
-	return wait.Poll(100*time.Millisecond, waitDuration, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded}, taskNum))
-}
-
-func waitAWPodsCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, timeout time.Duration) error {
-	return wait.Poll(100*time.Millisecond, timeout, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodSucceeded}, taskNum))
-}
-
-func waitAWPodsNotCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int) error {
-	return wait.Poll(100*time.Millisecond, threeMinutes, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodPending, v1.PodRunning, v1.PodFailed, v1.PodUnknown}, taskNum))
+func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string) error {
+	return waitAWPodsDeletedEx(ctx, awNamespace, awName, ninetySeconds)
 }
 
 func waitAWPodsPending(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsPendingEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable))
+	return waitAWPodsPendingEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable))
 }
 
-func waitAWPodsPendingEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int) error {
-	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodPending}, taskNum))
+func waitAWAnyPodsExistsEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
+	return wait.Poll(100*time.Millisecond, timeout, anyPodsExist(ctx, aw.Namespace, aw.Name))
 }
 
-func waitAWPodsTerminatedEx(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int) error {
-	return waitAWPodsTerminatedExVerbose(ctx, namespace, name, pods, taskNum, true)
+func waitAWPodsDeletedEx(ctx context.Context, awNamespace string, awName string, timeout time.Duration) error {
+	return wait.Poll(100*time.Millisecond, timeout, noPodsExist(ctx, awNamespace, awName))
 }
 
-func waitAWPodsTerminatedExVerbose(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
-	return wait.Poll(100*time.Millisecond, ninetySeconds, podPhase(ctx, namespace, name, pods,
-		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded, v1.PodUnknown, v1.PodFailed, v1.PodPending}, taskNum))
+func waitAWPodsReadyEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
+	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
+	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
+}
+
+func waitAWPodsCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
+	phases := []v1.PodPhase{v1.PodSucceeded}
+	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
+}
+
+func waitAWPodsNotCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
+	phases := []v1.PodPhase{v1.PodPending, v1.PodRunning, v1.PodFailed, v1.PodUnknown}
+	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
+}
+
+func waitAWPodsPendingEx(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration, taskNum int) error {
+	phases := []v1.PodPhase{v1.PodPending}
+	return wait.Poll(100*time.Millisecond, timeout, podsInPhase(ctx, aw.Namespace, aw.Name, phases, taskNum))
 }
 
 const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
