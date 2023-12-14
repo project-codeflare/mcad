@@ -214,7 +214,13 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 		if queue[i].Spec.Priority < queue[j].Spec.Priority {
 			return false
 		}
-		return queue[i].CreationTimestamp.Before(&queue[j].CreationTimestamp)
+		if queue[i].CreationTimestamp.Before(&queue[j].CreationTimestamp) {
+			return true
+		}
+		if queue[j].CreationTimestamp.Before(&queue[i].CreationTimestamp) {
+			return false
+		}
+		return queue[i].UID < queue[j].UID // break ties with UID to ensure total ordering
 	})
 	return requests, queue, nil
 }
