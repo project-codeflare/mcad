@@ -126,11 +126,8 @@ func cpuDemand(fractionOfCluster float64) *resource.Quantity {
 	return resource.NewMilliQuantity(milliDemand, resource.DecimalSI)
 }
 
-func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper, verbose bool) {
+func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper) {
 	if appwrappers == nil {
-		if verbose {
-			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] No AppWrappers to cleanup.\n")
-		}
 		return
 	}
 
@@ -138,12 +135,9 @@ func cleanupTestObjects(ctx context.Context, appwrappers []*arbv1.AppWrapper, ve
 		pods := getPodsOfAppWrapper(ctx, aw)
 		awNamespace := aw.Namespace
 		awName := aw.Name
-		if verbose {
-			fmt.Fprintf(GinkgoWriter, "[cleanupTestObjects] Deleting AW %s.\n", aw.Name)
-		}
 		err := deleteAppWrapper(ctx, aw.Name, aw.Namespace)
 		Expect(err).NotTo(HaveOccurred())
-		err = waitAWPodsDeletedVerbose(ctx, awNamespace, awName, pods, verbose)
+		err = waitAWPodsDeleted(ctx, awNamespace, awName, pods)
 		Expect(err).NotTo(HaveOccurred())
 	}
 }
@@ -157,40 +151,45 @@ func deleteAppWrapper(ctx context.Context, name string, namespace string) error 
 	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
 }
 
+func getPodsOfAppWrapper(ctx context.Context, aw *arbv1.AppWrapper) []*v1.Pod {
+	pods := &v1.PodList{}
+	err := getClient(ctx).List(context.Background(), pods, &client.ListOptions{Namespace: aw.Namespace})
+	Expect(err).NotTo(HaveOccurred())
+
+	var awpods []*v1.Pod
+	for index := range pods.Items {
+		// Get a pointer to the pod in the list not a pointer to the podCopy
+		pod := &pods.Items[index]
+		if gn, found := pod.Labels["appwrapper.mcad.ibm.com"]; found && gn == aw.Name {
+			awpods = append(awpods, pod)
+		}
+	}
+	return awpods
+}
+
 func anyPodsExist(ctx context.Context, awNamespace string, awName string) wait.ConditionFunc {
 	return func() (bool, error) {
+		defer GinkgoRecover()
 		podList := &v1.PodList{}
 		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		Expect(err).NotTo(HaveOccurred())
 
-		podExistsNum := 0
 		for _, podFromPodList := range podList.Items {
-
-			// First find a pod from the list that is part of the AW
-			if awn, found := podFromPodList.Labels["appwrapper.mcad.ibm.com"]; !found || awn != awName {
-				// DEBUG fmt.Fprintf(GinkgoWriter, "[anyPodsExist] Pod %s in phase: %s not part of AppWrapper: %s, labels: %#v\n",
-				// DEBUG 	podFromPodList.Name, podFromPodList.Status.Phase, awName, podFromPodList.Labels)
-				continue
+			if awn, found := podFromPodList.Labels["appwrapper.mcad.ibm.com"]; found && awn == awName {
+				return true, nil
 			}
-			podExistsNum++
-			// DEBUG  fmt.Fprintf(GinkgoWriter, "[anyPodsExist] Found Pod %s in phase: %s as part of AppWrapper: %s, labels: %#v\n",
-			// DBUEG	podFromPodList.Name, podFromPodList.Status.Phase, awName, podFromPodList.Labels)
 		}
 
-		return podExistsNum > 0, nil
+		return false, nil
 	}
 }
 
 func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
 	return func() (bool, error) {
+		defer GinkgoRecover()
 		podList := &v1.PodList{}
 		err := getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: awNamespace})
 		Expect(err).NotTo(HaveOccurred())
-
-		if podList == nil || podList.Size() < 1 {
-			fmt.Fprintf(GinkgoWriter, "[podPhase] Listing podList found for Namespace: %s/%s resulting in no podList found that could match AppWrapper with pod count: %d\n",
-				awNamespace, awName, len(pods))
-		}
 
 		phaseListTaskNum := 0
 
@@ -233,15 +232,12 @@ func podPhase(ctx context.Context, awNamespace string, awName string, pods []*v1
 	}
 }
 
-func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int, quiet bool) wait.ConditionFunc {
+func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, taskNum int) wait.ConditionFunc {
 	return func() (bool, error) {
 		defer GinkgoRecover()
-		awIgnored := &arbv1.AppWrapper{}
-		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, awIgnored) // TODO: Do we actually need to do this Get?
-		Expect(err).NotTo(HaveOccurred())
 
 		podList := &v1.PodList{}
-		err = getClient(ctx).List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
+		err := getClient(ctx).List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
 		Expect(err).NotTo(HaveOccurred())
 
 		if podList == nil || podList.Size() < 1 {
@@ -252,17 +248,11 @@ func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, 
 		readyTaskNum := 0
 		for _, pod := range podList.Items {
 			if awn, found := pod.Labels["appwrapper.mcad.ibm.com"]; !found || awn != aw.Name {
-				if !quiet {
-					fmt.Fprintf(GinkgoWriter, "[awPodPhase] Pod %s not part of AppWrapper: %s, labels: %s\n", pod.Name, aw.Name, pod.Labels)
-				}
 				continue
 			}
 
 			for _, p := range phase {
 				if pod.Status.Phase == p {
-					// DEBUGif quite {
-					// DEBUG	fmt.Fprintf(GinkgoWriter, "[awPodPhase] Found pod %s of AppWrapper: %s, phase: %v\n", pod.Name, aw.Name, p)
-					// DEBUG}
 					readyTaskNum++
 					break
 				} else {
@@ -288,28 +278,20 @@ func awPodPhase(ctx context.Context, aw *arbv1.AppWrapper, phase []v1.PodPhase, 
 			}
 		}
 
-		// DEBUGif taskNum <= readyTaskNum && quite {
-		// DEBUG	fmt.Fprintf(GinkgoWriter, "[awPodPhase] Successfully found %v podList of AppWrapper: %s, state: %s\n", readyTaskNum, aw.Name, aw.Status.State)
-		// DEBUG}
-
 		return taskNum <= readyTaskNum, nil
 	}
 }
 
 func waitAWPodsReady(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable), false)
+	return waitAWPodsReadyEx(ctx, aw, ninetySeconds, int(aw.Spec.Scheduling.MinAvailable))
 }
 
 func waitAWPodsCompleted(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Duration) error {
-	return waitAWPodsCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false, timeout)
+	return waitAWPodsCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), timeout)
 }
 
 func waitAWPodsNotCompleted(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsNotCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
-}
-
-func waitAWReadyQuiet(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsReadyEx(ctx, aw, threeHundredSeconds, int(aw.Spec.Scheduling.MinAvailable), true)
+	return waitAWPodsNotCompletedEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable))
 }
 
 func waitAWAnyPodsExists(ctx context.Context, aw *arbv1.AppWrapper) error {
@@ -320,37 +302,37 @@ func waitAWPodsExists(ctx context.Context, aw *arbv1.AppWrapper, timeout time.Du
 	return wait.Poll(100*time.Millisecond, timeout, anyPodsExist(ctx, aw.Namespace, aw.Name))
 }
 
-func waitAWPodsDeletedVerbose(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod, verbose bool) error {
+func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string, pods []*v1.Pod) error {
 	return waitAWPodsTerminatedEx(ctx, awNamespace, awName, pods, 0)
 }
 
 func waitAWPending(ctx context.Context, aw *arbv1.AppWrapper) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodPending}, int(aw.Spec.Scheduling.MinAvailable), false))
+		[]v1.PodPhase{v1.PodPending}, int(aw.Spec.Scheduling.MinAvailable)))
 }
 
-func waitAWPodsReadyEx(ctx context.Context, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int, quite bool) error {
+func waitAWPodsReadyEx(ctx context.Context, aw *arbv1.AppWrapper, waitDuration time.Duration, taskNum int) error {
 	return wait.Poll(100*time.Millisecond, waitDuration, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded}, taskNum, quite))
+		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded}, taskNum))
 }
 
-func waitAWPodsCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, quite bool, timeout time.Duration) error {
+func waitAWPodsCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, timeout time.Duration) error {
 	return wait.Poll(100*time.Millisecond, timeout, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodSucceeded}, taskNum, quite))
+		[]v1.PodPhase{v1.PodSucceeded}, taskNum))
 }
 
-func waitAWPodsNotCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
+func waitAWPodsNotCompletedEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int) error {
 	return wait.Poll(100*time.Millisecond, threeMinutes, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodPending, v1.PodRunning, v1.PodFailed, v1.PodUnknown}, taskNum, quite))
+		[]v1.PodPhase{v1.PodPending, v1.PodRunning, v1.PodFailed, v1.PodUnknown}, taskNum))
 }
 
 func waitAWPodsPending(ctx context.Context, aw *arbv1.AppWrapper) error {
-	return waitAWPodsPendingEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable), false)
+	return waitAWPodsPendingEx(ctx, aw, int(aw.Spec.Scheduling.MinAvailable))
 }
 
-func waitAWPodsPendingEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int, quite bool) error {
+func waitAWPodsPendingEx(ctx context.Context, aw *arbv1.AppWrapper, taskNum int) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, awPodPhase(ctx, aw,
-		[]v1.PodPhase{v1.PodPending}, taskNum, quite))
+		[]v1.PodPhase{v1.PodPending}, taskNum))
 }
 
 func waitAWPodsTerminatedEx(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int) error {
@@ -360,30 +342,6 @@ func waitAWPodsTerminatedEx(ctx context.Context, namespace string, name string, 
 func waitAWPodsTerminatedExVerbose(ctx context.Context, namespace string, name string, pods []*v1.Pod, taskNum int, verbose bool) error {
 	return wait.Poll(100*time.Millisecond, ninetySeconds, podPhase(ctx, namespace, name, pods,
 		[]v1.PodPhase{v1.PodRunning, v1.PodSucceeded, v1.PodUnknown, v1.PodFailed, v1.PodPending}, taskNum))
-}
-
-func getPodsOfAppWrapper(ctx context.Context, aw *arbv1.AppWrapper) []*v1.Pod {
-	awIgnored := &arbv1.AppWrapper{}
-	err := getClient(ctx).Get(ctx, client.ObjectKeyFromObject(aw), awIgnored) // TODO: Do we actually need to do this Get?
-	Expect(err).NotTo(HaveOccurred())
-
-	pods := &v1.PodList{}
-	err = getClient(ctx).List(context.Background(), pods, &client.ListOptions{Namespace: aw.Namespace})
-	Expect(err).NotTo(HaveOccurred())
-
-	var awpods []*v1.Pod
-
-	for index := range pods.Items {
-		// Get a pointer to the pod in the list not a pointer to the podCopy
-		pod := &pods.Items[index]
-
-		if gn, found := pod.Labels["appwrapper.mcad.ibm.com"]; !found || gn != aw.Name {
-			continue
-		}
-		awpods = append(awpods, pod)
-	}
-
-	return awpods
 }
 
 const charset = "abcdefghijklmnopqrstuvwxyz0123456789"

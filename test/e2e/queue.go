@@ -1,7 +1,7 @@
 //go:build !private
 
 /*
-Copyright 2019, 2021 The Multi-Cluster App Dispatcher Authors.
+Copyright 2019, 2021, 2023 The Multi-Cluster App Dispatcher Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	})
 
 	AfterEach(func() {
-		cleanupTestObjects(ctx, appwrappers, false)
+		cleanupTestObjects(ctx, appwrappers)
 	})
 
 	Describe("Creation of Different GVKs", func() {
@@ -134,7 +134,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			By("Request 30% of cluster CPU")
 			aw2 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
 			appwrappers = append(appwrappers, aw2)
-			err = waitAWReadyQuiet(ctx, aw2)
+			err = waitAWPodsReady(ctx, aw2)
 			Expect(err).NotTo(HaveOccurred(), "Ready pods are expected for app wrapper:aw-deployment-30-percent-cpu")
 		})
 
@@ -155,7 +155,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			By("Request 30% of cluster CPU")
 			aw3 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
 			appwrappers = append(appwrappers, aw3)
-			err = waitAWReadyQuiet(ctx, aw3)
+			err = waitAWPodsReady(ctx, aw3)
 			Expect(err).NotTo(HaveOccurred(), "Ready pods are expected for app wrapper:aw-deployment-30-percent-cpu")
 
 			By("Free resources by deleting 55% of cluster AppWrapper")
@@ -164,7 +164,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(err).NotTo(HaveOccurred(), "Should have been able to delete an the initial AppWrapper")
 
 			By("Wait for queued AppWrapper to finally be dispatched")
-			err = waitAWReadyQuiet(ctx, aw2)
+			err = waitAWPodsReady(ctx, aw2)
 			Expect(err).NotTo(HaveOccurred(), "Ready pods are expected for app wrapper: aw-deployment-50-percent-cpu")
 		})
 
@@ -465,7 +465,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 				t := time.Now()
 				toCheckAWS := make([]*arbv1.AppWrapper, 0, len(appwrappers))
 				for _, aw := range uncompletedAWS {
-					err := waitAWPodsReadyEx(ctx, aw, 100*time.Millisecond, int(aw.Spec.Scheduling.MinAvailable), true)
+					err := waitAWPodsReadyEx(ctx, aw, 100*time.Millisecond, int(aw.Spec.Scheduling.MinAvailable))
 					if err != nil {
 						toCheckAWS = append(toCheckAWS, aw)
 					}
