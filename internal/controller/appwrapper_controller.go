@@ -345,18 +345,16 @@ func (r *AppWrapperReconciler) triggerDispatch() {
 	}
 }
 
-// Attempt to select and dispatch one appWrapper
+// Attempt to select and dispatch appWrappers until either capacity is exhausted or no candidates remain
 func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error) {
-	for {
-		// find next dispatch candidate according to priorities, precedence, and available resources
-		appWrapper, err := r.selectForDispatch(ctx)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		// if no AppWrapper can be dispatched, requeue reconciliation after delay
-		if appWrapper == nil {
-			return ctrl.Result{RequeueAfter: dispatchDelay}, nil
-		}
+	// find dispatch candidates according to priorities, precedence, and available resources
+	selectedAppWrappers, err := r.selectForDispatch(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Dispatch one by one until either exhausted candidates or hit an error
+	for _, appWrapper := range selectedAppWrappers {
 		// append appWrapper ID to logger
 		ctx := withAppWrapper(ctx, appWrapper)
 		// abort and requeue reconciliation if reconciler cache is stale
@@ -380,4 +378,6 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 			return ctrl.Result{}, err
 		}
 	}
+
+	return ctrl.Result{RequeueAfter: dispatchDelay}, nil
 }
