@@ -458,10 +458,10 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 				appwrappers = append(appwrappers, aw)
 			}
 			// Give the deployments time to create pods
-			time.Sleep(70 * time.Second)
+			time.Sleep(10 * time.Second)
 			uncompletedAWS := appwrappers
 			// wait for pods to become ready, don't assume that they are ready in the order of submission.
-			err := wait.Poll(500*time.Millisecond, 3*time.Minute, func() (done bool, err error) {
+			err := wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 3*time.Minute, false, func(ctx context.Context) (done bool, err error) {
 				t := time.Now()
 				toCheckAWS := make([]*arbv1.AppWrapper, 0, len(appwrappers))
 				for _, aw := range uncompletedAWS {
