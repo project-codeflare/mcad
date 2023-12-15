@@ -235,59 +235,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	})
 
 	Describe("Detection of Completion Status", func() {
-
-		/* TODO: DAVE -- Unimplemented Status feature: PendingPodConditions
-		It("Create AppWrapper  - Check failed pod status", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Check failed pod status - Started.\n")
-
-			aw := createPodCheckFailedStatusAW(ctx, "aw-checkfailedstatus-1")
-			appwrappers = append(appwrappers, aw)
-
-			err := waitAWPodsReady(ctx, aw)
-			Expect(err).NotTo(HaveOccurred())
-			pass := false
-			for true {
-				aw1 := &arbv1.AppWrapper{}
-				err := ctx.client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, aw1)
-				if err != nil {
-					fmt.Fprint(GinkgoWriter, "Error getting status")
-				}
-				fmt.Fprintf(GinkgoWriter, "[e2e] status of AW %v.\n", aw1.Status.State)
-				if len(aw1.Status.PendingPodConditions) == 0 {
-					pass = true
-				}
-				if pass {
-					break
-				}
-			}
-			Expect(pass).To(BeTrue())
-		})
-		*/
-
-		/* TODO: Dave -- testing unimplemented feature -- DispatchDuration
-		It("MCAD app wrapper timeout Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD app wrapper timeout Test - Started.\n")
-
-			aw := createGenericAWTimeoutWithStatus(ctx, "aw-test-jobtimeout-with-comp-1")
-			appwrappers = append(appwrappers, aw)
-			err1 := waitAWPodsReady(ctx, aw)
-			Expect(err1).NotTo(HaveOccurred(), "Expecting pods to be ready for app wrapper: aw-test-jobtimeout-with-comp-1")
-			var aw1 *arbv1.AppWrapper
-			var err error
-			aw1, err = ctx.karclient.WorkloadV1beta1().AppWrappers(aw.Namespace).Get(ctx, aw.Name, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "Expecting no error when getting app wrapper status")
-			fmt.Fprintf(GinkgoWriter, "[e2e] status of app wrapper: %v.\n", aw1.Status)
-			for aw1.Status.State != arbv1.AppWrapperStateFailed {
-				aw1, err = ctx.karclient.WorkloadV1beta1().AppWrappers(aw.Namespace).Get(ctx, aw.Name, metav1.GetOptions{})
-				if aw.Status.State == arbv1.AppWrapperStateFailed {
-					break
-				}
-			}
-			Expect(aw1.Status.State).To(Equal(arbv1.AppWrapperStateFailed), "Expecting a failed state")
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD app wrapper timeout Test - Completed.\n")
-		})
-		*/
-
 		It("MCAD Job Completion Test", func() {
 			aw := createGenericJobAWWithStatus(ctx, "aw-test-job-with-comp-1")
 			appwrappers = append(appwrappers, aw)
@@ -305,7 +252,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		It("MCAD GenericItem Without Status Test", func() {
 			aw := createAWGenericItemWithoutStatus(ctx, "aw-test-job-with-comp-44")
 			appwrappers = append(appwrappers, aw)
-			Expect(waitAWPodsReady(ctx, aw)).ShouldNot(Succeed(), "Expecting for pods not to be ready for app wrapper: aw-test-job-with-comp-44")
+			Expect(waitAWPodsReadyEx(ctx, aw, 15*time.Second, 1)).ShouldNot(Succeed(), "Expecting for pods not to be ready for app wrapper: aw-test-job-with-comp-44")
 		})
 
 		It("MCAD Job Completion No-requeue Test", Label("slow"), func() {
@@ -313,10 +260,9 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			appwrappers = append(appwrappers, aw)
 			By("Waiting for pods to be ready")
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			By("Waiting for pods to be completed")
+			By("Waiting for pods to be completed and AppWrapper to be marked Succeeded")
 			Expect(waitAWPodsCompleted(ctx, aw)).Should(Succeed())
-			By("Waiting to verify pods are not restarted after job completes")
-			Expect(waitAWPodsNotCompleted(ctx, aw)).ShouldNot(Succeed())
+			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name)).Should(Equal(arbv1.Succeeded))
 		})
 
 		/* TODO: DAVE -- Testing unimplemented state in V2.  One of the wrapped resources completes, the other runs forever.  In V1 this was encoded as RunningHoldCompletion
