@@ -447,7 +447,7 @@ func createAWGenericItemWithoutStatus(ctx context.Context, name string) *arbv1.A
                         "kind": "PodGroup",
                         "metadata": {
                             "name": "aw-schd-spec-with-timeout-1",
-                            "namespace": "default"
+                            "namespace": "test"
                         },
                         "spec": {
                             "minMember": 1
@@ -1439,8 +1439,8 @@ func createGenericPodTooBigAW(ctx context.Context, name string) *arbv1.AppWrappe
 	return aw
 }
 
-func createBadGenericItemAW(ctx context.Context, name string) *arbv1.AppWrapper {
-	// rb := []byte(`""`)
+func createEmptyGenericItemAW(ctx context.Context, name string) (*arbv1.AppWrapper, error) {
+	rb := []byte(`""`)
 	var schedSpecMin int32 = 1
 
 	aw := &arbv1.AppWrapper{
@@ -1455,9 +1455,9 @@ func createBadGenericItemAW(ctx context.Context, name string) *arbv1.AppWrapper 
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						// GenericTemplate: runtime.RawExtension{
-						// 	Raw: rb,
-						// },
+						GenericTemplate: runtime.RawExtension{
+							Raw: rb,
+						},
 					},
 				},
 			},
@@ -1465,9 +1465,7 @@ func createBadGenericItemAW(ctx context.Context, name string) *arbv1.AppWrapper 
 	}
 
 	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
+	return aw, err
 }
 
 func createBadGenericPodTemplateAW(ctx context.Context, name string) (*arbv1.AppWrapper, error) {

@@ -54,25 +54,25 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	})
 
 	Describe("Creation of Different GVKs", func() {
-		It("Create AppWrapper - StatefulSet Only - 2 Pods", func() {
+		It("StatefulSet", func() {
 			aw := createStatefulSetAW(ctx, "aw-statefulset-2")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 
-		It("Create AppWrapper - Deployment Only - 3 Pods", func() {
+		It("Deployment", func() {
 			aw := createDeploymentAW(ctx, "aw-deployment-3")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 
-		It("Create AppWrapper  - Pod Only - 1 Pod", func() {
+		It("Pod", func() {
 			aw := createGenericPodAW(ctx, "aw-pod-1")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 
-		It("Create AppWrapper  - PodTemplates Only - 2 Pods", func() {
+		It("Multiple Pods", func() {
 			aw := createPodTemplateAW(ctx, "aw-podtemplate-2")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
@@ -81,13 +81,13 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	})
 
 	Describe("Error Handling for Invalid Resources", func() {
-		It("Create AppWrapper- Bad Pod", func() {
+		It("Semantically Invalid Pod", func() {
 			aw := createBadPodAW(ctx, "aw-bad-podtemplate-2")
 			appwrappers = append(appwrappers, aw)
 			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(Equal(arbv1.Failed))
 		})
 
-		It("Create AppWrapper  - Bad PodTemplate Only", func() {
+		It("Syntactically Invalid Pod", func() {
 			aw, err := createBadGenericPodTemplateAW(ctx, "aw-generic-podtemplate-2")
 			if err == nil {
 				appwrappers = append(appwrappers, aw)
@@ -95,39 +95,42 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("Create AppWrapper  - Bad Generic Item Only", func() {
-			aw := createBadGenericItemAW(ctx, "aw-bad-generic-item-1")
-			appwrappers = append(appwrappers, aw)
-			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(Equal(arbv1.Failed))
+		It("Empty Generic Item", func() {
+			aw, err := createEmptyGenericItemAW(ctx, "aw-bad-generic-item-1")
+			if err == nil {
+				appwrappers = append(appwrappers, aw)
+			}
+			Expect(err).To(HaveOccurred())
 		})
 	})
 
 	Describe("Queueing and Preemption", func() {
 
 		It("MCAD CPU Accounting Test", func() {
-			By("Request 55% of cluster CPU")
+			By("Request 55% of cluster CPU in 2 pods")
 			aw := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-55-percent-cpu"), cpuDemand(0.275), 2)
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-55-percent-cpu")
 
-			By("Request 30% of cluster CPU")
+			By("Request 30% of cluster CPU in 2 pods")
 			aw2 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
 			appwrappers = append(appwrappers, aw2)
 			Expect(waitAWPodsReady(ctx, aw2)).Should(Succeed(), "Ready pods are expected for app wrapper:aw-deployment-30-percent-cpu")
 		})
 
 		It("MCAD CPU Queueing Test", func() {
-			By("Request 55% of cluster CPU")
+			By("Request 55% of cluster CPU in 2 pods")
 			aw := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-55-percent-cpu"), cpuDemand(0.275), 2)
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-55-percent-cpu")
 
-			By("Request 50% of cluster CPU (will not fit; should be queued for insufficient resources)")
+			By("Request 50% of cluster CPU in 2 pods")
 			aw2 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-50-percent-cpu"), cpuDemand(0.25), 2)
 			appwrappers = append(appwrappers, aw2)
+			By("Verify it was queued for insufficient resources")
 			Eventually(AppWrapperQueuedReason(ctx, aw2.Namespace, aw2.Name), 30*time.Second).Should(Equal(arbv1.QueuedInsufficientResources))
 
-			By("Request 30% of cluster CPU")
+			By("Request 30% of cluster CPU in 2 pods")
 			aw3 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
 			appwrappers = append(appwrappers, aw3)
 			Expect(waitAWPodsReady(ctx, aw3)).Should(Succeed(), "Ready pods are expected for app wrapper:aw-deployment-30-percent-cpu")
@@ -136,7 +139,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(deleteAppWrapper(ctx, aw.Name, aw.Namespace)).Should(Succeed(), "Should have been able to delete an the initial AppWrapper")
 			appwrappers = []*arbv1.AppWrapper{aw2, aw3}
 
-			By("Wait for queued AppWrapper to finally be dispatched")
+			By("Wait for queued 50% AppWrapper to finally be dispatched")
 			Expect(waitAWPodsReady(ctx, aw2)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-50-percent-cpu")
 		})
 
@@ -192,19 +195,19 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		It("MCAD Scheduling Fail Fast Preemption Test", Label("slow"), func() {
-			By("Request 55% of cluster CPU")
+			By("Request 55% of cluster CPU in 2 pods")
 			aw := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-55-percent-cpu"), cpuDemand(0.275), 2)
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-55-percent-cpu")
 
-			By("Request 40% of cluster CPU")
+			By("Request 40% of cluster CPU in 1 pod")
 			aw2 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-40-percent-cpu"), cpuDemand(0.4), 1)
 			appwrappers = append(appwrappers, aw2)
 
 			By("Validate that 40% AppWrapper has a pending pod")
 			Expect(waitAWPodsPending(ctx, aw2)).Should(Succeed(), "Pending pods are expected for app wrapper: aw-deployment-40-percent-cpu")
 
-			By("Request 30% of cluster CPU")
+			By("Request 30% of cluster CPU in two pods")
 			aw3 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
 			appwrappers = append(appwrappers, aw3)
 
@@ -249,9 +252,10 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(arbv1.Succeeded))
 		})
 
-		It("MCAD GenericItem Without Status Test", func() {
+		It("MCAD Item Without Status Test", func() {
 			aw := createAWGenericItemWithoutStatus(ctx, "aw-test-job-with-comp-44")
 			appwrappers = append(appwrappers, aw)
+			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name)).Should(Equal(arbv1.Running))
 			Expect(waitAWPodsReadyEx(ctx, aw, 15*time.Second, 1)).ShouldNot(Succeed(), "Expecting for pods not to be ready for app wrapper: aw-test-job-with-comp-44")
 		})
 
@@ -281,8 +285,8 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		It("MCAD Service Created but not Succeeded/Failed", func() {
 			aw := createGenericServiceAWWithNoStatus(ctx, appendRandomString("aw-service-2-status"))
 			appwrappers = append(appwrappers, aw)
-			Eventually(AppWrapperStep(ctx, aw.Namespace, aw.Name), 30*time.Second).Should(Equal(arbv1.Created))
-			Consistently(AppWrapperState(ctx, aw.Namespace, aw.Name), 30*time.Second).ShouldNot(Or(Equal(arbv1.Succeeded), Equal(arbv1.Failed)))
+			Eventually(AppWrapperStep(ctx, aw.Namespace, aw.Name)).Should(Equal(arbv1.Created))
+			Consistently(AppWrapperState(ctx, aw.Namespace, aw.Name), 20*time.Second).ShouldNot(Or(Equal(arbv1.Succeeded), Equal(arbv1.Failed)))
 		})
 	})
 
