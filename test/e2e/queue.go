@@ -21,7 +21,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -50,37 +49,30 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	})
 
 	AfterEach(func() {
+		By("Cleaning up test objects")
 		cleanupTestObjects(ctx, appwrappers)
 	})
 
 	Describe("Creation of Different GVKs", func() {
 		It("Create AppWrapper - StatefulSet Only - 2 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - StatefulSet Only - 2 Pods - Started.\n")
-
 			aw := createStatefulSetAW(ctx, "aw-statefulset-2")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 
 		It("Create AppWrapper - Deployment Only - 3 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Deployment Only 3 Pods - Started.\n")
-
 			aw := createDeploymentAW(ctx, "aw-deployment-3")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 
 		It("Create AppWrapper  - Pod Only - 1 Pod", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Pod Only - 1 Pod - Started.\n")
-
 			aw := createGenericPodAW(ctx, "aw-pod-1")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 
 		It("Create AppWrapper  - PodTemplates Only - 2 Pods", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - PodTemplate Only - 2 Pods - Started.\n")
-
 			aw := createPodTemplateAW(ctx, "aw-podtemplate-2")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
@@ -90,16 +82,12 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 
 	Describe("Error Handling for Invalid Resources", func() {
 		It("Create AppWrapper- Bad Pod", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Bad Pod - Started.\n")
-
 			aw := createBadPodAW(ctx, "aw-bad-podtemplate-2")
 			appwrappers = append(appwrappers, aw)
 			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(Equal(arbv1.Failed))
 		})
 
 		It("Create AppWrapper  - Bad PodTemplate Only", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper - Bad PodTemplate Only - Started.\n")
-
 			aw, err := createBadGenericPodTemplateAW(ctx, "aw-generic-podtemplate-2")
 			if err == nil {
 				appwrappers = append(appwrappers, aw)
@@ -108,8 +96,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		It("Create AppWrapper  - Bad Generic Item Only", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Create AppWrapper  - Bad Generic Item Only - Started.\n")
-
 			aw := createBadGenericItemAW(ctx, "aw-bad-generic-item-1")
 			appwrappers = append(appwrappers, aw)
 			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 10*time.Second).Should(Equal(arbv1.Failed))
@@ -119,8 +105,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	Describe("Queueing and Preemption", func() {
 
 		It("MCAD CPU Accounting Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD CPU Accounting Test - Started.\n")
-
 			By("Request 55% of cluster CPU")
 			aw := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-55-percent-cpu"), cpuDemand(0.275), 2)
 			appwrappers = append(appwrappers, aw)
@@ -133,8 +117,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		It("MCAD CPU Queueing Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD CPU Queueing Test - Started.\n")
-
 			By("Request 55% of cluster CPU")
 			aw := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-55-percent-cpu"), cpuDemand(0.275), 2)
 			appwrappers = append(appwrappers, aw)
@@ -177,8 +159,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		*/
 
 		It("MCAD CPU Requeuing - Deletion After Maximum Requeuing Times Test", Label("slow"), func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD CPU Requeuing - Deletion After Maximum Requeuing Times Test - Started.\n")
-
 			// Create a job with init containers that will never complete.
 			// Configure requeuing to cycle faster than normal to reduce test time.
 			rq := arbv1.RequeuingSpec{TimeInSeconds: 1, MaxNumRequeuings: 2, PauseTimeInSeconds: 1}
@@ -204,8 +184,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		*/
 
 		It("MCAD Custom Pod Resources Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Custom Pod Resources Test - Started.\n")
-
 			// This should fit on cluster with customPodResources matching deployment resource demands so AW pods are created
 			aw := createGenericDeploymentCustomPodResourcesWithCPUAW(ctx, "aw-deployment-2-550-vs-550-cpu", "550m", "550m", 2, 60)
 			appwrappers = append(appwrappers, aw)
@@ -350,8 +328,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		*/
 
 		It("MCAD Job Completion Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Completion Test - Started.\n")
-
 			aw := createGenericJobAWWithStatus(ctx, "aw-test-job-with-comp-1")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
@@ -359,8 +335,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		It("MCAD Multi-Item Job Completion Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Multi-Item Job Completion Test - Started.\n")
-
 			aw := createGenericJobAWWithMultipleStatus(ctx, "aw-test-job-with-comp-ms-21")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
@@ -368,16 +342,12 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		})
 
 		It("MCAD GenericItem Without Status Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD GenericItem Without Status Test - Started.\n")
-
 			aw := createAWGenericItemWithoutStatus(ctx, "aw-test-job-with-comp-44")
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).ShouldNot(Succeed(), "Expecting for pods not to be ready for app wrapper: aw-test-job-with-comp-44")
 		})
 
 		It("MCAD Job Completion No-requeue Test", Label("slow"), func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Job Completion No-requeue Test - Started.\n")
-
 			aw := createGenericJobAWWithScheduleSpec(ctx, "aw-test-job-with-scheduling-spec")
 			appwrappers = append(appwrappers, aw)
 			By("Waiting for pods to be ready")
@@ -402,8 +372,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 		*/
 
 		It("MCAD Service Created but not Succeeded/Failed", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Service Created but not Succeeded/Failed - Started.\n")
-
 			aw := createGenericServiceAWWithNoStatus(ctx, appendRandomString("aw-service-2-status"))
 			appwrappers = append(appwrappers, aw)
 			Eventually(AppWrapperStep(ctx, aw.Namespace, aw.Name), 30*time.Second).Should(Equal(arbv1.Created))
@@ -414,30 +382,24 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 	Describe("Load Testing", Label("slow"), func() {
 
 		It("Create AppWrapper - Generic 50 Deployment Only - 2 pods each", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] Generic 50 Deployment Only - 2 pods each - Started.\n")
-
 			const (
-				awCount           = 50
-				reportingInterval = 10
-				cpuPercent        = 0.005
+				awCount    = 50
+				cpuPercent = 0.005
 			)
 
+			By("Creating 50 AppWrappers")
 			cpuDemand := cpuDemand(cpuPercent)
 			replicas := 2
-			modDivisor := int(awCount / reportingInterval)
 			for i := 0; i < awCount; i++ {
 				name := fmt.Sprintf("aw-generic-deployment-%02d-%03d", replicas, i+1)
-
-				if ((i+1)%modDivisor) == 0 || i == 0 {
-					fmt.Fprintf(GinkgoWriter, "[e2e] Creating AW %s with %s cpu and %d replica(s).\n", name, cpuDemand, replicas)
-				}
 				aw := createGenericDeploymentWithCPUAW(ctx, name, cpuDemand, replicas)
 				appwrappers = append(appwrappers, aw)
 			}
-			// Give the deployments time to create pods
+			By("Waiting for 10 seconds before starting to poll")
 			time.Sleep(10 * time.Second)
 			uncompletedAWS := appwrappers
 			// wait for pods to become ready, don't assume that they are ready in the order of submission.
+			By("Polling for all pods to become ready")
 			err := wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 3*time.Minute, false, func(ctx context.Context) (done bool, err error) {
 				t := time.Now()
 				toCheckAWS := make([]*arbv1.AppWrapper, 0, len(appwrappers))
@@ -448,10 +410,11 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 					}
 				}
 				uncompletedAWS = toCheckAWS
-				fmt.Fprintf(GinkgoWriter, "[e2e] Generic 50 Deployment Only - 2 pods each - There are %d app wrappers without ready pods at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
 				if len(toCheckAWS) == 0 {
+					fmt.Fprintf(GinkgoWriter, "\tAll pods ready at time %s\n", t.Format(time.RFC3339))
 					return true, nil
 				}
+				fmt.Fprintf(GinkgoWriter, "\tThere are %d app wrappers without ready pods at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
 				return false, nil
 			})
 			if err != nil {
@@ -461,7 +424,6 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 				}
 			}
 			Expect(err).Should(Succeed(), "All app wrappers should have completed")
-			fmt.Fprintf(os.Stdout, "[e2e] Generic 50 Deployment Only - 2 pods each - Completed, awaiting app wrapper clean up.\n")
 		})
 	})
 })

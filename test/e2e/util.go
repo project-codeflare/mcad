@@ -21,9 +21,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"os"
 	"time"
 
+	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
@@ -113,7 +113,7 @@ LOOP:
 	clusterCapacity = capacity.AsResources()
 
 	t, _ := json.Marshal(clusterCapacity)
-	fmt.Fprintf(os.Stdout, "Computed cluster capacity: %v\n", string(t))
+	fmt.Fprintf(GinkgoWriter, "Computed cluster capacity: %v\n", string(t))
 }
 
 func cpuDemand(fractionOfCluster float64) *resource.Quantity {

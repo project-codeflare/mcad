@@ -3,7 +3,7 @@ module github.com/project-codeflare/mcad
 go 1.20
 
 require (
-	github.com/onsi/ginkgo/v2 v2.13.2
+	github.com/onsi/ginkgo/v2 v2.13.1
 	github.com/onsi/gomega v1.29.0
 	github.com/prometheus/client_golang v1.16.0
 	gopkg.in/inf.v0 v0.9.1
