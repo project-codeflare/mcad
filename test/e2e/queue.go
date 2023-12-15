@@ -191,71 +191,32 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed(), "Expecting pods to be ready for app wrapper: aw-deployment-2-550-vs-550-cpu")
 		})
 
-		/* TODO: DAVE STATUS + test too long + unimplemented premption features + test sensitivity to cluster size
-		It("MCAD Scheduling Fail Fast Preemption Test", func() {
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Scheduling Fail Fast Preemption Test - Started.\n")
-
-			// This should fill up the worker node and most of the master node
-			aw := createDeploymentAWwith550CPU(ctx, appendRandomString("aw-deployment-2-550cpu"))
+		It("MCAD Scheduling Fail Fast Preemption Test", Label("slow"), func() {
+			By("Request 55% of cluster CPU")
+			aw := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-55-percent-cpu"), cpuDemand(0.275), 2)
 			appwrappers = append(appwrappers, aw)
-			err := waitAWPodsReady(ctx, aw)
-			Expect(err).NotTo(HaveOccurred(), "Expecting pods for app wrapper: aw-deployment-2-550cpu")
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-55-percent-cpu")
 
-			// This should not fit on any node but should dispatch because there is enough aggregated resources.
-			aw2 := createGenericDeploymentCustomPodResourcesWithCPUAW(
-				ctx, appendRandomString("aw-ff-deployment-1-850-cpu"), "850m", "850m", 1, 60)
-
+			By("Request 40% of cluster CPU")
+			aw2 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-40-percent-cpu"), cpuDemand(0.4), 1)
 			appwrappers = append(appwrappers, aw2)
 
-			err = waitAWAnyPodsExists(ctx, aw2)
-			Expect(err).NotTo(HaveOccurred(), "Expecting pending pods for app wrapper: aw-ff-deployment-1-850-cpu")
+			By("Validate that 40% AppWrapper has a pending pod")
+			Expect(waitAWPodsPending(ctx, aw2)).Should(Succeed(), "Pending pods are expected for app wrapper: aw-deployment-40-percent-cpu")
 
-			err = waitAWPodsPending(ctx, aw2)
-			Expect(err).NotTo(HaveOccurred(), "Expecting pending pods (try 2) for app wrapper: aw-ff-deployment-1-850-cpu")
-			fmt.Fprintf(GinkgoWriter, "[e2e] MCAD Scheduling Fail Fast Preemption Test - Pending pods found for app wrapper aw-ff-deployment-1-850-cpu\n")
-
-			// This should fit on cluster after AW aw-deployment-1-850-cpu above is automatically preempted on
-			// scheduling failure
-			aw3 := createGenericDeploymentCustomPodResourcesWithCPUAW(
-				ctx, appendRandomString("aw-ff-deployment-2-340-cpu"), "340m", "340m", 2, 60)
-
+			By("Request 30% of cluster CPU")
+			aw3 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
 			appwrappers = append(appwrappers, aw3)
 
-			// Wait for pods to get created, assumes preemption around 10 minutes
-			err = waitAWPodsExists(ctx, aw3, 720000*time.Millisecond)
-			Expect(err).NotTo(HaveOccurred(), "Expecting pods for app wrapper: aw-ff-deployment-2-340-cpu")
-			fmt.Fprintf(GinkgoWriter, "[e2e] MCAD Scheduling Fail Fast Preemption Test - Pods not found for app wrapper aw-ff-deployment-2-340-cpu\n")
+			By("Validate that 30% AppWrapper is queued for insufficient resource")
+			Eventually(AppWrapperQueuedReason(ctx, aw3.Namespace, aw3.Name), 1*time.Minute).Should(Equal(arbv1.QueuedInsufficientResources))
 
-			err = waitAWPodsReady(ctx, aw3)
-			Expect(err).NotTo(HaveOccurred(), "Expecting no pods for app wrapper: aw-ff-deployment-2-340-cpu")
-			fmt.Fprintf(GinkgoWriter, "[e2e] MCAD Scheduling Fail Fast Preemption Test - Ready pods found for app wrapper aw-ff-deployment-2-340-cpu\n")
+			By("Validate that 40% AppWrapper is requeued because pod never started")
+			Eventually(AppWrapperQueuedReason(ctx, aw2.Namespace, aw2.Name), 2*time.Minute).Should(Equal(arbv1.QueuedRequeue))
 
-			// Make sure pods from AW aw-deployment-1-850-cpu have preempted
-			var pass = false
-			for true {
-				aw2Update := &arbv1.AppWrapper{}
-				err := ctx.client.Get(ctx, client.ObjectKey{Namespace: aw2.Namespace, Name: aw2.Name}, aw2Update)
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "[e2e] MCAD Scheduling Fail Fast Preemption Test - Error getting AW update %v", err)
-				}
-				for _, cond := range aw2Update.Status.Conditions {
-					if cond.Reason == "PreemptionTriggered" {
-						pass = true
-						fmt.Fprintf(GinkgoWriter, "[e2e] MCAD Scheduling Fail Fast Preemption Test - the pass value is %v", pass)
-					}
-				}
-				if pass {
-					break
-				} else {
-					time.Sleep(30 * time.Second)
-				}
-			}
-
-			Expect(pass).To(BeTrue(), "Expecting AW to be preempted : aw-ff-deployment-1-850-cpu")
-			fmt.Fprintf(os.Stdout, "[e2e] MCAD Scheduling Fail Fast Preemption Test - Completed. Awaiting app wrapper cleanup\n")
-
+			By("Validate that the 30% AppWrapper now has ready pods")
+			Expect(waitAWPodsReady(ctx, aw3)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-30-percent-cpu")
 		})
-		*/
 
 		/*
 			  TODO: DAVE -- test depends on extracting resoure requirements from generic items

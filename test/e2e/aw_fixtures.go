@@ -872,6 +872,7 @@ func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDeman
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: int32(replicas),
+				Requeuing:    arbv1.RequeuingSpec{TimeInSeconds: 60, MaxNumRequeuings: 2, PauseTimeInSeconds: 60},
 			},
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
