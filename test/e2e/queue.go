@@ -221,6 +221,31 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(waitAWPodsReady(ctx, aw3)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-30-percent-cpu")
 		})
 
+		It("MCAD Scheduling Priority Preemption Test", Label("slow"), func() {
+			By("Request 80% of cluster CPU in 4 pods")
+			aw := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-normal-priority"), cpuDemand(0.2), 4)
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-normal-priority")
+
+			By("Request 30% of cluster CPU in one high priority pod")
+			aw2 := createGenericHighPriorityDeploymentWithCPUAW(ctx, appendRandomString("aw-high-priority"), cpuDemand(0.30), 1)
+			appwrappers = append(appwrappers, aw2)
+			Expect(waitAWPodsReady(ctx, aw2)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-high-priority")
+
+			By("Validate that the normal priority AppWrapper is requeued")
+			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(arbv1.QueuedRequeue))
+
+			By("Validate that the normal priority AppWrapper's queued reason becomes insufficient resource")
+			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 3*time.Minute).Should(Equal(arbv1.QueuedInsufficientResources))
+
+			By("Delete high priority app wrapper")
+			Expect(deleteAppWrapper(ctx, aw2.Name, aw2.Namespace)).Should(Succeed())
+			appwrappers = []*arbv1.AppWrapper{aw}
+
+			By("Validate that the normal priority AppWrapper now has ready pods")
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-normal-priority")
+		})
+
 		/*
 			  TODO: DAVE -- test depends on extracting resoure requirements from generic items
 			It("MCAD Job Large Compute Requirement Test", Label("slow"), func() {

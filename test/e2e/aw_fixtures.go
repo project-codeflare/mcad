@@ -896,6 +896,88 @@ func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDeman
 	return aw
 }
 
+func createGenericHighPriorityDeploymentWithCPUAW(ctx context.Context, name string, cpuDemand *resource.Quantity, replicas int) *arbv1.AppWrapper {
+	rb := []byte(fmt.Sprintf(`{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+		"name": "%s",
+		"namespace": "test",
+		"labels": {
+			"app": "%s"
+		}
+	},
+	"spec": {
+		"replicas": %d,
+		"selector": {
+			"matchLabels": {
+				"app": "%s"
+			}
+		},
+		"template": {
+			"metadata": {
+				"labels": {
+					"app": "%s"
+				}
+			},
+			"spec": {
+				"priorityClassName": "high-priority",
+				"containers": [
+					{
+						"name": "%s",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
+						"resources": {
+							"requests": {
+								"cpu": "%s"
+							},
+							"limits": {
+								"cpu": "%s"
+							}
+						},
+						"ports": [
+							{
+								"containerPort": 80
+							}
+						]
+					}
+				]
+			}
+		}
+	}} `, name, name, replicas, name, name, name, cpuDemand, cpuDemand))
+
+	aw := &arbv1.AppWrapper{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: testNamespace,
+		},
+		Spec: arbv1.AppWrapperSpec{
+			Scheduling: arbv1.SchedulingSpec{
+				MinAvailable: int32(replicas),
+				Requeuing:    arbv1.RequeuingSpec{TimeInSeconds: 60, MaxNumRequeuings: 2, PauseTimeInSeconds: 60},
+			},
+			Priority: 1000000,
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
+					{CustomPodResources: []arbv1.CustomPodResource{
+						{
+							Replicas: int32(replicas),
+							Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: *cpuDemand}},
+					},
+						GenericTemplate: runtime.RawExtension{
+							Raw: rb,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := getClient(ctx).Create(ctx, aw)
+	Expect(err).NotTo(HaveOccurred())
+
+	return aw
+}
+
 func createGenericDeploymentCustomPodResourcesWithCPUAW(ctx context.Context, name string, customPodCpuDemand string, cpuDemand string, replicas int, requeuingTimeInSeconds int) *arbv1.AppWrapper {
 	rb := []byte(fmt.Sprintf(`{
 	"apiVersion": "apps/v1",
