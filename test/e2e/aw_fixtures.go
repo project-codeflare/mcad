@@ -75,7 +75,6 @@ func createGenericAWTimeoutWithStatus(ctx context.Context, name string) *arbv1.A
 		}
 	}`)
 	var schedSpecMin int32 = 1
-	var dispatchDurationSeconds int32 = 10
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -84,14 +83,10 @@ func createGenericAWTimeoutWithStatus(ctx context.Context, name string) *arbv1.A
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: schedSpecMin,
-				NotImplemented_DispatchDuration: arbv1.NotImplemented_DispatchDurationSpec{
-					Limit: dispatchDurationSeconds,
-				},
 			},
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -172,7 +167,6 @@ func createJobAWWithStuckInitContainer(ctx context.Context, name string, requeui
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -241,7 +235,6 @@ func createDeploymentAW(ctx context.Context, name string) *arbv1.AppWrapper {
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -314,7 +307,6 @@ func createGenericJobAWWithStatus(ctx context.Context, name string) *arbv1.AppWr
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -427,14 +419,12 @@ func createGenericJobAWWithMultipleStatus(ctx context.Context, name string) *arb
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
 						CompletionStatus: "Complete",
 					},
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb2,
 						},
@@ -457,7 +447,7 @@ func createAWGenericItemWithoutStatus(ctx context.Context, name string) *arbv1.A
                         "kind": "PodGroup",
                         "metadata": {
                             "name": "aw-schd-spec-with-timeout-1",
-                            "namespace": "default"
+                            "namespace": "test"
                         },
                         "spec": {
                             "minMember": 1
@@ -476,7 +466,6 @@ func createAWGenericItemWithoutStatus(ctx context.Context, name string) *arbv1.A
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -624,7 +613,6 @@ func createGenericJobAWtWithLargeCompute(ctx context.Context, name string) *arbv
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -810,14 +798,12 @@ func createGenericDeploymentAWWithMultipleItems(ctx context.Context, name string
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
 						CompletionStatus: "Progressing",
 					},
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb1,
 						},
@@ -886,7 +872,90 @@ func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDeman
 		Spec: arbv1.AppWrapperSpec{
 			Scheduling: arbv1.SchedulingSpec{
 				MinAvailable: int32(replicas),
+				Requeuing:    arbv1.RequeuingSpec{TimeInSeconds: 60, MaxNumRequeuings: 2, PauseTimeInSeconds: 60},
 			},
+			Resources: arbv1.AppWrapperResources{
+				GenericItems: []arbv1.GenericItem{
+					{CustomPodResources: []arbv1.CustomPodResource{
+						{
+							Replicas: int32(replicas),
+							Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: *cpuDemand}},
+					},
+						GenericTemplate: runtime.RawExtension{
+							Raw: rb,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := getClient(ctx).Create(ctx, aw)
+	Expect(err).NotTo(HaveOccurred())
+
+	return aw
+}
+
+func createGenericHighPriorityDeploymentWithCPUAW(ctx context.Context, name string, cpuDemand *resource.Quantity, replicas int) *arbv1.AppWrapper {
+	rb := []byte(fmt.Sprintf(`{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+		"name": "%s",
+		"namespace": "test",
+		"labels": {
+			"app": "%s"
+		}
+	},
+	"spec": {
+		"replicas": %d,
+		"selector": {
+			"matchLabels": {
+				"app": "%s"
+			}
+		},
+		"template": {
+			"metadata": {
+				"labels": {
+					"app": "%s"
+				}
+			},
+			"spec": {
+				"priorityClassName": "high-priority",
+				"containers": [
+					{
+						"name": "%s",
+						"image": "quay.io/project-codeflare/echo-server:1.0",
+						"resources": {
+							"requests": {
+								"cpu": "%s"
+							},
+							"limits": {
+								"cpu": "%s"
+							}
+						},
+						"ports": [
+							{
+								"containerPort": 80
+							}
+						]
+					}
+				]
+			}
+		}
+	}} `, name, name, replicas, name, name, name, cpuDemand, cpuDemand))
+
+	aw := &arbv1.AppWrapper{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: testNamespace,
+		},
+		Spec: arbv1.AppWrapperSpec{
+			Scheduling: arbv1.SchedulingSpec{
+				MinAvailable: int32(replicas),
+				Requeuing:    arbv1.RequeuingSpec{TimeInSeconds: 60, MaxNumRequeuings: 2, PauseTimeInSeconds: 60},
+			},
+			Priority: 1000000,
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{CustomPodResources: []arbv1.CustomPodResource{
@@ -1046,7 +1115,6 @@ func createStatefulSetAW(ctx context.Context, name string) *arbv1.AppWrapper {
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1098,7 +1166,6 @@ func createBadPodAW(ctx context.Context, name string) *arbv1.AppWrapper {
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 2,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1235,7 +1302,6 @@ func createPodCheckFailedStatusAW(ctx context.Context, name string) *arbv1.AppWr
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 1,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},
@@ -1455,8 +1521,8 @@ func createGenericPodTooBigAW(ctx context.Context, name string) *arbv1.AppWrappe
 	return aw
 }
 
-func createBadGenericItemAW(ctx context.Context, name string) *arbv1.AppWrapper {
-	// rb := []byte(`""`)
+func createEmptyGenericItemAW(ctx context.Context, name string) (*arbv1.AppWrapper, error) {
+	rb := []byte(`""`)
 	var schedSpecMin int32 = 1
 
 	aw := &arbv1.AppWrapper{
@@ -1471,9 +1537,9 @@ func createBadGenericItemAW(ctx context.Context, name string) *arbv1.AppWrapper 
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						// GenericTemplate: runtime.RawExtension{
-						// 	Raw: rb,
-						// },
+						GenericTemplate: runtime.RawExtension{
+							Raw: rb,
+						},
 					},
 				},
 			},
@@ -1481,9 +1547,7 @@ func createBadGenericItemAW(ctx context.Context, name string) *arbv1.AppWrapper 
 	}
 
 	err := getClient(ctx).Create(ctx, aw)
-	Expect(err).NotTo(HaveOccurred())
-
-	return aw
+	return aw, err
 }
 
 func createBadGenericPodTemplateAW(ctx context.Context, name string) (*arbv1.AppWrapper, error) {
@@ -1529,7 +1593,6 @@ func createBadGenericPodTemplateAW(ctx context.Context, name string) (*arbv1.App
 			Resources: arbv1.AppWrapperResources{
 				GenericItems: []arbv1.GenericItem{
 					{
-						NotImplemented_Replicas: 2,
 						GenericTemplate: runtime.RawExtension{
 							Raw: rb,
 						},

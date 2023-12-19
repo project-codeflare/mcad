@@ -297,6 +297,9 @@ function setup_mcad_env {
   echo "Installing Podgroup CRD"
   kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/scheduler-plugins/277b6bdec18f8a9e9ccd1bfeaf4b66495bfc6f92/config/crd/bases/scheduling.sigs.k8s.io_podgroups.yaml
 
+  echo "Installing high-priority PriorityClass"
+  kubectl apply -f $ROOT_DIR/hack/high-priority-class.yaml
+
   # Turn off master taints
   kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-
 
