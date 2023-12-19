@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/inf.v0"
@@ -273,12 +274,14 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) ([]*mcadv1
 				}
 			}
 		} else {
-			msg := ""
+			var msgBuilder strings.Builder
 			for _, resource := range gaps {
-				msg += fmt.Sprintf("Insufficient %v; requested %v but only %v available. ", resource, request[resource], available[int(appWrapper.Spec.Priority)][resource])
+				msgBuilder.WriteString(
+					fmt.Sprintf("Insufficient %v; requested %v but only %v available. ", resource, request[resource], available[int(appWrapper.Spec.Priority)][resource]),
+				)
 
 			}
-			r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientResources, message: msg}
+			r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientResources, message: msgBuilder.String()}
 		}
 	}
 	return selected, nil
