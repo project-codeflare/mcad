@@ -10,9 +10,9 @@ RELEASE_VER := $(shell git describe --tags --abbrev=0)
 TAG := ${TAG}-${RELEASE_VER}
 
 ifeq ($(strip $(quay_repository)),)
-IMG=mcad-controller:${TAG}
+IMG=mcad:${TAG}
 else
-IMG=${quay_repository}/mcad-controller:${TAG}
+IMG=${quay_repository}/mcad:${TAG}
 endif
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -113,11 +113,11 @@ run-test: build envtest ## Run unit tests.
 .PHONY: run-e2e-existing-images
 run-e2e-existing-images:
 ifeq ($(strip $(quay_repository)),)
-	echo "Running e2e with MCAD local image: mcad-controller ${TAG} IfNotPresent."
-	hack/run-e2e-kind.sh mcad-controller ${TAG} IfNotPresent
+	echo "Running e2e with MCAD local image: mcad ${TAG} IfNotPresent."
+	hack/run-e2e-kind.sh mcad ${TAG} IfNotPresent
 else
-	echo "Running e2e with MCAD registry image image: ${quay_repository}/mcad-controller ${TAG}."
-	hack/run-e2e-kind.sh ${quay_repository}/mcad-controller ${TAG}
+	echo "Running e2e with MCAD registry image image: ${quay_repository}/mcad ${TAG}."
+	hack/run-e2e-kind.sh ${quay_repository}/mcad ${TAG}
 endif
 
 .PHONY: run-e2e
@@ -138,7 +138,7 @@ build: manifests generate fmt vet ## Build manager binary.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: run-test ## Build docker image with the manager.
+docker-build: ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
 .PHONY: docker-push
@@ -157,13 +157,13 @@ kind-push: ## Push docker image with the manager into a kind cluster
 # To adequately provide solutions that are compatible with multiple platforms, you should consider using this option.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx
-docker-buildx: run-test ## Build and push docker image for the manager for cross-platform support
+docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
-	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
+	$(CONTAINER_TOOL) buildx create --name project-v3-builder
 	$(CONTAINER_TOOL) buildx use project-v3-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx rm project-v3-builder
+	$(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	$(CONTAINER_TOOL) buildx rm project-v3-builder
 	rm Dockerfile.cross
 
 ##@ Deployment
