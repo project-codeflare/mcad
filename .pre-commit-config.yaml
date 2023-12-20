@@ -4,7 +4,13 @@ repos:
   hooks:
   - id: go-fmt
   - id: go-mod-tidy
+- repo: local
+  hooks:
   - id: golangci-lint
+    name: golangci-lint
+    entry: make lint-fix
+    language: system
+    pass_filenames: false
 - repo: https://github.com/google/yamlfmt
   rev: v0.10.0
   hooks:
