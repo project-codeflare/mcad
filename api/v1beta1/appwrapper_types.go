@@ -158,16 +158,16 @@ const (
 	Deleting AppWrapperStep = "deleting"
 
 	// Queued because of insufficient available resources
-	QueuedInsufficientResources = "InsufficientResources"
+	QueuedInsufficientResources AppWrapperQueuedReason = "InsufficientResources"
 
 	// Queued because of insufficient available quota
-	QueuedInsufficientQuota = "InsufficientQuota"
+	QueuedInsufficientQuota AppWrapperQueuedReason = "InsufficientQuota"
 
-	// Queued because it was Requeued
-	QueuedRequeue = "Requeued"
+	// Queued because it was requeued
+	QueuedRequeue AppWrapperQueuedReason = "Requeued"
 
-	// Not Queued because it was Dispatched
-	QueuedDispatch = "Dispatched"
+	// Not Queued because it was dispatched
+	QueuedDispatch AppWrapperQueuedReason = "Dispatched"
 )
 
 // AppWrapperService
