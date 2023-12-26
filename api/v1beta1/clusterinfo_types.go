@@ -24,6 +24,7 @@ import (
 // ClusterInfoSpec defines the desired state of ClusterInfo
 type ClusterInfoSpec struct {
 	Geolocation string     `json:"geolocation,omitempty"`
+	PowerSlope  string     `json:"powerslope,omitempty"`
 	Carbon      [24]string `json:"carbon,omitempty"`
 }
 

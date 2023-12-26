@@ -40,6 +40,8 @@ spec:
                 type: array
               geolocation:
                 type: string
+              powerslope:
+                type: string
             type: object
           status:
             description: ClusterInfoStatus defines the observed state of ClusterInfo
