@@ -18,7 +18,7 @@ package e2e
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 
 	. "github.com/onsi/gomega"
 
@@ -820,49 +820,50 @@ func createGenericDeploymentAWWithMultipleItems(ctx context.Context, name string
 }
 
 func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDemand *resource.Quantity, replicas int) *arbv1.AppWrapper {
-	rb := []byte(fmt.Sprintf(`{
-	"apiVersion": "apps/v1",
-	"kind": "Deployment",
-	"metadata": {
-		"name": "%s",
-		"namespace": "test",
-		"labels": {
-			"app": "%s"
-		}
-	},
-	"spec": {
-		"replicas": %d,
-		"selector": {
-			"matchLabels": {
-				"app": "%s"
+	rb := []byte(`{
+		"apiVersion": "apps/v1",
+		"kind": "Deployment",
+		"metadata": {
+			"name": "` + name + `",
+			"namespace": "test",
+			"labels": {
+				"app": "` + name + `"
 			}
 		},
-		"template": {
-			"metadata": {
-				"labels": {
-					"app": "%s"
+		"spec": {
+			"replicas": ` + strconv.Itoa(replicas) + `,
+			"selector": {
+				"matchLabels": {
+					"app": "` + name + `"
 				}
 			},
-			"spec": {
-				"containers": [
-					{
-						"name": "%s",
-						"image": "quay.io/project-codeflare/echo-server:1.0",
-						"resources": {
-							"requests": {
-								"cpu": "%s"
-							}
-						},
-						"ports": [
-							{
-								"containerPort": 80
-							}
-						]
+			"template": {
+				"metadata": {
+					"labels": {
+						"app": "` + name + `"
 					}
-				]
+				},
+				"spec": {
+					"containers": [
+						{
+							"name": "` + name + `",
+							"image": "quay.io/project-codeflare/echo-server:1.0",
+							"resources": {
+								"requests": {
+									"cpu": "` + cpuDemand.String() + `"
+								}
+							},
+							"ports": [
+								{
+									"containerPort": 80
+								}
+							]
+						}
+					]
+				}
 			}
 		}
-	}} `, name, name, replicas, name, name, name, cpuDemand))
+	}`)
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -897,41 +898,41 @@ func createGenericDeploymentWithCPUAW(ctx context.Context, name string, cpuDeman
 }
 
 func createGenericHighPriorityDeploymentWithCPUAW(ctx context.Context, name string, cpuDemand *resource.Quantity, replicas int) *arbv1.AppWrapper {
-	rb := []byte(fmt.Sprintf(`{
+	rb := []byte(`{
 	"apiVersion": "apps/v1",
 	"kind": "Deployment",
 	"metadata": {
-		"name": "%s",
+		"name": "` + name + `",
 		"namespace": "test",
 		"labels": {
-			"app": "%s"
+			"app": "` + name + `"
 		}
 	},
 	"spec": {
-		"replicas": %d,
+		"replicas": ` + strconv.Itoa(replicas) + `,
 		"selector": {
 			"matchLabels": {
-				"app": "%s"
+				"app": "` + name + `"
 			}
 		},
 		"template": {
 			"metadata": {
 				"labels": {
-					"app": "%s"
+					"app": "` + name + `"
 				}
 			},
 			"spec": {
 				"priorityClassName": "high-priority",
 				"containers": [
 					{
-						"name": "%s",
+						"name": "` + name + `",
 						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
-								"cpu": "%s"
+								"cpu": "` + cpuDemand.String() + `"
 							},
 							"limits": {
-								"cpu": "%s"
+								"cpu": "` + cpuDemand.String() + `"
 							}
 						},
 						"ports": [
@@ -943,7 +944,7 @@ func createGenericHighPriorityDeploymentWithCPUAW(ctx context.Context, name stri
 				]
 			}
 		}
-	}} `, name, name, replicas, name, name, name, cpuDemand, cpuDemand))
+	}}`)
 
 	aw := &arbv1.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
@@ -979,37 +980,37 @@ func createGenericHighPriorityDeploymentWithCPUAW(ctx context.Context, name stri
 }
 
 func createGenericDeploymentCustomPodResourcesWithCPUAW(ctx context.Context, name string, customPodCpuDemand string, cpuDemand string, replicas int, requeuingTimeInSeconds int) *arbv1.AppWrapper {
-	rb := []byte(fmt.Sprintf(`{
+	rb := []byte(`{
 	"apiVersion": "apps/v1",
 	"kind": "Deployment",
 	"metadata": {
-		"name": "%s",
+		"name": "` + name + `",
 		"namespace": "test",
 		"labels": {
-			"app": "%s"
+			"app": "` + name + `"
 		}
 	},
 	"spec": {
-		"replicas": %d,
+		"replicas": ` + strconv.Itoa(replicas) + `,
 		"selector": {
 			"matchLabels": {
-				"app": "%s"
+				"app": "` + name + `"
 			}
 		},
 		"template": {
 			"metadata": {
 				"labels": {
-					"app": "%s"
+					"app": "` + name + `"
 				}
 			},
 			"spec": {
 				"containers": [
 					{
-						"name": "%s",
+						"name": "` + name + `",
 						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"requests": {
-								"cpu": "%s"
+								"cpu": "` + cpuDemand + `"
 							}
 						},
 						"ports": [
@@ -1021,7 +1022,7 @@ func createGenericDeploymentCustomPodResourcesWithCPUAW(ctx context.Context, nam
 				]
 			}
 		}
-	}} `, name, name, replicas, name, name, name, cpuDemand))
+	}}`)
 
 	var schedSpecMin int32 = int32(replicas)
 	var customCpuResource = v1.ResourceList{"cpu": resource.MustParse(customPodCpuDemand)}
@@ -1318,27 +1319,27 @@ func createPodCheckFailedStatusAW(ctx context.Context, name string) *arbv1.AppWr
 }
 
 func createGenericPodAWCustomDemand(ctx context.Context, name string, cpuDemand string) *arbv1.AppWrapper {
-	genericItems := fmt.Sprintf(`{
+	rb := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Pod",
 		"metadata": {
-			"name": "%s",
+			"name": "` + name + `",
 			"namespace": "test",
 			"labels": {
-				"app": "%s"
+				"app": "` + name + `"
 			}
 		},
 		"spec": {
 			"containers": [
 					{
-						"name": "%s",
+						"name": "` + name + `",
 						"image": "quay.io/project-codeflare/echo-server:1.0",
 						"resources": {
 							"limits": {
-								"cpu": "%s"
+								"cpu": "` + cpuDemand + `"
 							},
 							"requests": {
-								"cpu": "%s"
+								"cpu": "` + cpuDemand + `"
 							}
 						},
 						"ports": [
@@ -1349,9 +1350,8 @@ func createGenericPodAWCustomDemand(ctx context.Context, name string, cpuDemand 
 					}
 			]
 		}
-	} `, name, name, name, cpuDemand, cpuDemand)
+	} `)
 
-	rb := []byte(genericItems)
 	var schedSpecMin int32 = 1
 
 	labels := make(map[string]string)
