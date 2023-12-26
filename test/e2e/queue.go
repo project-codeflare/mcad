@@ -128,7 +128,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			aw2 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-50-percent-cpu"), cpuDemand(0.25), 2)
 			appwrappers = append(appwrappers, aw2)
 			By("Verify it was queued for insufficient resources")
-			Eventually(AppWrapperQueuedReason(ctx, aw2.Namespace, aw2.Name), 30*time.Second).Should(Equal(arbv1.QueuedInsufficientResources))
+			Eventually(AppWrapperQueuedReason(ctx, aw2.Namespace, aw2.Name), 30*time.Second).Should(Equal(string(arbv1.QueuedInsufficientResources)))
 
 			By("Request 30% of cluster CPU in 2 pods")
 			aw3 := createGenericDeploymentWithCPUAW(ctx, appendRandomString("aw-deployment-30-percent-cpu"), cpuDemand(0.15), 2)
@@ -168,7 +168,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			aw := createJobAWWithStuckInitContainer(ctx, "aw-job-3-init-container", rq)
 			appwrappers = append(appwrappers, aw)
 			By("Unready pods will trigger requeuing")
-			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(arbv1.QueuedRequeue))
+			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(string(arbv1.QueuedRequeue)))
 			By("After reaching requeuing limit job is failed")
 			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 4*time.Minute).Should(Equal(arbv1.Failed))
 		})
@@ -212,10 +212,10 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			appwrappers = append(appwrappers, aw3)
 
 			By("Validate that 30% AppWrapper is queued for insufficient resource")
-			Eventually(AppWrapperQueuedReason(ctx, aw3.Namespace, aw3.Name), 1*time.Minute).Should(Equal(arbv1.QueuedInsufficientResources))
+			Eventually(AppWrapperQueuedReason(ctx, aw3.Namespace, aw3.Name), 1*time.Minute).Should(Equal(string(arbv1.QueuedInsufficientResources)))
 
 			By("Validate that 40% AppWrapper is requeued because pod never started")
-			Eventually(AppWrapperQueuedReason(ctx, aw2.Namespace, aw2.Name), 2*time.Minute).Should(Equal(arbv1.QueuedRequeue))
+			Eventually(AppWrapperQueuedReason(ctx, aw2.Namespace, aw2.Name), 2*time.Minute).Should(Equal(string(arbv1.QueuedRequeue)))
 
 			By("Validate that the 30% AppWrapper now has ready pods")
 			Expect(waitAWPodsReady(ctx, aw3)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-deployment-30-percent-cpu")
@@ -233,10 +233,10 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			Expect(waitAWPodsReady(ctx, aw2)).Should(Succeed(), "Ready pods are expected for app wrapper: aw-high-priority")
 
 			By("Validate that the normal priority AppWrapper is requeued")
-			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(arbv1.QueuedRequeue))
+			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(string(arbv1.QueuedRequeue)))
 
 			By("Validate that the normal priority AppWrapper's queued reason becomes insufficient resource")
-			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 3*time.Minute).Should(Equal(arbv1.QueuedInsufficientResources))
+			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 3*time.Minute).Should(Equal(string(arbv1.QueuedInsufficientResources)))
 
 			By("Delete high priority app wrapper")
 			Expect(deleteAppWrapper(ctx, aw2.Name, aw2.Namespace)).Should(Succeed())

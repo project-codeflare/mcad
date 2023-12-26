@@ -317,7 +317,7 @@ function setup_mcad_env {
   kubectl uncordon test-worker
 
   # sleep to allow the pods to restart
-  echo "Waiting for pod in the kube-system namespace to be ready to become ready"
+  echo "Waiting for pod in the kube-system namespace to become ready"
   while [[ $(kubectl get pods -n kube-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
   do
     echo -n "." && sleep 1;
