@@ -91,6 +91,8 @@ func withAppWrapper(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) con
 // Normal reconciliations "namespace/name" implement all phase transitions except for Queued->Dispatching
 // Queued->Dispatching transitions happen as part of a special "*/*" reconciliation
 // In a "*/*" reconciliation, we iterate over queued AppWrappers in order, dispatching as many as we can
+//
+//gocyclo:ignore
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// req == "*/*", dispatch queued AppWrappers
 	if req.Namespace == "*" && req.Name == "*" {
