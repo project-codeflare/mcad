@@ -30,15 +30,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	mcadv1beta1 "github.com/tardieu/mcad/api/v1beta1"
+	mcadv1beta1 "github.com/tayebehbahreini/mcad/api/v1beta1"
 )
 
 // ClusterInfoReconciler reconciles a ClusterInfo object
 type ClusterInfoReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	Namespace string
-	Name      string
+	Scheme      *runtime.Scheme
+	Namespace   string
+	Name        string
+	Geolocation string
+	PowerSlope  string
 }
 
 // Reconcile ClusterInfo object
@@ -49,6 +51,8 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	// get cluster info if it already exists
 	clusterInfo := &mcadv1beta1.ClusterInfo{ObjectMeta: metav1.ObjectMeta{Namespace: r.Namespace, Name: r.Name}}
+	clusterInfo.Spec.Geolocation = r.Geolocation
+	clusterInfo.Spec.PowerSlope = r.PowerSlope
 	if err := r.Client.Get(ctx, req.NamespacedName, clusterInfo); err == nil {
 		// do not recompute cluster capacity if old value has not expired yet
 		now := time.Now()

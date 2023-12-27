@@ -33,6 +33,15 @@ spec:
             type: object
           spec:
             description: ClusterInfoSpec defines the desired state of ClusterInfo
+            properties:
+              carbon:
+                items:
+                  type: string
+                type: array
+              geolocation:
+                type: string
+              powerslope:
+                type: string
             type: object
           status:
             description: ClusterInfoStatus defines the observed state of ClusterInfo
