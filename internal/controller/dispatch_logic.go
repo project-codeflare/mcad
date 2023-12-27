@@ -36,11 +36,13 @@ func (r *Dispatcher) listAppWrappers(ctx context.Context, cluster string) (map[i
 	requests := map[int]Weights{}        // total request per priority level
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 	for _, appWrapper := range appWrappers.Items {
-		if appWrapper.Spec.Scheduling.ClusterScheduling != nil &&
-			appWrapper.Spec.Scheduling.ClusterScheduling.PolicyResult.TargetCluster.Name != cluster ||
-			cluster != DefaultClusterName {
+
+		if (appWrapper.Spec.Scheduling.ClusterScheduling != nil &&
+			appWrapper.Spec.Scheduling.ClusterScheduling.PolicyResult.TargetCluster.Name != cluster) ||
+			(appWrapper.Spec.Scheduling.ClusterScheduling == nil && cluster != DefaultClusterName) {
 			continue // skip AppWrappers targeting other clusters or no cluster
 		}
+
 		// get phase from cache if available as reconciler cache may be lagging
 		phase := r.getCachedPhase(&appWrapper)
 		// make sure to initialize weights for every known priority level
