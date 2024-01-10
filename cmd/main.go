@@ -75,7 +75,7 @@ func main() {
 	flag.StringVar(&name, "clusterinfo-name", controller.DefaultClusterName, "The name of the ClusterInfo object.")
 	flag.StringVar(&context, "kube-context", "", "The Kubernetes context.")
 	flag.StringVar(&geolocation, "geolocation", "US-NY-NYIS", "The geolocation of cluster.")
-	flag.StringVar(&powerslope, "powerslope", "1.0", "The slope in power function.")
+	flag.StringVar(&powerslope, "powerslope", "1", "The slope in power function.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
