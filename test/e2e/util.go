@@ -75,43 +75,14 @@ func ensureNamespaceExists(ctx context.Context) {
 	Expect(client.IgnoreAlreadyExists(err)).NotTo(HaveOccurred())
 }
 
-// Compute available cluster capacity to allow tests to scale their resources appropriately.
-// The code is a simplification of AppWrapperReconciler.computeCapacity and intended to be run
-// in BeforeSuite methods (thus it is not necessary to filter out AppWrapper-owned pods)
+// Update available cluster capacity to allow tests to scale their resources appropriately.
 func updateClusterCapacity(ctx context.Context) {
-	kc := getClient(ctx)
-	capacity := arcont.Weights{}
-	// add allocatable capacity for each schedulable node
-	nodes := &v1.NodeList{}
-	err := kc.List(ctx, nodes)
+	// TODO: Multi-cluster.  Assuming a single cluster here.
+	//
+	cluster := &arbv1.ClusterInfo{}
+	err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: "default", Name: arcont.DefaultClusterName}, cluster)
 	Expect(err).NotTo(HaveOccurred())
-
-LOOP:
-	for _, node := range nodes.Items {
-		// skip unschedulable nodes
-		if node.Spec.Unschedulable {
-			continue
-		}
-		for _, taint := range node.Spec.Taints {
-			if taint.Effect == v1.TaintEffectNoSchedule || taint.Effect == v1.TaintEffectNoExecute {
-				continue LOOP
-			}
-		}
-		// add allocatable capacity on the node
-		capacity.Add(arcont.NewWeights(node.Status.Allocatable))
-	}
-	// subtract requests from non-terminated pods
-	pods := &v1.PodList{}
-	err = kc.List(ctx, pods)
-	Expect(err).NotTo(HaveOccurred())
-	for _, pod := range pods.Items {
-		if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-			capacity.Sub(arcont.NewWeightsForPod(&pod))
-		}
-	}
-
-	clusterCapacity = capacity.AsResources()
-
+	clusterCapacity = cluster.Status.Capacity.DeepCopy()
 	t, _ := json.Marshal(clusterCapacity)
 	fmt.Fprintf(GinkgoWriter, "Computed cluster capacity: %v\n", string(t))
 }

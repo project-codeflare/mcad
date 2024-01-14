@@ -26,7 +26,6 @@ import (
 
 	"gopkg.in/inf.v0"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
@@ -36,75 +35,6 @@ import (
 type QueuingDecision struct {
 	reason  mcadv1beta1.AppWrapperQueuedReason
 	message string
-}
-
-// Compute available cluster capacity
-func (r *AppWrapperReconciler) computeCapacity(ctx context.Context) (Weights, error) {
-	capacity := Weights{}
-	// add allocatable capacity for each schedulable node
-	nodes := &v1.NodeList{}
-	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
-		return nil, err
-	}
-LOOP:
-	for _, node := range nodes.Items {
-		// skip unschedulable nodes
-		if node.Spec.Unschedulable {
-			continue
-		}
-		for _, taint := range node.Spec.Taints {
-			if taint.Effect == v1.TaintEffectNoSchedule || taint.Effect == v1.TaintEffectNoExecute {
-				continue LOOP
-			}
-		}
-		// compute allocatable capacity on the node
-		nodeCapacity := NewWeights(node.Status.Allocatable)
-		// subtract requests from non-AppWrapper, non-terminated pods on this node
-		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
-		if err != nil {
-			return nil, err
-		}
-		pods := &v1.PodList{}
-		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
-			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
-			return nil, err
-		}
-		for _, pod := range pods.Items {
-			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
-				nodeCapacity.Sub(NewWeightsForPod(&pod))
-			}
-		}
-		// add allocatable capacity on the node
-		capacity.Add(nodeCapacity)
-		updateCapacityMetrics(capacity, node)
-	}
-	return capacity, nil
-}
-
-// Update capacity metrics
-func updateCapacityMetrics(capacity Weights, node v1.Node) {
-	capacityCpu, err := Dec2float64(capacity["cpu"])
-	if err != nil {
-		mcadLog.Error(err, "Unable to get CPU capacity", "node", node.Name)
-	} else {
-		totalCapacityCpu.WithLabelValues(node.Name).Set(capacityCpu)
-	}
-
-	capacityMemory, err := Dec2float64(capacity["memory"])
-	if err != nil {
-		mcadLog.Error(err, "Unable to get memory capacity", "node", node.Name)
-	} else {
-		totalCapacityMemory.WithLabelValues(node.Name).Set(capacityMemory)
-	}
-
-	if val, exists := capacity["nvidia.com/gpu"]; exists {
-		capacityGpu, err := Dec2float64(val)
-		if err != nil {
-			mcadLog.Error(err, "Unable to get GPU capacity", "node", node.Name)
-		} else {
-			totalCapacityGpu.WithLabelValues(node.Name).Set(capacityGpu)
-		}
-	}
 }
 
 // Dec2float64 converts inf.Dec to float64
@@ -229,14 +159,21 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 // Find next AppWrapper to dispatch in queue order
 func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppWrapper, error) {
 	selected := []*mcadv1beta1.AppWrapper{}
-	expired := time.Now().After(r.NextSync)
-	if expired {
-		capacity, err := r.computeCapacity(ctx)
-		if err != nil {
-			return nil, err
-		}
-		r.ClusterCapacity = capacity
-		r.NextSync = time.Now().Add(clusterInfoTimeout)
+	logThisDispatch := time.Now().After(r.NextLoggedDispatch)
+	if logThisDispatch {
+		r.NextLoggedDispatch = time.Now().Add(clusterInfoTimeout)
+	}
+
+	// TODO: Multi-cluster.  Assuming a single cluster here.
+	//
+	cluster := &mcadv1beta1.ClusterInfo{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: "default", Name: DefaultClusterName}, cluster); err != nil {
+		mcadLog.Info("ClusterInfo not available; unable to dispatch workloads")
+		return selected, nil
+	}
+	capacity := NewWeights(cluster.Status.Capacity)
+
+	if logThisDispatch {
 		mcadLog.Info("Total capacity", "capacity", capacity)
 	}
 	requests, queue, err := r.listAppWrappers(ctx)
@@ -249,13 +186,13 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) ([]*mcadv1
 	for priority, request := range requests {
 		// copy capacity before subtracting request
 		available[priority] = Weights{}
-		available[priority].Add(r.ClusterCapacity)
+		available[priority].Add(capacity)
 		available[priority].Sub(request)
-		if expired {
+		if logThisDispatch {
 			mcadLog.Info("Available capacity", "priority", priority, "capacity", available[priority])
 		}
 	}
-	if expired {
+	if logThisDispatch {
 		pretty := make([]string, len(queue))
 		for i, appWrapper := range queue {
 			pretty[i] = appWrapper.Namespace + "/" + appWrapper.Name + ":" + string(appWrapper.UID)
