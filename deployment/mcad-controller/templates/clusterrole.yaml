@@ -132,7 +132,6 @@ rules:
   - workload.codeflare.dev
   resources:
   - appwrappers
-  - clusterinfo
   verbs:
   - create
   - delete
@@ -151,6 +150,25 @@ rules:
   - workload.codeflare.dev
   resources:
   - appwrappers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - clusterinfo
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
   - clusterinfo/status
   verbs:
   - get
