@@ -33,6 +33,12 @@ import (
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 )
 
+const (
+	specNodeName                = ".spec.nodeName" // key to index pods based on node placement
+	DefaultClusterInfoName      = "self"           // default cluster name
+	DefaultClusterInfoNamespace = "mcad-system"    // default cluster namespace
+)
+
 // ClusterInfoReconciler reconciles a ClusterInfo object
 type ClusterInfoReconciler struct {
 	client.Client

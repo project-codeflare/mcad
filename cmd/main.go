@@ -65,8 +65,9 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&namespace, "clusterinfo-namespace", "default", "The namespace of the ClusterInfo object")
-	flag.StringVar(&name, "clusterinfo-name", controller.DefaultClusterName, "The name of the ClusterInfo object.")
+	flag.StringVar(&namespace, "clusterinfo-namespace", controller.DefaultClusterInfoNamespace,
+		"The namespace of the ClusterInfo object")
+	flag.StringVar(&name, "clusterinfo-name", controller.DefaultClusterInfoName, "The name of the ClusterInfo object.")
 	opts := zap.Options{
 		Development: true,
 	}

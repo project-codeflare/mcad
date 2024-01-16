@@ -167,7 +167,7 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) ([]*mcadv1
 	// TODO: Multi-cluster.  Assuming a single cluster here.
 	//
 	cluster := &mcadv1beta1.ClusterInfo{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: "default", Name: DefaultClusterName}, cluster); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Namespace: DefaultClusterInfoNamespace, Name: DefaultClusterInfoName}, cluster); err != nil {
 		mcadLog.Info("ClusterInfo not available; unable to dispatch workloads")
 		return selected, nil
 	}

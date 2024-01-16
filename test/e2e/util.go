@@ -80,7 +80,7 @@ func updateClusterCapacity(ctx context.Context) {
 	// TODO: Multi-cluster.  Assuming a single cluster here.
 	//
 	cluster := &arbv1.ClusterInfo{}
-	err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: "default", Name: arcont.DefaultClusterName}, cluster)
+	err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: arcont.DefaultClusterInfoNamespace, Name: arcont.DefaultClusterInfoName}, cluster)
 	Expect(err).NotTo(HaveOccurred())
 	clusterCapacity = cluster.Status.Capacity.DeepCopy()
 	t, _ := json.Marshal(clusterCapacity)
