@@ -1,0 +1,27 @@
+# permissions for end users to view clusterinfo.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: clusterinfo-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: mcad
+    app.kubernetes.io/part-of: mcad
+    app.kubernetes.io/managed-by: kustomize
+  name: clusterinfo-viewer-role
+rules:
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - clusterinfo
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - clusterinfo/status
+  verbs:
+  - get

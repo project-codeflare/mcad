@@ -44,20 +44,20 @@ import (
 // AppWrapperReconciler reconciles a AppWrapper object
 type AppWrapperReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	Cache           map[types.UID]*CachedAppWrapper // cache AppWrapper updates for write/read consistency
-	Events          chan event.GenericEvent         // event channel to trigger dispatch
-	ClusterCapacity Weights                         // cluster capacity available to MCAD
-	NextSync        time.Time                       // when to refresh cluster capacity
-	Decisions       map[types.UID]*QueuingDecision  // transient log of queuing decisions to enable recording in AppWrapper Status
+	Scheme             *runtime.Scheme
+	Cache              map[types.UID]*CachedAppWrapper // cache AppWrapper updates for write/read consistency
+	Events             chan event.GenericEvent         // event channel to trigger dispatch
+	NextLoggedDispatch time.Time                       // when next to log dispatching decisions
+	Decisions          map[types.UID]*QueuingDecision  // transient log of queuing decisions to enable recording in AppWrapper Status
 }
 
 const (
-	nameLabel      = "appwrapper.mcad.ibm.com"           // owner name label for wrapped resources
-	namespaceLabel = "appwrapper.mcad.ibm.com/namespace" // owner namespace label for wrapped resources
-	finalizer      = "workload.codeflare.dev/finalizer"  // finalizer name
-	nvidiaGpu      = "nvidia.com/gpu"                    // GPU resource name
-	specNodeName   = ".spec.nodeName"                    // key to index pods based on node placement
+	nameLabel          = "appwrapper.mcad.ibm.com"           // owner name label for wrapped resources
+	namespaceLabel     = "appwrapper.mcad.ibm.com/namespace" // owner namespace label for wrapped resources
+	finalizer          = "workload.codeflare.dev/finalizer"  // finalizer name
+	nvidiaGpu          = "nvidia.com/gpu"                    // GPU resource name
+	specNodeName       = ".spec.nodeName"                    // key to index pods based on node placement
+	DefaultClusterName = "self"                              // default cluster name
 )
 
 // Structured logger
@@ -253,13 +253,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// index pods with nodeName key
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Pod{}, specNodeName, func(obj client.Object) []string {
-		pod := obj.(*v1.Pod)
-		return []string{pod.Spec.NodeName}
-	}); err != nil {
-		return err
-	}
 	// initialize periodic dispatch invocation
 	r.triggerDispatch()
 	// watch AppWrapper pods, jobs, watch events

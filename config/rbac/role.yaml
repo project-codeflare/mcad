@@ -124,3 +124,23 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - clusterinfo
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - clusterinfo/status
+  verbs:
+  - get
+  - patch
+  - update
