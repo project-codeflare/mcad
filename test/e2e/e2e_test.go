@@ -17,11 +17,24 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
+
+var ctx context.Context
+
+var _ = BeforeSuite(func() {
+	log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	ctx = extendContextWithClient(context.Background())
+	ensureNamespaceExists(ctx)
+	updateClusterCapacity(ctx)
+})
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)

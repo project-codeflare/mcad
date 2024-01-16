@@ -1,5 +1,3 @@
-//go:build !private
-
 /*
 Copyright 2019, 2021, 2023 The Multi-Cluster App Dispatcher Authors.
 
@@ -28,18 +26,7 @@ import (
 
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
-
-var ctx context.Context
-
-var _ = BeforeSuite(func() {
-	log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-	ctx = extendContextWithClient(context.Background())
-	ensureNamespaceExists(ctx)
-	updateClusterCapacity(ctx)
-})
 
 var _ = Describe("AppWrapper E2E Tests", func() {
 	var appwrappers []*arbv1.AppWrapper
