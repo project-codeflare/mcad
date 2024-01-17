@@ -305,24 +305,6 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatrack
 	return selected, nil
 }
 
-// Check if appwrapper requests and limits satisfy available resource quota
-// (arguments cannot be nil)
-func satisfiesQuota(appWrapper *mcadv1beta1.AppWrapper, resourceQuota *v1.ResourceQuota) bool {
-	// get requests and limits from appwrapper specs
-	// TODO: add up requests and limits of all pods spec in appwrapper
-	request := aggregateRequests(appWrapper)
-	limit := aggregateLimits(appWrapper)
-	// get quota and current usage from resource quota
-	quotaRequest, quotaLimit := getQuotaWeights(resourceQuota.Status.Hard)
-	usedRequest, usedLimit := getQuotaWeights(resourceQuota.Status.Used)
-	// check if both appwrapper requests and limits fit available resource quota
-	quotaRequest.Sub(usedRequest)
-	quotaLimit.Sub(usedLimit)
-	requestsFit, _ := request.Fits(quotaRequest)
-	limitsFit, _ := limit.Fits(quotaLimit)
-	return requestsFit && limitsFit
-}
-
 // Aggregate requests
 func aggregateRequests(appWrapper *mcadv1beta1.AppWrapper) Weights {
 	request := Weights{}
@@ -369,7 +351,7 @@ func (r *AppWrapperReconciler) getUnadmittedAppWrappersWeights(ctx context.Conte
 	}
 	weightsPairMap := make(map[string]*WeightsPair)
 	for _, appWrapper := range appWrappers.Items {
-		phase, step := r.getCachedPhase(&appWrapper)
+		phase, step := r.getCachedAW(&appWrapper)
 		if phase == mcadv1beta1.Running && step == mcadv1beta1.Idle || step == mcadv1beta1.Creating {
 			namespace := appWrapper.GetNamespace()
 			weightsPair := weightsPairMap[namespace]
