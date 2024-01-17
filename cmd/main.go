@@ -49,7 +49,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(mcadv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -104,14 +103,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.AppWrapperReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Cache:     map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
-		Events:    make(chan event.GenericEvent, 1),             // channel to trigger dispatch
-		Decisions: map[types.UID]*controller.QueuingDecision{},  // cache of recent queuing decisions
+	if err = (&controller.Dispatcher{
+		AppWrapperReconciler: controller.AppWrapperReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+		},
+		Decisions: map[types.UID]*controller.QueuingDecision{}, // cache of recent queuing decisions
+		Events:    make(chan event.GenericEvent, 1),            // channel to trigger dispatch,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
+		setupLog.Error(err, "unable to create controller", "controller", "Dispatcher")
+		os.Exit(1)
+	}
+
+	if err = (&controller.Runner{
+		AppWrapperReconciler: controller.AppWrapperReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Runner")
 		os.Exit(1)
 	}
 

@@ -148,14 +148,23 @@ const (
 	// Resources are not deployed
 	Idle AppWrapperStep = ""
 
-	// MCAD is in the process of creating the wrapped resources
+	// The MCAD dispatcher is dispatching an appwrapper for execution by the runner
+	Dispatching AppWrapperStep = "dispatching"
+
+	// The MCAD runner has accepted an appwrapper for execution
+	Accepted AppWrapperStep = "accepted"
+
+	// The MCAD runner is in the process of creating the wrapped resources
 	Creating AppWrapperStep = "creating"
 
 	// The wrapped resources have been deployed successfully
 	Created AppWrapperStep = "created"
 
-	// MCAD is in the process of deleting the wrapped resources
+	// The MCAD runner is in the process of deleting the wrapped resources
 	Deleting AppWrapperStep = "deleting"
+
+	//The MCAD runner has returned control of an appwrapper to the dispatcher
+	Returned AppWrapperStep = "returned"
 
 	// Queued because of insufficient available resources
 	QueuedInsufficientResources AppWrapperQueuedReason = "InsufficientResources"

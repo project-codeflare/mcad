@@ -73,7 +73,7 @@ func updateRequestedMetricGeneric(request Weights, priority int, resourceName v1
 // Compute resources reserved by AppWrappers at every priority level for the specified cluster
 // Sort queued AppWrappers in dispatch order
 // AppWrappers in output queue must be cloned if mutated
-func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
+func (r *Dispatcher) listAppWrappers(ctx context.Context) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
 	appWrappers := &mcadv1beta1.AppWrapperList{}
 	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, nil, err
@@ -157,7 +157,7 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 }
 
 // Find next AppWrapper to dispatch in queue order
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppWrapper, error) {
+func (r *Dispatcher) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppWrapper, error) {
 	selected := []*mcadv1beta1.AppWrapper{}
 	logThisDispatch := time.Now().After(r.NextLoggedDispatch)
 	if logThisDispatch {
