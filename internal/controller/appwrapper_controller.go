@@ -356,7 +356,7 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 		quotaTracker.Init(weightsPairMap)
 	}
 	// find dispatch candidates according to priorities, precedence, and available resources
-	selectedAppWrappers, err := r.selectForDispatch(ctx)
+	selectedAppWrappers, err := r.selectForDispatch(ctx, quotaTracker)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
