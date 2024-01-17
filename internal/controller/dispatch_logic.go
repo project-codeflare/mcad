@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/inf.v0"
@@ -226,12 +227,8 @@ func (r *AppWrapperReconciler) listAppWrappers(ctx context.Context) (map[int]Wei
 }
 
 // Find next AppWrapper to dispatch in queue order
-<<<<<<< HEAD
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppWrapper, error) {
+func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatracker *QuotaTracker) ([]*mcadv1beta1.AppWrapper, error) {
 	selected := []*mcadv1beta1.AppWrapper{}
-=======
-func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatracker *QuotaTracker) (*mcadv1beta1.AppWrapper, error) {
->>>>>>> e9d283c (resolved merge conflicts in quota_tracker and dispatch_logic)
 	expired := time.Now().After(r.NextSync)
 	if expired {
 		capacity, err := r.computeCapacity(ctx)
@@ -268,18 +265,25 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatrack
 	// return ordered slice of AppWrappers that fit (may be empty)
 	for _, appWrapper := range queue {
 		request := aggregateRequests(appWrapper)
-<<<<<<< HEAD
+		// get resourceQuota in AppWrapper namespace, if any
+		resourceQuotas := &v1.ResourceQuotaList{}
+		namespace := appWrapper.GetNamespace()
+		if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
+			&client.ListOptions{Namespace: namespace}); err != nil {
+			return nil, err
+		}
+		quotaFits := true
+		var appWrapperAskWeights *WeightsPair
+		if len(resourceQuotas.Items) > 0 {
+			appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
+			// TODO: relax assumption that only one resourceQuota per nameSpace
+			quotaFits = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
+		}
 		fits, gaps := request.Fits(available[int(appWrapper.Spec.Priority)])
 		if fits {
-			// get resourceQuota in appwrapper namespace, if any
-			resourceQuotas := &v1.ResourceQuotaList{}
-			if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
-				&client.ListOptions{Namespace: appWrapper.GetNamespace()}); err != nil {
-				return nil, err
-			}
 			// check if appwrapper passes resource quota (if any)
-			if len(resourceQuotas.Items) == 0 || satisfiesQuota(appWrapper, &resourceQuotas.Items[0]) {
-				//TODO: update usage of resource quota (in cache?)
+			if quotaFits {
+				quotatracker.Allocate(namespace, appWrapperAskWeights)
 				selected = append(selected, appWrapper.DeepCopy()) // deep copy AppWrapper
 				for priority, avail := range available {
 					if priority <= int(appWrapper.Spec.Priority) {
@@ -296,34 +300,12 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatrack
 
 			}
 			r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientResources, message: msgBuilder.String()}
-=======
-
-		// get resourceQuota in AppWrapper namespace, if any
-		resourceQuotas := &v1.ResourceQuotaList{}
-		namespace := appWrapper.GetNamespace()
-		if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
-			&client.ListOptions{Namespace: namespace}); err != nil {
-			return nil, err
-		}
-		quotaFits := true
-		var appWrapperAskWeights *WeightsPair
-		if len(resourceQuotas.Items) > 0 {
-			appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
-			quotaFits = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
-		}
-
-		// check if AppWrapper passes both resource availability and ResourceQuota (if any)
-		if request.Fits(available[int(appWrapper.Spec.Priority)]) && quotaFits {
-			quotatracker.UpdateState(namespace, appWrapperAskWeights)
-			return appWrapper.DeepCopy(), nil // deep copy AppWrapper
->>>>>>> e9d283c (resolved merge conflicts in quota_tracker and dispatch_logic)
 		}
 	}
 	return selected, nil
 }
 
-<<<<<<< HEAD
-// satisfiesQuota : check if appwrapper requests and limits satisfy available resource quota
+// Check if appwrapper requests and limits satisfy available resource quota
 // (arguments cannot be nil)
 func satisfiesQuota(appWrapper *mcadv1beta1.AppWrapper, resourceQuota *v1.ResourceQuota) bool {
 	// get requests and limits from appwrapper specs
@@ -341,8 +323,6 @@ func satisfiesQuota(appWrapper *mcadv1beta1.AppWrapper, resourceQuota *v1.Resour
 	return requestsFit && limitsFit
 }
 
-=======
->>>>>>> e9d283c (resolved merge conflicts in quota_tracker and dispatch_logic)
 // Aggregate requests
 func aggregateRequests(appWrapper *mcadv1beta1.AppWrapper) Weights {
 	request := Weights{}
@@ -378,4 +358,27 @@ func assertPriorities(w map[int]Weights) {
 	for i := len(keys) - 1; i > 0; i-- {
 		w[keys[i-1]].Add(w[keys[i]])
 	}
+}
+
+// Calculate resource demands of appWrappers that have been dispatched but haven't
+// passed through ResourceQuota admission controller yet (approximated by resources not created yet)
+func (r *AppWrapperReconciler) getUnadmittedAppWrappersWeights(ctx context.Context) (map[string]*WeightsPair, error) {
+	appWrappers := &mcadv1beta1.AppWrapperList{}
+	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
+		return nil, err
+	}
+	weightsPairMap := make(map[string]*WeightsPair)
+	for _, appWrapper := range appWrappers.Items {
+		phase, step := r.getCachedPhase(&appWrapper)
+		if phase == mcadv1beta1.Running && step == mcadv1beta1.Idle || step == mcadv1beta1.Creating {
+			namespace := appWrapper.GetNamespace()
+			weightsPair := weightsPairMap[namespace]
+			if weightsPair == nil {
+				weightsPair = NewWeightsPair(Weights{}, Weights{})
+			}
+			weightsPair.Add(getWeightsPairForAppWrapper(&appWrapper))
+			weightsPairMap[namespace] = weightsPair
+		}
+	}
+	return weightsPairMap, nil
 }

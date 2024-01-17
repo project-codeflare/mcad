@@ -349,7 +349,12 @@ func (r *AppWrapperReconciler) triggerDispatch() {
 
 // Attempt to select and dispatch appWrappers until either capacity is exhausted or no candidates remain
 func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error) {
-<<<<<<< HEAD
+
+	// track quota allocation to AppWrappers during a dispatching cycle
+	quotaTracker := NewQuotaTracker()
+	if weightsPairMap, err := r.getUnadmittedAppWrappersWeights(ctx); err == nil {
+		quotaTracker.Init(weightsPairMap)
+	}
 	// find dispatch candidates according to priorities, precedence, and available resources
 	selectedAppWrappers, err := r.selectForDispatch(ctx)
 	if err != nil {
@@ -358,20 +363,6 @@ func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error
 
 	// Dispatch one by one until either exhausted candidates or hit an error
 	for _, appWrapper := range selectedAppWrappers {
-=======
-	// used to track quota allocation to AppWrappers during a dispatching cycle
-	quotaTracker := NewQuotaTracker()
-	for {
-		// find next dispatch candidate according to priorities, precedence, and available resources
-		appWrapper, err := r.selectForDispatch(ctx, quotaTracker)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		// if no AppWrapper can be dispatched, requeue reconciliation after delay
-		if appWrapper == nil {
-			return ctrl.Result{RequeueAfter: dispatchDelay}, nil
-		}
->>>>>>> e9d283c (resolved merge conflicts in quota_tracker and dispatch_logic)
 		// append appWrapper ID to logger
 		ctx := withAppWrapper(ctx, appWrapper)
 		// abort and requeue reconciliation if reconciler cache is stale

@@ -23,38 +23,55 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// Should be defined in api/core/v1/types.go
 const DefaultResourceLimitsPrefix = "limits."
 
-// QuotaTracker : A tracker of allocated quota, mapped by namespace
+// A tracker of allocated quota, mapped by namespace
 type QuotaTracker struct {
-	state map[string]*QuotaState
+	state                map[string]*QuotaState
+	unAdmittedWeightsMap map[string]*WeightsPair
 }
 
-// NewQuotaTracker : Create a new QuotaTracker
+// Create a new QuotaTracker
 func NewQuotaTracker() *QuotaTracker {
 	return &QuotaTracker{
-		state: map[string]*QuotaState{},
+		state:                map[string]*QuotaState{},
+		unAdmittedWeightsMap: map[string]*WeightsPair{},
 	}
 }
 
-// QuotaState : State includes total quota, used quota, and currently allocated quota
+// State includes total quota, used quota, and currently allocated quota
 type QuotaState struct {
 	quota     *WeightsPair
 	used      *WeightsPair
 	allocated *WeightsPair
 }
 
-// NewQuotaStateFromResourceQuota : Create a QuotaState from a ResourceQuota object
+// Create a QuotaState from a ResourceQuota object
 func NewQuotaStateFromResourceQuota(resourceQuota *v1.ResourceQuota) *QuotaState {
-	quotaWeights, usedWeights := getWeightsPairForResourceQuota(resourceQuota)
+	quotaWeights, usedWeights := getQuotaAndUsedWeightsPairsForResourceQuota(resourceQuota)
 	return &QuotaState{
 		quota:     quotaWeights,
 		used:      usedWeights,
-		allocated: NewWeightsPair(&Weights{}, &Weights{}),
+		allocated: NewWeightsPair(Weights{}, Weights{}),
 	}
 }
 
-// Satisfies : Check if the allocation of an AppWrapper satisfies a ResourceQuota for a namespace,
+// Account for all in-flight AppWrappers with their resource demand not yet reflected in
+// the Used status of any ResourceQuota object in their corresponding namespace
+func (tracker *QuotaTracker) Init(weightsPairMap map[string]*WeightsPair) {
+	tracker.unAdmittedWeightsMap = weightsPairMap
+}
+
+// Check if (used + allocated) <= quota
+func (qs *QuotaState) IsValid() bool {
+	available := qs.quota.Clone()
+	available.Sub(qs.used)
+	fits, _ := qs.allocated.Fits(available)
+	return fits
+}
+
+// Check if the resource demand of an AppWrapper satisfies a ResourceQuota,
 // without changing the current quota allocation
 func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resourceQuota *v1.ResourceQuota) bool {
 	namespace := resourceQuota.GetNamespace()
@@ -68,7 +85,10 @@ func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resour
 	quotaWeights := quotaState.quota.Clone()
 	quotaWeights.Sub(quotaState.used)
 	quotaWeights.Sub(quotaState.allocated)
-	quotaFits := appWrapperAskWeights.Fits(quotaWeights)
+	if unAdmittedWeights, exists := tracker.unAdmittedWeightsMap[namespace]; exists {
+		quotaWeights.Sub(unAdmittedWeights)
+	}
+	quotaFits, _ := appWrapperAskWeights.Fits(quotaWeights)
 
 	mcadLog.Info("QuotaTracker.Satisfies():", "namespace", namespace,
 		"QuotaWeights", quotaState.quota, "UsedWeights", quotaState.used,
@@ -78,9 +98,9 @@ func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resour
 	return quotaFits
 }
 
-// UpdateState : Update the QuotaState by an allocated weights of an AppWrapper in a namespace,
+// Update the QuotaState by the allocated weights of an AppWrapper in a namespace,
 // fails if QuotaState does not exist in the QuotaTracker
-func (tracker *QuotaTracker) UpdateState(namespace string, appWrapperAskWeights *WeightsPair) bool {
+func (tracker *QuotaTracker) Allocate(namespace string, appWrapperAskWeights *WeightsPair) bool {
 	if state, exists := tracker.state[namespace]; exists && appWrapperAskWeights != nil {
 		state.allocated.Add(appWrapperAskWeights)
 		return true
@@ -88,24 +108,24 @@ func (tracker *QuotaTracker) UpdateState(namespace string, appWrapperAskWeights 
 	return false
 }
 
-// getWeightsPairForAppWrapper : Get requests and limits from AppWrapper specs
+// Get requests and limits from AppWrapper specs
 func getWeightsPairForAppWrapper(appWrapper *mcadv1beta1.AppWrapper) *WeightsPair {
 	requests := aggregateRequests(appWrapper)
 	limits := aggregateLimits(appWrapper)
-	return NewWeightsPair(&requests, &limits)
+	return NewWeightsPair(requests, limits)
 }
 
-// getWeightsPairForResourceQuota : Get requests and limits for both quota and used from ResourceQuota specs
-func getWeightsPairForResourceQuota(resourceQuota *v1.ResourceQuota) (quotaWeights *WeightsPair,
+// Get requests and limits for both quota and used from ResourceQuota status
+func getQuotaAndUsedWeightsPairsForResourceQuota(resourceQuota *v1.ResourceQuota) (quotaWeights *WeightsPair,
 	usedWeights *WeightsPair) {
-	quotaWeights = getResourceRequestsLimitsWeights(&resourceQuota.Status.Hard)
-	usedWeights = getResourceRequestsLimitsWeights(&resourceQuota.Status.Used)
+	quotaWeights = getWeightsPairForResourceList(&resourceQuota.Status.Hard)
+	usedWeights = getWeightsPairForResourceList(&resourceQuota.Status.Used)
 	return quotaWeights, usedWeights
 }
 
-// getResourceRequestsLimitsWeights : Create a pair of Weights for requests and limits
-// in a ResourceList of a ResourceQuota
-func getResourceRequestsLimitsWeights(r *v1.ResourceList) *WeightsPair {
+// Create a pair of Weights for requests and limits
+// given in a ResourceList of a ResourceQuota
+func getWeightsPairForResourceList(r *v1.ResourceList) *WeightsPair {
 	requests := Weights{}
 	limits := Weights{}
 	for k, v := range *r {
@@ -124,5 +144,5 @@ func getResourceRequestsLimitsWeights(r *v1.ResourceList) *WeightsPair {
 			requests[k] = v.AsDec()
 		}
 	}
-	return NewWeightsPair(&requests, &limits)
+	return NewWeightsPair(requests, limits)
 }

@@ -132,7 +132,7 @@ func (w Weights) AsResources() v1.ResourceList {
 	return resources
 }
 
-// Clone : Create a copy of Weights
+// Creates a copy of Weights
 func (w Weights) Clone() Weights {
 	r := Weights{}
 	for k, v := range w {
@@ -141,49 +141,70 @@ func (w Weights) Clone() Weights {
 	return r
 }
 
-// WeightsPair : A pair of Weights -
-// Typically used to represent requests and limits for an object
+// A pair of Weights used to represent requests and limits for an object
 type WeightsPair struct {
-	w1 *Weights
-	w2 *Weights
+	requests Weights
+	limits   Weights
 }
 
-// NewWeightsPair : Create a new pair of weights
-func NewWeightsPair(w1 *Weights, w2 *Weights) *WeightsPair {
+// Creates a new pair of weights
+func NewWeightsPair(requests Weights, limits Weights) *WeightsPair {
 	return &WeightsPair{
-		w1: w1,
-		w2: w2,
+		requests: requests,
+		limits:   limits,
 	}
 }
 
-// Add : Add pair of weights to receiver
+// Add pair of weights to receiver
 func (w *WeightsPair) Add(r *WeightsPair) {
-	w.w1.Add(*r.w1)
-	w.w2.Add(*r.w2)
+	w.requests.Add(r.requests)
+	w.limits.Add(r.limits)
 }
 
-// Sub : Subtract pair of weights from receiver
+// Subtract pair of weights from receiver
 func (w *WeightsPair) Sub(r *WeightsPair) {
-	w.w1.Sub(*r.w1)
-	w.w2.Sub(*r.w2)
+	w.requests.Sub(r.requests)
+	w.limits.Sub(r.limits)
 }
 
-// Clone : Clone a pair of weights
+// Clone a pair of weights
 func (w *WeightsPair) Clone() *WeightsPair {
-	w1Clone := w.w1.Clone()
-	w2Clone := w.w2.Clone()
-	return NewWeightsPair(&w1Clone, &w2Clone)
+	requestsClone := w.requests.Clone()
+	limitsClone := w.limits.Clone()
+	return NewWeightsPair(requestsClone, limitsClone)
 }
 
-// Fits: Compare receiver to argument -
-// True if both weights of receiver fit corresponding weights of argument
-func (w *WeightsPair) Fits(r *WeightsPair) bool {
-	return w.w1.Fits(*r.w1) && w.w2.Fits(*r.w2)
+// Compare receiver to argument -
+// True if both weights of receiver fit corresponding weights of argument.
+// If False, return list of insufficient resource names
+func (w *WeightsPair) Fits(r *WeightsPair) (bool, []v1.ResourceName) {
+	insufficient := []v1.ResourceName{}
+	requestsFits, requestsInsufficient := w.requests.Fits(r.requests)
+	limitsFits, limitsInsufficient := w.limits.Fits(r.limits)
+	if requestsFits && limitsFits {
+		return true, insufficient
+	}
+	insufficient = append(insufficient, requestsInsufficient...)
+	insufficient = append(insufficient, limitsInsufficient...)
+	return false, RemoveDuplicateResources(insufficient)
 }
 
 func (w *WeightsPair) String() string {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "{Requests: %v}; ", *w.w1)
-	fmt.Fprintf(&b, "{Limits: %v}", *w.w2)
+	fmt.Fprintf(&b, "{Requests: %v}; ", w.requests)
+	fmt.Fprintf(&b, "{Limits: %v}", w.limits)
 	return b.String()
+}
+
+// Remove duplicate resource names in a slice
+func RemoveDuplicateResources(slice []v1.ResourceName) []v1.ResourceName {
+	unique := make(map[v1.ResourceName]bool)
+	result := []v1.ResourceName{}
+	for _, val := range slice {
+		if _, ok := unique[val]; !ok {
+			unique[val] = true
+			result = append(result, val)
+		}
+	}
+	return result
 }
