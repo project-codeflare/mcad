@@ -83,7 +83,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// TODO: Multicluster. This is where we remove the placement that maps
 			// the appWrapper to the execution cluster. Only after the placement is
 			// successfully removed will we proceed to removing the dispatch finalizer
-			return ctrl.Result{}, fmt.Errorf("Unimplemented multi-cluster synch path")
+			return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
 		} else {
 			// wait for the runner to remove its finalizer before we remove ours
 			if controllerutil.ContainsFinalizer(appWrapper, runnerFinalizer) {
@@ -150,16 +150,16 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				// TODO: Multicluster. This is where we create the placement that maps
 				// the appWrapper to the execution cluster. Only if the placement creation is successful
 				// will we do the update of the status to running/creating.
-				return ctrl.Result{}, fmt.Errorf("Unimplemented multi-cluster synch path")
+				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
 			}
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Creating)
 
 		case mcadv1beta1.Deleted:
 			if r.MultiClusterMode {
-				// TODO: Multicluster. This is where we remove the placement that maps
+				// TODO: Multicluster. This is where we delete the placement that maps
 				// the appWrapper to the execution cluster. Only after the placement is
-				// successfully removed will we proceed to resetting the status to queued/idle
-				return ctrl.Result{}, fmt.Errorf("Unimplemented multi-cluster synch path")
+				// completely deleted will we proceed to resetting the status to queued/idle
+				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
 			}
 
 			// reset status to queued/idle

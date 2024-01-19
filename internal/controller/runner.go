@@ -98,14 +98,14 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		return ctrl.Result{}, nil
 	}
 
-	// handle state transitions that occur on the executing cluster
+	// handle state transitions that occur on the execution cluster
 	switch appWrapper.Status.State {
 	case mcadv1beta1.Running:
 		switch appWrapper.Status.Step {
 
 		case mcadv1beta1.Creating:
 			if r.MultiClusterMode {
-				// add runner finalizer to this copy of the object (finalizers not downsynched)
+				// add runner finalizer to this copy of the object
 				if controllerutil.AddFinalizer(appWrapper, runnerFinalizer) {
 					if err := r.Update(ctx, appWrapper); err != nil {
 						return ctrl.Result{}, err
@@ -166,7 +166,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				// requeue reconciliation after delay
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
-			// set status to failed/returned
+			// set status to failed/deleted
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Deleted)
 		}
 	}
@@ -184,7 +184,7 @@ func (r *AppWrapperReconciler) requeueOrFail(ctx context.Context, appWrapper *mc
 		appWrapper.Status.RequeueTimestamp = metav1.Now()
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Deleting, reason)
 	}
-	// requeue AppWrapper
+	// start process of requeueing AppWrapper by requesting the deletion of wrapped resources
 	appWrapper.Status.RequeueTimestamp = metav1.Now()
 	return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Deleting, reason)
 }
