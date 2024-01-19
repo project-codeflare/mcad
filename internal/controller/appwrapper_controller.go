@@ -32,8 +32,9 @@ import (
 // AppWrapperReconciler is the super type of Dispatcher and Runner reconcilers
 type AppWrapperReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Cache  map[types.UID]*CachedAppWrapper // cache AppWrapper updates for write/read consistency
+	Scheme           *runtime.Scheme
+	Cache            map[types.UID]*CachedAppWrapper // cache AppWrapper updates for write/read consistency
+	MultiClusterMode bool                            // are we operating in multi-cluster mode
 }
 
 const (

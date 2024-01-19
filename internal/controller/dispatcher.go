@@ -54,6 +54,8 @@ type Dispatcher struct {
 // Normal reconciliations "namespace/name" implement all phase transitions except for Queued->Dispatching
 // Queued->Dispatching transitions happen as part of a special "*/*" reconciliation
 // In a "*/*" reconciliation, we iterate over queued AppWrappers in order, dispatching as many as we can
+//
+//gocyclo:ignore
 func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// req == "*/*", dispatch queued AppWrappers
 	if req.Namespace == "*" && req.Name == "*" {
@@ -77,12 +79,19 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(appWrapper, runnerFinalizer) {
+		if r.MultiClusterMode {
+			// TODO: Multicluster. This is where we remove the placement that maps
+			// the appWrapper to the execution cluster. Only after the placement is
+			// successfully removed will we proceed to removing the dispatch finalizer
+			return ctrl.Result{}, fmt.Errorf("Unimplemented multi-cluster synch path")
+		} else {
 			// wait for the runner to remove its finalizer before we remove ours
-			return ctrl.Result{RequeueAfter: deletionDelay}, nil
+			if controllerutil.ContainsFinalizer(appWrapper, runnerFinalizer) {
+				return ctrl.Result{RequeueAfter: deletionDelay}, nil
+			}
 		}
 
-		// remove finalizer
+		// remove dispatcher finalizer
 		if controllerutil.RemoveFinalizer(appWrapper, dispatchFinalizer) {
 			if err := r.Update(ctx, appWrapper); err != nil {
 				return ctrl.Result{}, err
@@ -98,13 +107,17 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// handle other states
 	switch appWrapper.Status.State {
 	case mcadv1beta1.Empty:
-		// add dispatch finalizer
-		if controllerutil.AddFinalizer(appWrapper, dispatchFinalizer) {
+		// add finalizers
+		var finalizerAdded = controllerutil.AddFinalizer(appWrapper, dispatchFinalizer)
+		if !r.MultiClusterMode {
+			finalizerAdded = controllerutil.AddFinalizer(appWrapper, runnerFinalizer) || finalizerAdded
+		}
+		if finalizerAdded {
 			if err := r.Update(ctx, appWrapper); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
-		// set queued/idle status only after adding finalizer
+		// set queued/idle status only after adding finalizers
 		return r.updateStatus(ctx, appWrapper, mcadv1beta1.Queued, mcadv1beta1.Idle)
 
 	case mcadv1beta1.Queued:
@@ -133,11 +146,21 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case mcadv1beta1.Running:
 		switch appWrapper.Status.Step {
 		case mcadv1beta1.Dispatching:
-			// In the multi-cluster version this is where we synch the appWrapper to the execution cluster
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepted)
+			if r.MultiClusterMode {
+				// TODO: Multicluster. This is where we create the placement that maps
+				// the appWrapper to the execution cluster. Only if the placement creation is successful
+				// will we do the update of the status to running/creating.
+				return ctrl.Result{}, fmt.Errorf("Unimplemented multi-cluster synch path")
+			}
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Creating)
 
-		case mcadv1beta1.Returned:
-			// In the multi-cluster version this is where we unsynch appWrapper
+		case mcadv1beta1.Deleted:
+			if r.MultiClusterMode {
+				// TODO: Multicluster. This is where we remove the placement that maps
+				// the appWrapper to the execution cluster. Only after the placement is
+				// successfully removed will we proceed to resetting the status to queued/idle
+				return ctrl.Result{}, fmt.Errorf("Unimplemented multi-cluster synch path")
+			}
 
 			// reset status to queued/idle
 			appWrapper.Status.Restarts += 1
@@ -162,9 +185,6 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	case mcadv1beta1.Succeeded:
 		switch appWrapper.Status.Step {
-		case mcadv1beta1.Returned:
-			// In the multi-cluster version this is where we unsynch appWrapper
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded, mcadv1beta1.Idle)
 		case mcadv1beta1.Idle:
 			r.triggerDispatch()
 			return ctrl.Result{}, nil
@@ -172,9 +192,6 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	case mcadv1beta1.Failed:
 		switch appWrapper.Status.Step {
-		case mcadv1beta1.Returned:
-			// In the multi-cluster version this is where we unsynch appWrapper
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Idle)
 		case mcadv1beta1.Idle:
 			r.triggerDispatch()
 			return ctrl.Result{}, nil

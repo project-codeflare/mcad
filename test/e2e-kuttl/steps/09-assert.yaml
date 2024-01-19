@@ -9,12 +9,8 @@ status:
   - state: Running
     step: dispatching
   - state: Running
-    step: accepted
-  - state: Running
     step: creating
   - state: Running
     step: created
-  - state: Completed
-    step: returned
   - state: Completed
   state: Completed

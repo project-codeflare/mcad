@@ -59,6 +59,7 @@ func main() {
 	var probeAddr string
 	var namespace string
 	var name string
+	multicluster := false // TODO: multicluster.  Set this based on the command line flags
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -105,9 +106,10 @@ func main() {
 
 	if err = (&controller.Dispatcher{
 		AppWrapperReconciler: controller.AppWrapperReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+			Client:           mgr.GetClient(),
+			Scheme:           mgr.GetScheme(),
+			Cache:            map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+			MultiClusterMode: multicluster,
 		},
 		Decisions: map[types.UID]*controller.QueuingDecision{}, // cache of recent queuing decisions
 		Events:    make(chan event.GenericEvent, 1),            // channel to trigger dispatch,
@@ -118,9 +120,10 @@ func main() {
 
 	if err = (&controller.Runner{
 		AppWrapperReconciler: controller.AppWrapperReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Cache:  map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+			Client:           mgr.GetClient(),
+			Scheme:           mgr.GetScheme(),
+			Cache:            map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
+			MultiClusterMode: multicluster,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Runner")

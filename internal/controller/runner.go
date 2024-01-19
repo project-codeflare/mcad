@@ -61,6 +61,8 @@ type Runner struct {
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // Reconcile one Running AppWrapper on an execution cluster and monitor health of its execution resources.
+//
+//gocyclo:ignore
 func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// get deep copy of AppWrapper object in reconciler cache
 	appWrapper := &mcadv1beta1.AppWrapper{}
@@ -100,22 +102,17 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	switch appWrapper.Status.State {
 	case mcadv1beta1.Running:
 		switch appWrapper.Status.Step {
-		case mcadv1beta1.Accepted:
-			// add runner finalizer
-			if controllerutil.AddFinalizer(appWrapper, runnerFinalizer) {
-				if err := r.Update(ctx, appWrapper); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-			// set running/creating status only after successfully adding the finalizer
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Creating)
+
 		case mcadv1beta1.Creating:
-			// add runner finalizer
-			if controllerutil.AddFinalizer(appWrapper, runnerFinalizer) {
-				if err := r.Update(ctx, appWrapper); err != nil {
-					return ctrl.Result{}, err
+			if r.MultiClusterMode {
+				// add runner finalizer to this copy of the object (finalizers not downsynched)
+				if controllerutil.AddFinalizer(appWrapper, runnerFinalizer) {
+					if err := r.Update(ctx, appWrapper); err != nil {
+						return ctrl.Result{}, err
+					}
 				}
 			}
+
 			// create wrapped resources
 			if err, fatal := r.createResources(ctx, appWrapper); err != nil {
 				return r.requeueOrFail(ctx, appWrapper, fatal, err.Error())
@@ -134,9 +131,9 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			// set succeeded/returned status if done
+			// set succeeded/idle status if done
 			if success {
-				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded, mcadv1beta1.Returned)
+				return r.updateStatus(ctx, appWrapper, mcadv1beta1.Succeeded, mcadv1beta1.Idle)
 			}
 			// check pod count if dispatched for a while
 			minAvailable := appWrapper.Spec.Scheduling.MinAvailable
@@ -158,7 +155,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				// requeue reconciliation after delay
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Returned)
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Deleted)
 		}
 
 	case mcadv1beta1.Failed:
@@ -170,7 +167,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
 			// set status to failed/returned
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Returned)
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Deleted)
 		}
 	}
 
