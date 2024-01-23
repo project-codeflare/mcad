@@ -291,6 +291,7 @@ func (r *AppWrapperReconciler) jobMapFunc(ctx context.Context, obj client.Object
 }
 
 // Update AppWrapper status
+// When adding a new call, please update ./docs/state-diagram.md
 func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, state mcadv1beta1.AppWrapperState, step mcadv1beta1.AppWrapperStep, reason ...string) (ctrl.Result, error) {
 	// log transition
 	now := metav1.Now()
