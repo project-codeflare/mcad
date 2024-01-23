@@ -43,12 +43,6 @@ type Dispatcher struct {
 	NextLoggedDispatch time.Time                      // when next to log dispatching decisions
 }
 
-// permission to edit appwrappers
-
-//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
-
 // Reconcile one AppWrapper or dispatch queued AppWrappers during the dispatching phases of their lifecycle.
 //
 // Normal reconciliations "namespace/name" implement all phase transitions except for Queued->Dispatching
@@ -192,6 +186,15 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	case mcadv1beta1.Failed:
 		switch appWrapper.Status.Step {
+		case mcadv1beta1.Deleted:
+			if r.MultiClusterMode {
+				// TODO: Multicluster. This is where we delete the placement that maps
+				// the appWrapper to the execution cluster. Only after the placement is
+				// completely deleted will we proceed to resetting the status to failed/idle
+				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
+			}
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Idle)
+
 		case mcadv1beta1.Idle:
 			r.triggerDispatch()
 			return ctrl.Result{}, nil

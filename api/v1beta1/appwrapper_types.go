@@ -160,7 +160,7 @@ const (
 	// The MCAD runner is in the process of deleting the wrapped resources
 	Deleting AppWrapperStep = "deleting"
 
-	//The MCAD runner has returned control of an appwrapper to the dispatcher
+	// The MCAD runner has returned control of an appwrapper to the dispatcher
 	Deleted AppWrapperStep = "deleted"
 
 	// Queued because of insufficient available resources

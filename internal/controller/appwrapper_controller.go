@@ -29,6 +29,12 @@ import (
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 )
 
+// All AppWrapperReconcilers need permission to edit appwrappers
+
+//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
+
 // AppWrapperReconciler is the super type of Dispatcher and Runner reconcilers
 type AppWrapperReconciler struct {
 	client.Client

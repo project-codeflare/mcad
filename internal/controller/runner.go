@@ -40,12 +40,6 @@ type Runner struct {
 	AppWrapperReconciler
 }
 
-// permission to edit appwrappers
-
-//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
-
 // permission to edit wrapped resources: pods, services, jobs, podgroups
 
 //+kubebuilder:rbac:groups="",resources=pods;services,verbs=get;list;watch;create;update;patch;delete
@@ -81,17 +75,19 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
-		// delete wrapped resources
-		if !r.deleteResources(ctx, appWrapper, *appWrapper.DeletionTimestamp) {
-			// requeue reconciliation after delay
-			return ctrl.Result{RequeueAfter: deletionDelay}, nil
-		}
-		// remove finalizer
-		if controllerutil.RemoveFinalizer(appWrapper, runnerFinalizer) {
-			if err := r.Update(ctx, appWrapper); err != nil {
-				return ctrl.Result{}, err
+		// if finalizer is present, delete wrapped resources
+		if controllerutil.ContainsFinalizer(appWrapper, runnerFinalizer) {
+			if !r.deleteResources(ctx, appWrapper, *appWrapper.DeletionTimestamp) {
+				// requeue reconciliation after delay
+				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
-			log.FromContext(ctx).Info("Deleted runner finalizer")
+			// remove finalizer
+			if controllerutil.RemoveFinalizer(appWrapper, runnerFinalizer) {
+				if err := r.Update(ctx, appWrapper); err != nil {
+					return ctrl.Result{}, err
+				}
+				log.FromContext(ctx).Info("Deleted runner finalizer")
+			}
 		}
 		// remove AppWrapper from cache
 		r.deleteCachedAW(appWrapper)
