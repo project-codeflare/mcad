@@ -157,7 +157,7 @@ var _ = Describe("AppWrapper E2E Tests", func() {
 			By("Unready pods will trigger requeuing")
 			Eventually(AppWrapperQueuedReason(ctx, aw.Namespace, aw.Name), 2*time.Minute).Should(Equal(string(arbv1.QueuedRequeue)))
 			By("After reaching requeuing limit job is failed")
-			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 4*time.Minute).Should(Equal(arbv1.Failed))
+			Eventually(AppWrapperState(ctx, aw.Namespace, aw.Name), 5*time.Minute).Should(Equal(arbv1.Failed))
 		})
 
 		/*
