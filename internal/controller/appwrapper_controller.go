@@ -41,6 +41,7 @@ type AppWrapperReconciler struct {
 	Scheme           *runtime.Scheme
 	Cache            map[types.UID]*CachedAppWrapper // cache AppWrapper updates for write/read consistency
 	MultiClusterMode bool                            // are we operating in multi-cluster mode
+	ControllerName   string                          // name of the controller
 }
 
 const (
@@ -65,7 +66,7 @@ func withAppWrapper(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) con
 func (r *AppWrapperReconciler) updateStatus(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, state mcadv1beta1.AppWrapperState, step mcadv1beta1.AppWrapperStep, reason ...string) (ctrl.Result, error) {
 	// log transition
 	now := metav1.Now()
-	transition := mcadv1beta1.AppWrapperTransition{Time: now, State: state, Step: step}
+	transition := mcadv1beta1.AppWrapperTransition{Time: now, Controller: r.ControllerName, State: state, Step: step}
 	if len(reason) > 0 {
 		transition.Reason = reason[0]
 	}

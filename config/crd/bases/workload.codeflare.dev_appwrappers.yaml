@@ -692,6 +692,9 @@ spec:
                 items:
                   description: State transition
                   properties:
+                    controller:
+                      description: Controller that made the transition
+                      type: string
                     reason:
                       description: Reason
                       type: string

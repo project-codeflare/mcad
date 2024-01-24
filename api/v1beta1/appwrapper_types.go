@@ -233,6 +233,9 @@ type AppWrapperTransition struct {
 	// Reason
 	Reason string `json:"reason,omitempty"`
 
+	// Controller that made the transition
+	Controller string `json:"controller,omitempty"`
+
 	// State entered
 	State AppWrapperState `json:"state"`
 

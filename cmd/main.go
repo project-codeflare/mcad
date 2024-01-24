@@ -110,6 +110,7 @@ func main() {
 			Scheme:           mgr.GetScheme(),
 			Cache:            map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
 			MultiClusterMode: multicluster,
+			ControllerName:   "Dispatcher",
 		},
 		Decisions: map[types.UID]*controller.QueuingDecision{}, // cache of recent queuing decisions
 		Events:    make(chan event.GenericEvent, 1),            // channel to trigger dispatch,
@@ -124,6 +125,7 @@ func main() {
 			Scheme:           mgr.GetScheme(),
 			Cache:            map[types.UID]*controller.CachedAppWrapper{}, // AppWrapper cache
 			MultiClusterMode: multicluster,
+			ControllerName:   "Runner",
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Runner")
