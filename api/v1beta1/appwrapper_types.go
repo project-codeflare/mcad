@@ -151,6 +151,9 @@ const (
 	// The MCAD dispatcher is dispatching an appwrapper for execution by the runner
 	Dispatching AppWrapperStep = "dispatching"
 
+	// The MCAD runner has accepted an appwrapper for execution
+	Accepting AppWrapperStep = "accepting"
+
 	// The MCAD runner is in the process of creating the wrapped resources
 	Creating AppWrapperStep = "creating"
 

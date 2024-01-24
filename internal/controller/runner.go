@@ -99,7 +99,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	case mcadv1beta1.Running:
 		switch appWrapper.Status.Step {
 
-		case mcadv1beta1.Creating:
+		case mcadv1beta1.Accepting:
 			if r.MultiClusterMode {
 				// add runner finalizer to this copy of the object
 				if controllerutil.AddFinalizer(appWrapper, runnerFinalizer) {
@@ -108,7 +108,11 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 					}
 				}
 			}
+			// set dispatching time
+			appWrapper.Status.DispatchTimestamp = metav1.Now()
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Creating)
 
+		case mcadv1beta1.Creating:
 			// create wrapped resources
 			if err, fatal := r.createResources(ctx, appWrapper); err != nil {
 				return r.requeueOrFail(ctx, appWrapper, fatal, err.Error())

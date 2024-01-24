@@ -146,7 +146,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				// will we do the update of the status to running/creating.
 				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
 			}
-			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Creating)
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepting)
 
 		case mcadv1beta1.Deleted:
 			if r.MultiClusterMode {
@@ -158,7 +158,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 			// reset status to queued/idle
 			appWrapper.Status.Restarts += 1
-			appWrapper.Status.RequeueTimestamp = metav1.Now() // overwrite requeue decision time with completion time
+			appWrapper.Status.RequeueTimestamp = metav1.Now() // overwrite requeue decision time (runner clock) with completion time (dispatcher clock)
 			msg := "Requeued by MCAD"
 			if decision, ok := r.Decisions[appWrapper.UID]; ok && decision.reason == mcadv1beta1.QueuedRequeue {
 				msg = fmt.Sprintf("Requeued because %s", decision.message)
@@ -244,8 +244,6 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 			log.FromContext(ctx).Error(errors.New("not queued"), "Internal error")
 			return ctrl.Result{Requeue: true}, nil
 		}
-		// set dispatching time and status
-		appWrapper.Status.DispatchTimestamp = metav1.Now()
 		meta.SetStatusCondition(&appWrapper.Status.Conditions, metav1.Condition{
 			Type:    string(mcadv1beta1.Queued),
 			Status:  metav1.ConditionFalse,
