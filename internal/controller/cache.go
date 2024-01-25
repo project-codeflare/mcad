@@ -75,7 +75,7 @@ func (r *AppWrapperReconciler) isStale(ctx context.Context, appWrapper *mcadv1be
 		// check number of transitions
 		if cached.TransitionCount < status.TransitionCount {
 			// our cache is behind, update our cache, this is ok
-			r.Cache[appWrapper.UID] = &CachedAppWrapper{State: status.State, TransitionCount: status.TransitionCount}
+			r.Cache[appWrapper.UID] = &CachedAppWrapper{State: status.State, Step: status.Step, TransitionCount: status.TransitionCount}
 			cached.Conflict = nil // clear conflict timestamp
 			return false
 		}

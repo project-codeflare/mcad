@@ -7,6 +7,10 @@ status:
   transitions:
   - state: Pending
   - state: Running
+    step: dispatching
+  - state: Running
+    step: accepting
+  - state: Running
     step: creating
   - state: Running
     step: created

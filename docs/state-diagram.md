@@ -12,12 +12,18 @@ stateDiagram-v2
     qi : Idle
 
     %% Running
+    ra : Running
+    ra : Accepting
+    ri : Running
+    ri : Dispatching
     rc : Running
     rc : Creating
     rcd : Running
     rcd : Created
     rd : Running
     rd : Deleting
+    rf : Running
+    rf : Deleted
 
     %% Succeeded
     si : Completed
@@ -30,30 +36,37 @@ stateDiagram-v2
     fcd : Created
     fd : Failed
     fd : Deleting
+    ff : Failed
+    ff : Deleted
     fi: Failed
     fi : Idle
 
     HappyPath : Happy Path
     state HappyPath  {
         e --> qi
-        qi --> rc
+        qi --> ra
+        ra --> ri
+        ri --> rc
         rc --> rcd
         rcd --> si
         rc --> rd : requeueOrFail
         rcd --> rd : requeueOrFail
-        rd --> qi
+        rd --> rf
+        rf --> qi
     }
     rc --> fc : requeueOrFail
     rc --> fd : requeueOrFail
     rcd --> fcd : requeueOrFail
     rcd --> fd : requeueOrFail
-    fd --> fi
+    fd --> ff
+    ff --> fi
 
     classDef failed fill:pink
     class fi failed
     class fc failed
     class fcd failed
     class fd failed
+    class ff failed
 
     classDef succeeded fill:lightgreen
     class si succeeded

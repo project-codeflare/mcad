@@ -148,14 +148,23 @@ const (
 	// Resources are not deployed
 	Idle AppWrapperStep = ""
 
-	// MCAD is in the process of creating the wrapped resources
+	// The MCAD dispatcher is dispatching an appwrapper for execution by the runner
+	Dispatching AppWrapperStep = "dispatching"
+
+	// The MCAD runner has accepted an appwrapper for execution
+	Accepting AppWrapperStep = "accepting"
+
+	// The MCAD runner is in the process of creating the wrapped resources
 	Creating AppWrapperStep = "creating"
 
 	// The wrapped resources have been deployed successfully
 	Created AppWrapperStep = "created"
 
-	// MCAD is in the process of deleting the wrapped resources
+	// The MCAD runner is in the process of deleting the wrapped resources
 	Deleting AppWrapperStep = "deleting"
+
+	// The MCAD runner has returned control of an appwrapper to the dispatcher
+	Deleted AppWrapperStep = "deleted"
 
 	// Queued because of insufficient available resources
 	QueuedInsufficientResources AppWrapperQueuedReason = "InsufficientResources"
@@ -223,6 +232,9 @@ type AppWrapperTransition struct {
 
 	// Reason
 	Reason string `json:"reason,omitempty"`
+
+	// Controller that made the transition
+	Controller string `json:"controller,omitempty"`
 
 	// State entered
 	State AppWrapperState `json:"state"`
