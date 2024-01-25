@@ -3,7 +3,7 @@
 Usage:
 ```sh
 helm install --namespace kube-system mcad-controller . \
-  --set image.repository=quay.io/tardieu/mcad \
+  --set image.repository=quay.io/ibm/mcad \
   --set image.tag=latest \
   --set resources.requests.cpu=100m \
   --set resources.requests.memory=512Mi \
