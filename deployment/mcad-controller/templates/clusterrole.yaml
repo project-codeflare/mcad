@@ -157,6 +157,32 @@ rules:
 - apiGroups:
   - workload.codeflare.dev
   resources:
+  - boxedjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - boxedjobs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - boxedjobs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
   - clusterinfo
   verbs:
   - create
