@@ -56,7 +56,7 @@ type BoxedJobPodSet struct {
 
 // BoxedJobStatus defines the observed state of the BoxedJob object
 type BoxedJobStatus struct {
-	// Phase of the BoxedJob object: Empty, Suspended, Deploying, Running, Suspending, Deleting, Completed
+	// Phase of the BoxedJob object: Empty, Suspended, Deploying, Running, Suspending, Deleting, Completed, Failed
 	Phase string `json:"phase,omitempty"`
 }
 
