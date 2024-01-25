@@ -45,13 +45,12 @@ type AppWrapperReconciler struct {
 }
 
 const (
-	nameLabel          = "appwrapper.mcad.ibm.com"                     // owner name label for wrapped resources
-	namespaceLabel     = "appwrapper.mcad.ibm.com/namespace"           // owner namespace label for wrapped resources
-	dispatchFinalizer  = "workload.codeflare.dev/finalizer_dispatcher" // finalizer name for dispatcher
-	runnerFinalizer    = "workload.codeflare.dev/finalizer_runner"     // finalizer name for runner
-	nvidiaGpu          = "nvidia.com/gpu"                              // GPU resource name
-	specNodeName       = ".spec.nodeName"                              // key to index pods based on node placement
-	DefaultClusterName = "self"                                        // default cluster name
+	nameLabel         = "appwrapper.mcad.ibm.com"                     // owner name label for wrapped resources
+	namespaceLabel    = "appwrapper.mcad.ibm.com/namespace"           // owner namespace label for wrapped resources
+	dispatchFinalizer = "workload.codeflare.dev/finalizer_dispatcher" // finalizer name for dispatcher
+	runnerFinalizer   = "workload.codeflare.dev/finalizer_runner"     // finalizer name for runner
+	nvidiaGpu         = "nvidia.com/gpu"                              // GPU resource name
+	specNodeName      = ".spec.nodeName"                              // key to index pods based on node placement
 )
 
 // Structured logger

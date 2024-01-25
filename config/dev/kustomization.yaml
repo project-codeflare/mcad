@@ -1,0 +1,9 @@
+# This is a kustomization for use in development mode where
+# the controller is going to run as an external process (by `make run`)
+# so therefore all we want to install via kustomize is the clusterconfig
+
+namespace: mcad-system
+namePrefix: mcad-
+
+resources:
+- ../clusterconfig

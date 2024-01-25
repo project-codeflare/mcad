@@ -39,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	arbv1 "github.com/project-codeflare/mcad/api/v1beta1"
-	arcont "github.com/project-codeflare/mcad/internal/controller"
 )
 
 const testNamespace = "test"
@@ -77,12 +76,12 @@ func ensureNamespaceExists(ctx context.Context) {
 
 // Update available cluster capacity to allow tests to scale their resources appropriately.
 func updateClusterCapacity(ctx context.Context) {
-	// TODO: Multi-cluster.  Assuming a single cluster here.
-	//
-	cluster := &arbv1.ClusterInfo{}
-	err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: "default", Name: arcont.DefaultClusterName}, cluster)
+	clusters := &arbv1.ClusterInfoList{}
+	err := getClient(ctx).List(ctx, clusters)
 	Expect(err).NotTo(HaveOccurred())
-	clusterCapacity = cluster.Status.Capacity.DeepCopy()
+	// TODO: Multi-cluster.  Assuming a single cluster here.
+	Expect(len(clusters.Items)).Should(Equal(1))
+	clusterCapacity = clusters.Items[0].Status.Capacity.DeepCopy()
 	t, _ := json.Marshal(clusterCapacity)
 	fmt.Fprintf(GinkgoWriter, "Computed cluster capacity: %v\n", string(t))
 }
