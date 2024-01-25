@@ -17,4 +17,13 @@ resources:
   kind: AppWrapper
   path: github.com/project-codeflare/mcad/api/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: codeflare.dev
+  group: workload
+  kind: BoxedJob
+  path: github.com/project-codeflare/mcad/api/v1alpha1
+  version: v1alpha1
 version: "3"

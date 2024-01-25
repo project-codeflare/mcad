@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	workloadv1alpha1 "github.com/project-codeflare/mcad/api/v1alpha1"
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 	"github.com/project-codeflare/mcad/internal/controller"
 	//+kubebuilder:scaffold:imports
@@ -57,6 +58,7 @@ const (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(mcadv1beta1.AddToScheme(scheme))
+	utilruntime.Must(workloadv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -158,6 +160,13 @@ func main() {
 		}
 	}
 
+	if err = (&controller.BoxedJobReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "BoxedJob")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
