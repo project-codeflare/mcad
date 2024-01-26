@@ -10,6 +10,7 @@ jobs:
   MCAD-CI:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         mode: [unified, split]
 

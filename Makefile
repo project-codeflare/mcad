@@ -102,8 +102,14 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+run: manifests generate fmt vet ## Run a unified controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=unified
+
+run-dispatcher: manifests generate fmt vet ## Run a dispatcher controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=dispatcher
+
+run-runner: manifests generate fmt vet ## Run a runner controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=runner
 
 .PHONY: run-test
 run-test: build envtest ## Run unit tests.
