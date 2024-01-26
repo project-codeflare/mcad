@@ -41,10 +41,11 @@ jobs:
       run: |
         make docker-build -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
-    - name: Create cluster and deploy Kueue
-      run: |
-        ./hack/create-test-cluster.sh
-        ./hack/deploy-kueue.sh
+    - name: Create and configure cluster
+      run: ./hack/create-test-cluster.sh
+
+    - name: Deploy Kueue
+      run: ./hack/deploy-kueue.sh
 
     - name: Deploy MCAD Kueue extensions
       env:
@@ -53,5 +54,4 @@ jobs:
         make kind-push helm-install-existing-images -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
     - name: Run E2E tests
-      run: |
-        ./hack/run-kueue-tests-on-cluster.sh
+      run: ./hack/run-kueue-tests-on-cluster.sh
