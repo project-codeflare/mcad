@@ -240,14 +240,23 @@ function cleanup {
       echo "'all' Namespaces  list..."
       kubectl get namespaces
 
-      echo "===================================================================================="
-      echo "==========================>>>>> MCAD Controller Logs <<<<<=========================="
-      echo "===================================================================================="
-      local mcad_pod=$(kubectl get pods -n mcad-system | grep mcad-controller | awk '{print $1}')
-      if [[ "$mcad_pod" != "" ]]
+      local mcad_dispatcher_pod=$(kubectl get pods -n mcad-system | grep mcad-controller | grep -v mcad-controller-runner | awk '{print $1}')
+      local mcad_runner_pod=$(kubectl get pods -n mcad-system | grep mcad-controller-runner | awk '{print $1}')
+      if [[ "$mcad_dispatcher_pod" != "" ]]
       then
-        echo "kubectl logs ${mcad_pod} -n kube-system"
-        kubectl logs ${mcad_pod} -n kube-system
+        echo "===================================================================================="
+        echo "==========================>>>>> MCAD Controller Logs <<<<<=========================="
+        echo "===================================================================================="
+        echo "kubectl logs ${mcad_dispatcher_pod} -n mcad-system"
+        kubectl logs ${mcad_dispatcher_pod} -n mcad-system
+      fi
+      if [[ "$mcad_runner_pod" != "" ]]
+      then
+        echo "===================================================================================="
+        echo "==========================>>>>> MCAD Runner Logs <<<<<=============================="
+        echo "===================================================================================="
+        echo "kubectl logs ${mcad_runner_pod} -n mcad-system"
+        kubectl logs ${mcad_runner_pod} -n mcad-system
       fi
     fi
 

@@ -129,6 +129,20 @@ endif
 .PHONY: run-e2e
 run-e2e: docker-build run-e2e-existing-images ## Build docker image and run end-to-end test suite
 
+# Assumes images are already built
+.PHONY: helm-install-existing-images
+helm-install-existing-images:
+ifeq ($(strip $(quay_repository)),)
+	echo "Running e2e with MCAD local image: mcad ${TAG} IfNotPresent."
+	hack/helm-install-mcad.sh mcad ${TAG} IfNotPresent
+else
+	echo "Running e2e with MCAD registry image image: ${quay_repository}/mcad ${TAG}."
+	hack/helm-install-mcad.sh ${quay_repository}/mcad ${TAG}
+endif
+
+.PHONY: helm-install
+helm-install: docker-build kind-push helm-install-existing-images ## Build docker image and install using helm chart
+
 ##@ Build
 
 .PHONY: build
