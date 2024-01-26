@@ -1,0 +1,5 @@
+apiVersion: workload.codeflare.dev/v1beta1
+kind: ClusterInfo
+metadata:
+  name: {{ .Values.clusterName }}
+spec:

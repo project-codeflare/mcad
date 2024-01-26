@@ -164,14 +164,16 @@ func (r *Dispatcher) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppW
 		r.NextLoggedDispatch = time.Now().Add(clusterInfoTimeout)
 	}
 
-	// TODO: Multi-cluster.  Assuming a single cluster here.
-	//
-	cluster := &mcadv1beta1.ClusterInfo{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: "default", Name: DefaultClusterName}, cluster); err != nil {
-		mcadLog.Info("ClusterInfo not available; unable to dispatch workloads")
+	clusters := &mcadv1beta1.ClusterInfoList{}
+	if err := r.List(ctx, clusters); err != nil {
+		return selected, err
+	}
+	// TODO: Multi-cluster assuming a single cluster here
+	if len(clusters.Items) != 1 {
+		mcadLog.Info("Misconfigured clusterinfo", "clusterinfos", clusters.Items)
 		return selected, nil
 	}
-	capacity := NewWeights(cluster.Status.Capacity)
+	capacity := NewWeights(clusters.Items[0].Status.Capacity)
 
 	if logThisDispatch {
 		mcadLog.Info("Total capacity", "capacity", capacity)
