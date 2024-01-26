@@ -51,6 +51,7 @@ const (
 	UnifiedMode    = "unified"
 	DispatcherMode = "dispatcher"
 	RunnerMode     = "runner"
+	KueueMode      = "kueue"
 )
 
 func init() {
@@ -70,7 +71,8 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&mode, "mode", UnifiedMode, "One of "+UnifiedMode+", "+DispatcherMode+", "+RunnerMode+".")
+	flag.StringVar(&mode, "mode", UnifiedMode,
+		"One of "+UnifiedMode+", "+DispatcherMode+", "+RunnerMode+" or "+KueueMode+".")
 	flag.BoolVar(&multicluster, "multicluster", false, "Enable multi-cluster operation")
 	opts := zap.Options{
 		Development: true,
@@ -81,7 +83,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog.Info("Build info", "mcadVersion", BuildVersion, "date", BuildDate)
 
-	if mode != UnifiedMode && mode != RunnerMode && mode != DispatcherMode {
+	if mode != UnifiedMode && mode != RunnerMode && mode != DispatcherMode && mode != KueueMode {
 		setupLog.Error(nil, fmt.Sprintf("invalid mode: %v", mode))
 		os.Exit(1)
 	}
