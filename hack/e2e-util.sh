@@ -20,12 +20,10 @@ export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
 export IMAGE_UBUNTU_LATEST="quay.io/quay/ubuntu:latest"
 export IMAGE_UBI_LATEST="registry.access.redhat.com/ubi8/ubi:latest"
 export IMAGE_BUSY_BOX_LATEST="quay.io/project-codeflare/busybox:latest"
-export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/e2e-kind-config.yaml"}
+export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
-#export KUTTL_OPTIONS=${TEST_KUTTL_OPTIONS}
-export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/e2e-kuttl.yaml" "${ROOT_DIR}/test/e2e-kuttl-acct.yaml")
 DUMP_LOGS="true"
 
 function update_test_host {
@@ -134,16 +132,7 @@ function check_prerequisites {
   fi
 }
 
-function kind_up_cluster {
-  echo "Running kind: [kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT}]"
-  kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT} --wait ${WAIT_TIME}
-  if [ $? -ne 0 ]
-  then
-    echo "Failed to start kind cluster"
-    exit 1
-  fi
-  CLUSTER_STARTED="true"
-
+function pull_images {
   docker pull ${IMAGE_ECHOSERVER}
   if [ $? -ne 0 ]
   then
@@ -187,6 +176,17 @@ function kind_up_cluster {
     fi
   fi
   docker images
+}
+
+function kind_up_cluster {
+  echo "Running kind: [kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT}]"
+  kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT} --wait ${WAIT_TIME}
+  if [ $? -ne 0 ]
+  then
+    echo "Failed to start kind cluster"
+    exit 1
+  fi
+  CLUSTER_STARTED="true"
 
   for image in ${IMAGE_ECHOSERVER} ${IMAGE_UBUNTU_LATEST} ${IMAGE_MCAD} ${IMAGE_UBI_LATEST} ${IMAGE_BUSY_BOX_LATEST}
   do
@@ -197,6 +197,99 @@ function kind_up_cluster {
       exit 1
     fi
   done
+}
+
+function configure_cluster {
+  echo "Installing Podgroup CRD"
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/scheduler-plugins/277b6bdec18f8a9e9ccd1bfeaf4b66495bfc6f92/config/crd/bases/scheduling.sigs.k8s.io_podgroups.yaml
+
+  echo "Installing high-priority PriorityClass"
+  kubectl apply -f $ROOT_DIR/hack/high-priority-class.yaml
+
+  # Turn off master taints
+  kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-
+
+  # This is meant to orchestrate initial cluster configuration such that accounting tests can be consistent
+  echo "Orchestrate cluster..."
+  echo "kubectl cordon test-worker"
+  kubectl cordon test-worker
+  a=$(kubectl -n kube-system get pods | grep coredns | cut -d' ' -f1)
+  for b in $a
+  do
+    echo "kubectl -n kube-system delete pod $b"
+    kubectl -n kube-system delete pod $b
+  done
+  echo "kubectl uncordon test-worker"
+  kubectl uncordon test-worker
+
+  # sleep to allow the pods to restart
+  echo "Waiting for pod in the kube-system namespace to become ready"
+  while [[ $(kubectl get pods -n kube-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
+  do
+    echo -n "." && sleep 1;
+  done
+}
+
+function add_virtual_GPUs {
+    # Patch nodes to provide GPUs resources without physical GPUs.
+    # This is intended to allow testing of GPU specific features such as histograms.
+
+    # Start communication with cluster
+    kubectl proxy --port=0 > .port.dat 2>&1 &
+    proxy_pid=$!
+
+    echo "Starting background proxy connection (pid=${proxy_pid})..."
+    echo "Waiting for proxy process to start."
+    sleep 5
+
+    kube_proxy_port=$(cat .port.dat | awk '{split($5, substrings, ":"); print substrings[2]}')
+    curl -s 127.0.0.1:${kube_proxy_port} > /dev/null 2>&1
+
+    if [[ ! $? -eq 0 ]]; then
+        echo "Calling 'kubectl proxy' did not create a successful connection to the kubelet needed to patch the nodes. Exiting."
+        kill -9 ${proxy_pid}
+        exit 1
+    else
+        echo "Connected to the kubelet for patching the nodes. Using port ${kube_proxy_port}."
+    fi
+
+    rm .port.dat
+
+    # Variables
+    resource_name="nvidia.com~1gpu"
+    resource_count="8"
+
+    # Patch nodes
+    for node_name in $(kubectl get nodes --no-headers -o custom-columns=":metadata.name")
+    do
+        echo "- Patching node (add): ${node_name}"
+
+        patching_status=$(curl -s --header "Content-Type: application/json-patch+json" \
+                                --request PATCH \
+                                --data '[{"op": "add", "path": "/status/capacity/'${resource_name}'", "value": "'${resource_count}'"}]' \
+                                http://localhost:${kube_proxy_port}/api/v1/nodes/${node_name}/status | jq -r '.status')
+
+        if [[ ${patching_status} == "Failure" ]]; then
+            echo "Failed to patch node '${node_name}' with GPU resources"
+            exit 1
+        fi
+
+        echo "Patching done!"
+    done
+
+    # Stop communication with cluster
+    echo "Killing proxy (pid=${proxy_pid})..."
+    kill -9 ${proxy_pid}
+
+    # Run kuttl test to confirm GPUs were added correctly
+    kuttl_test="${ROOT_DIR}/test/e2e-kuttl-extended-resources.yaml"
+    echo "kubectl kuttl test --config ${kuttl_test}"
+    kubectl kuttl test --config ${kuttl_test}
+    if [ $? -ne 0 ]
+    then
+      echo "kuttl e2e test '${kuttl_test}' failure, exiting."
+      exit 1
+    fi
 }
 
 # clean up
@@ -270,22 +363,7 @@ function cleanup {
     fi
 }
 
-function undeploy_mcad_helm {
-    # Helm chart install name
-    local helm_chart_name=$(helm list -n mcad-system --short | grep mcad-controller)
-
-    # start mcad controller
-    echo "Stopping MCAD Controller for Quota Management Testing..."
-    echo "helm delete ${helm_chart_name}"
-    helm delete -n mcad-system ${helm_chart_name} --wait
-    if [ $? -ne 0 ]
-    then
-      echo "Failed to undeploy controller"
-      exit 1
-    fi
-}
-
-function mcad_up {
+function install_mcad {
     local helm_args=" --install mcad-controller ${ROOT_DIR}/deployment/mcad-controller  --namespace mcad-system --create-namespace --wait"
     helm_args+=" --set deploymentMode=${MCAD_DEPLOYMENT_MODE}"
     helm_args+=" --set loglevel=${LOG_LEVEL} --set resources.requests.cpu=500m --set resources.requests.memory=1024Mi"
@@ -304,100 +382,7 @@ function mcad_up {
     fi
 }
 
-function setup_mcad_env {
-  echo "Installing Podgroup CRD"
-  kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/scheduler-plugins/277b6bdec18f8a9e9ccd1bfeaf4b66495bfc6f92/config/crd/bases/scheduling.sigs.k8s.io_podgroups.yaml
-
-  echo "Installing high-priority PriorityClass"
-  kubectl apply -f $ROOT_DIR/hack/high-priority-class.yaml
-
-  # Turn off master taints
-  kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-
-
-  # This is meant to orchestrate initial cluster configuration such that accounting tests can be consistent
-  echo "Orchestrate cluster..."
-  echo "kubectl cordon test-worker"
-  kubectl cordon test-worker
-  a=$(kubectl -n kube-system get pods | grep coredns | cut -d' ' -f1)
-  for b in $a
-  do
-    echo "kubectl -n kube-system delete pod $b"
-    kubectl -n kube-system delete pod $b
-  done
-  echo "kubectl uncordon test-worker"
-  kubectl uncordon test-worker
-
-  # sleep to allow the pods to restart
-  echo "Waiting for pod in the kube-system namespace to become ready"
-  while [[ $(kubectl get pods -n kube-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
-  do
-    echo -n "." && sleep 1;
-  done
-}
-
-function extend_resources {
-    # Patch nodes to provide GPUs resources without physical GPUs.
-    # This is intended to allow testing of GPU specific features such as histograms.
-
-    # Start communication with cluster
-    kubectl proxy --port=0 > .port.dat 2>&1 &
-    proxy_pid=$!
-
-    echo "Starting background proxy connection (pid=${proxy_pid})..."
-    echo "Waiting for proxy process to start."
-    sleep 5
-
-    kube_proxy_port=$(cat .port.dat | awk '{split($5, substrings, ":"); print substrings[2]}')
-    curl -s 127.0.0.1:${kube_proxy_port} > /dev/null 2>&1
-
-    if [[ ! $? -eq 0 ]]; then
-        echo "Calling 'kubectl proxy' did not create a successful connection to the kubelet needed to patch the nodes. Exiting."
-        kill -9 ${proxy_pid}
-        exit 1
-    else
-        echo "Connected to the kubelet for patching the nodes. Using port ${kube_proxy_port}."
-    fi
-
-    rm .port.dat
-
-    # Variables
-    resource_name="nvidia.com~1gpu"
-    resource_count="8"
-
-    # Patch nodes
-    for node_name in $(kubectl get nodes --no-headers -o custom-columns=":metadata.name")
-    do
-        echo "- Patching node (add): ${node_name}"
-
-        patching_status=$(curl -s --header "Content-Type: application/json-patch+json" \
-                                --request PATCH \
-                                --data '[{"op": "add", "path": "/status/capacity/'${resource_name}'", "value": "'${resource_count}'"}]' \
-                                http://localhost:${kube_proxy_port}/api/v1/nodes/${node_name}/status | jq -r '.status')
-
-        if [[ ${patching_status} == "Failure" ]]; then
-            echo "Failed to patch node '${node_name}' with GPU resources"
-            exit 1
-        fi
-
-        echo "Patching done!"
-    done
-
-    # Stop communication with cluster
-    echo "Killing proxy (pid=${proxy_pid})..."
-    kill -9 ${proxy_pid}
-
-    # Run kuttl test to confirm GPUs were added correctly
-    kuttl_test="${ROOT_DIR}/test/e2e-kuttl-extended-resources.yaml"
-    echo "kubectl kuttl test --config ${kuttl_test}"
-    kubectl kuttl test --config ${kuttl_test}
-    if [ $? -ne 0 ]
-    then
-      echo "kuttl e2e test '${kuttl_test}' failure, exiting."
-      exit 1
-    fi
-}
-
-function kuttl_tests {
+function run_kuttl_test_suite {
   for kuttl_test in ${KUTTL_TEST_SUITES[@]}; do
     echo "kubectl kuttl test --config ${kuttl_test}"
     kubectl kuttl test --config ${kuttl_test}

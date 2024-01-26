@@ -19,18 +19,27 @@ export MCAD_IMAGE_PULL_POLICY="${3-Always}"
 export IMAGE_MCAD="${IMAGE_REPOSITORY_MCAD}:${IMAGE_TAG_MCAD}"
 export GORACE=1
 export CLUSTER_STARTED="false"
+export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/e2e-kuttl.yaml" "${ROOT_DIR}/test/e2e-kuttl-acct.yaml")
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
 trap cleanup EXIT
+
+# Prepare testing environment
 update_test_host
 check_prerequisites
-kind_up_cluster
-extend_resources
-setup_mcad_env
+pull_images
 
-mcad_up
-kuttl_tests
+# Create and configure test cluster
+kind_up_cluster
+add_virtual_GPUs
+configure_cluster
+
+# Install MCAD
+install_mcad
+
+# Run tests
+run_kuttl_test_suite
 go run github.com/onsi/ginkgo/v2/ginkgo -v -fail-fast --procs 1 -timeout 130m ./test/e2e
 
 RC=$?

@@ -22,6 +22,7 @@ source ${ROOT_DIR}/hack/e2e-util.sh
 
 update_test_host
 check_prerequisites
+pull_images
 kind_up_cluster
-extend_resources
-setup_mcad_env
+add_virtual_GPUs
+configure_cluster

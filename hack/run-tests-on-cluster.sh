@@ -18,12 +18,13 @@ export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 export GORACE=1
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"false"}
 export CLUSTER_STARTED="true"
+export KUTTL_TEST_SUITES=("${ROOT_DIR}/test/e2e-kuttl.yaml" "${ROOT_DIR}/test/e2e-kuttl-acct.yaml")
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
 trap cleanup EXIT
 
-kuttl_tests
+run_kuttl_test_suite
 go run github.com/onsi/ginkgo/v2/ginkgo -v -fail-fast --procs 1 -timeout 130m ./test/e2e
 
 RC=$?
