@@ -147,7 +147,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				return r.requeueOrFail(ctx, appWrapper, false, customMessage)
 			}
 			// AppWrapper is healthy, requeue reconciliation after delay
-			return ctrl.Result{RequeueAfter: runDelay}, nil
+			return ctrl.Result{RequeueAfter: healthCheckDelay}, nil
 
 		case mcadv1beta1.Deleting:
 			// delete wrapped resources
