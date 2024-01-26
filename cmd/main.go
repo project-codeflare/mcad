@@ -165,31 +165,33 @@ func main() {
 		}
 	}
 
-	if err = (&controller.BoxedJobReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "BoxedJob")
-		os.Exit(1)
+	if mode == KueueMode {
+		if err = (&controller.BoxedJobReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "BoxedJob")
+			os.Exit(1)
+		}
+
+		if err := controller.NewReconciler(
+			mgr.GetClient(),
+			mgr.GetEventRecorderFor("kueue-boxedjob"),
+		).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Unable to create controller", "controller", "Kueue")
+			os.Exit(1)
+		}
+
+		// TODO: fix context
+		if err := jobframework.SetupWorkloadOwnerIndex(context.TODO(), mgr.GetFieldIndexer(),
+			controller.GVK,
+		); err != nil {
+			setupLog.Error(err, "Setting up indexes")
+			os.Exit(1)
+		}
 	}
+
 	//+kubebuilder:scaffold:builder
-
-	if err := controller.NewReconciler(
-		mgr.GetClient(),
-		mgr.GetEventRecorderFor("kueue-boxedjob"),
-	).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Unable to create controller", "controller", "Kueue")
-		os.Exit(1)
-	}
-
-	// TODO: fix context
-	if err := jobframework.SetupWorkloadOwnerIndex(context.TODO(), mgr.GetFieldIndexer(),
-		controller.GVK,
-	); err != nil {
-		setupLog.Error(err, "Setting up indexes")
-		os.Exit(1)
-	}
-
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
