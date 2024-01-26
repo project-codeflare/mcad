@@ -23,5 +23,4 @@ export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"false"}
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
-trap cleanup EXIT
 mcad_up
