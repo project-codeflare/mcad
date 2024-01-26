@@ -18,9 +18,12 @@ package controller
 
 import (
 	"fmt"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
@@ -68,22 +71,38 @@ func (j *BoxedJob) GVK() schema.GroupVersionKind {
 }
 
 func (j *BoxedJob) PodSets() []kueue.PodSet {
-	podSets := make([]kueue.PodSet, len(j.Spec.Components))
-
-	for index := range j.Spec.Components {
-		component := &j.Spec.Components[index]
-		replicas := int32(1)
-		// TODO account for all elements in the Topology array
-		if component.Topology[0].Count != nil {
-			replicas = *component.Topology[0].Count
-		}
-		podSets[index] = kueue.PodSet{
-			Name: j.Name + "-" + fmt.Sprint(index),
-			Template: v1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{},
-				Spec:       v1.PodSpec{Containers: []v1.Container{{Resources: v1.ResourceRequirements{Requests: component.Topology[0].Requests}}}},
-			},
-			Count: replicas,
+	podSets := []kueue.PodSet{}
+	i := 0
+	for _, component := range j.Spec.Components {
+	LOOP:
+		for _, podSet := range component.PodSets {
+			replicas := int32(1)
+			if podSet.Replicas != nil {
+				replicas = *podSet.Replicas
+			}
+			obj := &unstructured.Unstructured{}
+			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
+				continue LOOP // TODO handle error
+			}
+			parts := strings.Split(podSet.Path, ".")
+			p := obj.UnstructuredContent()
+			var ok bool
+			for i := 1; i < len(parts); i++ {
+				p, ok = p[parts[i]].(map[string]interface{})
+				if !ok {
+					continue LOOP // TODO handle error
+				}
+			}
+			var template v1.PodTemplateSpec
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(p, &template); err != nil {
+				continue LOOP // TODO handle error
+			}
+			podSets = append(podSets, kueue.PodSet{
+				Name:     j.Name + "-" + fmt.Sprint(i),
+				Template: template,
+				Count:    replicas,
+			})
+			i++
 		}
 	}
 	return podSets

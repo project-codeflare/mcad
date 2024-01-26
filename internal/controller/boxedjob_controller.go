@@ -184,7 +184,7 @@ func parseComponents(job *workloadv1alpha1.BoxedJob) ([]client.Object, error) {
 	components := job.Spec.Components
 	objects := make([]client.Object, len(components))
 	for i, component := range components {
-		obj, err := parseComponent(job, component.Spec.Raw)
+		obj, err := parseComponent(job, component.Template.Raw)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +214,7 @@ func (r *BoxedJobReconciler) deleteComponents(ctx context.Context, job *workload
 	log := log.FromContext(ctx)
 	remaining := 0
 	for _, component := range job.Spec.Components {
-		obj, err := parseComponent(job, component.Spec.Raw)
+		obj, err := parseComponent(job, component.Template.Raw)
 		if err != nil {
 			log.Error(err, "Parsing error")
 			continue
@@ -257,13 +257,12 @@ func (r *BoxedJobReconciler) hasCompleted(ctx context.Context, job *workloadv1al
 	}
 	var expected int32
 	for _, c := range job.Spec.Components {
-		for _, s := range c.Topology {
-			if s.Count == nil {
+		for _, s := range c.PodSets {
+			if s.Replicas == nil {
 				expected++
 			} else {
-				expected += *s.Count
+				expected += *s.Replicas
 			}
-
 		}
 	}
 	return succeeded >= expected, nil

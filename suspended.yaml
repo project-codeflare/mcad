@@ -7,11 +7,10 @@ metadata:
 spec:
   suspend: true
   components:
-  - topology:
-    - count: 1
-      requests:
-        cpu: 1
-    spec:
+  - podSets:
+    - replicas: 1
+      path: template
+    template:
       apiVersion: v1
       kind: Pod
       metadata:

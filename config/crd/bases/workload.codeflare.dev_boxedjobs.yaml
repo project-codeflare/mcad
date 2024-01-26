@@ -43,43 +43,31 @@ spec:
                 items:
                   description: BoxedJobComponent describes a component of the job
                   properties:
-                    spec:
-                      description: Spec of the component
-                      type: object
-                      x-kubernetes-embedded-resource: true
-                      x-kubernetes-preserve-unknown-fields: true
-                    topology:
-                      description: Topoloy of the component
+                    podSets:
+                      description: PodSets contained in the component
                       items:
                         description: BoxedJobPodSet describes an homogeneous set of
                           pods
                         properties:
-                          count:
-                            description: Count is the number of pods in the set
+                          path:
+                            description: Requests per pod
+                            type: string
+                          replicas:
+                            description: Replicas is the number of pods in the set
                             format: int32
                             type: integer
-                          limits:
-                            additionalProperties:
-                              anyOf:
-                              - type: integer
-                              - type: string
-                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                              x-kubernetes-int-or-string: true
-                            description: Limits per pod
-                            type: object
-                          requests:
-                            additionalProperties:
-                              anyOf:
-                              - type: integer
-                              - type: string
-                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                              x-kubernetes-int-or-string: true
-                            description: Requests per pod
-                            type: object
                         required:
-                        - count
+                        - path
                         type: object
                       type: array
+                    template:
+                      description: Template for the component
+                      type: object
+                      x-kubernetes-embedded-resource: true
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - podSets
+                  - template
                   type: object
                 type: array
               suspend:

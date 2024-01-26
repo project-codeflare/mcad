@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -33,25 +32,22 @@ type BoxedJobSpec struct {
 
 // BoxedJobComponent describes a component of the job
 type BoxedJobComponent struct {
-	// Topoloy of the component
-	Topology []BoxedJobPodSet `json:"topology,omitempty"`
+	// PodSets contained in the component
+	PodSets []BoxedJobPodSet `json:"podSets"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:EmbeddedResource
-	// Spec of the component
-	Spec runtime.RawExtension `json:"spec,omitempty"`
+	// Template for the component
+	Template runtime.RawExtension `json:"template"`
 }
 
 // BoxedJobPodSet describes an homogeneous set of pods
 type BoxedJobPodSet struct {
-	// Count is the number of pods in the set
-	Count *int32 `json:"count"`
+	// Replicas is the number of pods in the set
+	Replicas *int32 `json:"replicas,omitempty"`
 
 	// Requests per pod
-	Requests v1.ResourceList `json:"requests,omitempty"`
-
-	// Limits per pod
-	Limits v1.ResourceList `json:"limits,omitempty"`
+	Path string `json:"path"`
 }
 
 // BoxedJobStatus defines the observed state of the BoxedJob object
@@ -60,6 +56,7 @@ type BoxedJobStatus struct {
 	Phase BoxedJobPhase `json:"phase,omitempty"`
 }
 
+// BoxedJobPhase is the phase of the BoxedJob object
 type BoxedJobPhase string
 
 const (
