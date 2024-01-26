@@ -9,6 +9,10 @@ on:
 jobs:
   MCAD-CI:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [unified, split]
 
     steps:
     - name: checkout code
@@ -45,5 +49,7 @@ jobs:
         make docker-build -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
     - name: Run E2E tests
+      env:
+        MCAD_DEPLOYMENT_MODE: ${{ matrix.mode }}
       run: |
         make run-e2e-existing-images -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}

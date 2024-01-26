@@ -12,6 +12,9 @@ clusterRole: system:controller:xqueuejob-controller
 
 clusterName: mcad-cluster
 
+# one of unified, split, dispatcher, runner
+deploymentMode: unified
+
 resources:
   limits:
     cpu: 2000m

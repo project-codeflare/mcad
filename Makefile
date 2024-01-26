@@ -102,8 +102,14 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+run: manifests generate fmt vet ## Run a unified controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=unified
+
+run-dispatcher: manifests generate fmt vet ## Run a dispatcher controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=dispatcher
+
+run-runner: manifests generate fmt vet ## Run a runner controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=runner
 
 .PHONY: run-test
 run-test: build envtest ## Run unit tests.
@@ -122,6 +128,20 @@ endif
 
 .PHONY: run-e2e
 run-e2e: docker-build run-e2e-existing-images ## Build docker image and run end-to-end test suite
+
+# Assumes images are already built
+.PHONY: helm-install-existing-images
+helm-install-existing-images:
+ifeq ($(strip $(quay_repository)),)
+	echo "Running e2e with MCAD local image: mcad ${TAG} IfNotPresent."
+	hack/helm-install-mcad.sh mcad ${TAG} IfNotPresent
+else
+	echo "Running e2e with MCAD registry image image: ${quay_repository}/mcad ${TAG}."
+	hack/helm-install-mcad.sh ${quay_repository}/mcad ${TAG}
+endif
+
+.PHONY: helm-install
+helm-install: docker-build kind-push helm-install-existing-images ## Build docker image and install using helm chart
 
 ##@ Build
 
