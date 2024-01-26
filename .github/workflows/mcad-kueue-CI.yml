@@ -1,4 +1,4 @@
-# This workflow will build MCAD and run unit test and E2E tests
+# This workflow will build MCAD Kueue extensions and run unit test and E2E tests
 name: MCAD-CI
 on:
   pull_request:
@@ -7,16 +7,12 @@ on:
     - 'release-*'
 
 jobs:
-  MCAD-CI:
+  MCAD-Kueue-CI:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        mode: [unified, split]
 
     steps:
     - name: checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
       with:
         ref: "refs/pull/${{ github.event.number }}/merge"
         fetch-depth: 0
@@ -28,12 +24,12 @@ jobs:
         echo "TAG=$(git describe --abbrev=0 --tags)" >> $GITHUB_ENV
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v4
       with:
         go-version-file: './go.mod'
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v3
 
     - name: Run pre-commit checks
       uses: pre-commit/action@v3.0.0
@@ -41,15 +37,19 @@ jobs:
     - name: Build
       run: make build
 
-    - name: Run Unit tests
-      run: make run-test
-
     - name: Build Image
       run: |
         make docker-build -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
-    - name: Run E2E tests
-      env:
-        MCAD_DEPLOYMENT_MODE: ${{ matrix.mode }}
+    - name: Create cluster and deploy Kueue
       run: |
-        make run-e2e-existing-images -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+        ./hack/create-test-cluster.sh
+        ./hack/deploy-kueue.sh
+
+    - name: Deploy MCAD Kueue extensions
+      run: |
+        echo "TODO! implement this"
+
+    - name: Run E2E tests
+      run: |
+        echo "TODO! implement this"
