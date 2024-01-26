@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -34,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
+	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1alpha1 "github.com/project-codeflare/mcad/api/v1alpha1"
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
@@ -59,6 +62,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(mcadv1beta1.AddToScheme(scheme))
 	utilruntime.Must(workloadv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(kueue.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -168,6 +173,22 @@ func main() {
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
+
+	if err := controller.NewReconciler(
+		mgr.GetClient(),
+		mgr.GetEventRecorderFor("kueue-boxedjob"),
+	).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Unable to create controller", "controller", "Kueue")
+		os.Exit(1)
+	}
+
+	// TODO: fix context
+	if err := jobframework.SetupWorkloadOwnerIndex(context.TODO(), mgr.GetFieldIndexer(),
+		controller.GVK,
+	); err != nil {
+		setupLog.Error(err, "Setting up indexes")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

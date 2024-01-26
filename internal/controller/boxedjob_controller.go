@@ -65,8 +65,8 @@ func (r *BoxedJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if controllerutil.ContainsFinalizer(job, boxedJobFinalizer) {
 			if !r.deleteComponents(ctx, job) {
 				// one or more components are still terminating
-				if job.Status.Phase != "Deleting" {
-					return r.updateStatus(ctx, job, "Deleting") // update status
+				if job.Status.Phase != workloadv1alpha1.BoxedJobDeleting {
+					return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobDeleting) // update status
 				}
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil // check after a short while
 			}
@@ -81,64 +81,64 @@ func (r *BoxedJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	switch job.Status.Phase {
-	case "": // initial state, inject finalizer
+	case workloadv1alpha1.BoxedJobEmpty: // initial state, inject finalizer
 		if controllerutil.AddFinalizer(job, boxedJobFinalizer) {
 			if err := r.Update(ctx, job); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
-		return r.updateStatus(ctx, job, "Suspended")
+		return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobSuspended)
 
-	case "Suspended": // no components deployed
+	case workloadv1alpha1.BoxedJobSuspended: // no components deployed
 		if job.Spec.Suspend {
 			return ctrl.Result{}, nil // remain suspended
 		}
-		return r.updateStatus(ctx, job, "Deploying") // begin deployment
+		return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobDeploying) // begin deployment
 
-	case "Deploying": // deploying components
+	case workloadv1alpha1.BoxedJobDeploying: // deploying components
 		if job.Spec.Suspend {
-			return r.updateStatus(ctx, job, "Suspending") // abort deployment
+			return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobSuspending) // abort deployment
 		}
 		err, fatal := r.createComponents(ctx, job)
 		if err != nil {
 			if fatal {
-				return r.updateStatus(ctx, job, "Deleting") // abort on fatal error
+				return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobDeleting) // abort on fatal error
 			}
 			return ctrl.Result{}, err // retry creation on transient error
 		}
-		return r.updateStatus(ctx, job, "Running")
+		return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobRunning)
 
-	case "Running": // components deployed
+	case workloadv1alpha1.BoxedJobRunning: // components deployed
 		if job.Spec.Suspend {
-			return r.updateStatus(ctx, job, "Suspending") // begin undeployment
+			return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobSuspending) // begin undeployment
 		}
 		completed, err := r.hasCompleted(ctx, job)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if completed {
-			return r.updateStatus(ctx, job, "Completed")
+			return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobCompleted)
 		}
 		failed, err := r.hasFailed(ctx, job)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if failed {
-			return r.updateStatus(ctx, job, "Deleting")
+			return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobDeleting)
 		}
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 
-	case "Suspending": // undeploying components
+	case workloadv1alpha1.BoxedJobSuspending: // undeploying components
 		// finish undeploying components irrespective of desired state (suspend bit)
 		if r.deleteComponents(ctx, job) {
-			return r.updateStatus(ctx, job, "Suspended")
+			return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobSuspended)
 		} else {
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 
-	case "Deleting": // deleting components on failure
+	case workloadv1alpha1.BoxedJobDeleting: // deleting components on failure
 		if r.deleteComponents(ctx, job) {
-			return r.updateStatus(ctx, job, "Failed")
+			return r.updateStatus(ctx, job, workloadv1alpha1.BoxedJobFailed)
 		} else {
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
@@ -230,12 +230,12 @@ func (r *BoxedJobReconciler) deleteComponents(ctx context.Context, job *workload
 	return remaining == 0
 }
 
-func (r *BoxedJobReconciler) updateStatus(ctx context.Context, job *workloadv1alpha1.BoxedJob, phase string) (ctrl.Result, error) {
+func (r *BoxedJobReconciler) updateStatus(ctx context.Context, job *workloadv1alpha1.BoxedJob, phase workloadv1alpha1.BoxedJobPhase) (ctrl.Result, error) {
 	job.Status.Phase = phase
 	if err := r.Status().Update(ctx, job); err != nil {
 		return ctrl.Result{}, err
 	}
-	log.FromContext(ctx).Info(phase, "phase", phase)
+	log.FromContext(ctx).Info(string(phase), "phase", phase)
 	return ctrl.Result{}, nil
 }
 
@@ -258,7 +258,12 @@ func (r *BoxedJobReconciler) hasCompleted(ctx context.Context, job *workloadv1al
 	var expected int32
 	for _, c := range job.Spec.Components {
 		for _, s := range c.Topology {
-			expected += s.Count
+			if s.Count == nil {
+				expected++
+			} else {
+				expected += *s.Count
+			}
+
 		}
 	}
 	return succeeded >= expected, nil

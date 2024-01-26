@@ -93,8 +93,7 @@ spec:
               object
             properties:
               phase:
-                description: 'Phase of the BoxedJob object: Empty, Suspended, Deploying,
-                  Running, Suspending, Deleting, Completed, Failed'
+                description: Phase of the BoxedJob object
                 type: string
             type: object
         type: object

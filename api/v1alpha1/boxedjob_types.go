@@ -45,7 +45,7 @@ type BoxedJobComponent struct {
 // BoxedJobPodSet describes an homogeneous set of pods
 type BoxedJobPodSet struct {
 	// Count is the number of pods in the set
-	Count int32 `json:"count"`
+	Count *int32 `json:"count"`
 
 	// Requests per pod
 	Requests v1.ResourceList `json:"requests,omitempty"`
@@ -56,9 +56,22 @@ type BoxedJobPodSet struct {
 
 // BoxedJobStatus defines the observed state of the BoxedJob object
 type BoxedJobStatus struct {
-	// Phase of the BoxedJob object: Empty, Suspended, Deploying, Running, Suspending, Deleting, Completed, Failed
-	Phase string `json:"phase,omitempty"`
+	// Phase of the BoxedJob object
+	Phase BoxedJobPhase `json:"phase,omitempty"`
 }
+
+type BoxedJobPhase string
+
+const (
+	BoxedJobEmpty      BoxedJobPhase = ""
+	BoxedJobSuspended  BoxedJobPhase = "Suspended"
+	BoxedJobDeploying  BoxedJobPhase = "Deploying"
+	BoxedJobRunning    BoxedJobPhase = "Running"
+	BoxedJobSuspending BoxedJobPhase = "Suspending"
+	BoxedJobDeleting   BoxedJobPhase = "Deleting"
+	BoxedJobCompleted  BoxedJobPhase = "Completed"
+	BoxedJobFailed     BoxedJobPhase = "Failed"
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status

@@ -2,6 +2,8 @@ apiVersion: workload.codeflare.dev/v1alpha1
 kind: BoxedJob
 metadata:
   name: sample
+  annotations:
+    kueue.x-k8s.io/queue-name: user-queue
 spec:
   components:
   - topology:
