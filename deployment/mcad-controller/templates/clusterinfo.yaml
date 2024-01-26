@@ -1,4 +1,4 @@
-{{- if not eq .Values.deploymentMode "runner" }}
+{{- if not (eq .Values.deploymentMode "runner") }}
 apiVersion: workload.codeflare.dev/v1beta1
 kind: ClusterInfo
 metadata:
