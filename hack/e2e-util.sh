@@ -15,6 +15,7 @@
 export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
 export MCAD_DEPLOYMENT_MODE=${MCAD_DEPLOYMENT_MODE:-"unified"}
+export MCAD_MULTICLUSTER=${MCAD_MULTICLUSTER:-"false"}
 export CLUSTER_CONTEXT="--name test"
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
 export IMAGE_UBUNTU_LATEST="quay.io/quay/ubuntu:latest"
@@ -365,7 +366,7 @@ function cleanup {
 
 function install_mcad {
     local helm_args=" --install mcad-controller ${ROOT_DIR}/deployment/mcad-controller  --namespace mcad-system --create-namespace --wait"
-    helm_args+=" --set deploymentMode=${MCAD_DEPLOYMENT_MODE}"
+    helm_args+=" --set deploymentMode=${MCAD_DEPLOYMENT_MODE} --set multicluster=${MCAD_MULTICLUSTER}"
     helm_args+=" --set loglevel=${LOG_LEVEL} --set resources.requests.cpu=500m --set resources.requests.memory=1024Mi"
     helm_args+=" --set resources.limits.cpu=500m --set resources.limits.memory=1024Mi"
     helm_args+=" --set configMap.name=mcad-controller-configmap --set configMap.podCreationTimeout='"120000"'"
