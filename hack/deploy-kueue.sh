@@ -12,17 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Create and configure a kind cluster for running the e2e tests
-# Does NOT install mcad
+# Installs a kueue release onto an existing cluster
 
-export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
-CLUSTER_STARTED="false"
+KUEUE_VERSION=v0.5.2
 
-source ${ROOT_DIR}/hack/e2e-util.sh
-
-update_test_host
-check_prerequisites
-pull_images
-kind_up_cluster
-add_virtual_GPUs
-configure_cluster
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml

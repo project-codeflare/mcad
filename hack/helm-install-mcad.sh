@@ -23,4 +23,4 @@ export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"false"}
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
-mcad_up
+install_mcad
