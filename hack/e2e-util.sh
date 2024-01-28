@@ -367,6 +367,12 @@ function cleanup {
 function install_mcad {
     local helm_args=" --install mcad-controller ${ROOT_DIR}/deployment/mcad-controller  --namespace mcad-system --create-namespace --wait"
     helm_args+=" --set deploymentMode=${MCAD_DEPLOYMENT_MODE} --set multicluster=${MCAD_MULTICLUSTER}"
+    if [[ ${MCAD_DEPLOYMENT_MODE} == "kueue" ]]
+    then
+       helm_args+=" --set installKueueCRDs=true --set installMCADCRDs=false"
+    else
+       helm_args+=" --set installKueueCRDs=false --set installMCADCRDs=true"
+    fi
     helm_args+=" --set loglevel=${LOG_LEVEL} --set resources.requests.cpu=500m --set resources.requests.memory=1024Mi"
     helm_args+=" --set resources.limits.cpu=500m --set resources.limits.memory=1024Mi"
     helm_args+=" --set configMap.name=mcad-controller-configmap --set configMap.podCreationTimeout='"120000"'"
