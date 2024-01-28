@@ -387,6 +387,8 @@ function install_mcad {
       echo "Failed to deploy MCAD controller"
       exit 1
     fi
+    echo "Currently installed CRDs:"
+    kubectl get crds
 }
 
 function run_kuttl_test_suite {
