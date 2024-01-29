@@ -167,7 +167,7 @@ func main() {
 	}
 
 	if mode == KueueMode {
-		if err = (&mcad_kueue.BoxedJobReconciler{
+		if err := (&mcad_kueue.BoxedJobReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
@@ -181,6 +181,19 @@ func main() {
 		).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Unable to create controller", "controller", "Kueue")
 			os.Exit(1)
+		}
+
+		// TODO: this is temporary until we get the helm chart + kustomize plumbing for certmanager to be reliable
+		if _, set := os.LookupEnv("ENABLE_WEBHOOKS"); set {
+			wh := &mcad_kueue.BoxedJobWebhook{ManageJobsWithoutQueueName: true}
+			if err := ctrl.NewWebhookManagedBy(mgr).
+				For(&workloadv1alpha1.BoxedJob{}).
+				WithDefaulter(wh).
+				WithValidator(wh).
+				Complete(); err != nil {
+				setupLog.Error(err, "unable to create webhook", "webhook", "boxedjob")
+				os.Exit(1)
+			}
 		}
 
 		// TODO: fix context

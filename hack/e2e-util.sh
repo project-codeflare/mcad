@@ -207,6 +207,9 @@ function configure_cluster {
   echo "Installing high-priority PriorityClass"
   kubectl apply -f $ROOT_DIR/hack/high-priority-class.yaml
 
+  echo "Installing cert-manager"
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+
   # Turn off master taints
   kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-
 
