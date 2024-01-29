@@ -1,0 +1,4 @@
+apiVersion: v1
+description: CRDs for MCAD Kueue Extensions
+name: kueue-crds
+version: 1.0.0

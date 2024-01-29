@@ -141,7 +141,7 @@ else
 endif
 
 .PHONY: helm-install
-helm-install: docker-build kind-push helm-install-existing-images ## Build docker image and install using helm (optionally set MCAD_DEPLOYMENT_MODE to configure)
+helm-install: docker-build kind-push helm-install-existing-images ## Build docker image and helm install mcad (set MCAD_DEPLOYMENT_MODE and MCAD_MULTICLUSTER to configure)
 
 ##@ Build
 
