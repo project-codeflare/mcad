@@ -1,6 +1,8 @@
 # This workflow will build MCAD and run unit test and E2E tests
 name: MCAD-CI
 on:
+  push:
+    branches: [master]
   pull_request:
     branches:
     - 'main'
