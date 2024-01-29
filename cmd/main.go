@@ -41,6 +41,7 @@ import (
 	workloadv1alpha1 "github.com/project-codeflare/mcad/api/v1alpha1"
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 	"github.com/project-codeflare/mcad/internal/controller"
+	mcad_kueue "github.com/project-codeflare/mcad/internal/kueue"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -166,7 +167,7 @@ func main() {
 	}
 
 	if mode == KueueMode {
-		if err = (&controller.BoxedJobReconciler{
+		if err = (&mcad_kueue.BoxedJobReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
@@ -174,7 +175,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := controller.NewReconciler(
+		if err := mcad_kueue.NewReconciler(
 			mgr.GetClient(),
 			mgr.GetEventRecorderFor("kueue-boxedjob"),
 		).SetupWithManager(mgr); err != nil {
@@ -184,7 +185,7 @@ func main() {
 
 		// TODO: fix context
 		if err := jobframework.SetupWorkloadOwnerIndex(context.TODO(), mgr.GetFieldIndexer(),
-			controller.GVK,
+			mcad_kueue.GVK,
 		); err != nil {
 			setupLog.Error(err, "Setting up indexes")
 			os.Exit(1)
