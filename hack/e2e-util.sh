@@ -387,8 +387,12 @@ function install_mcad {
       echo "Failed to deploy MCAD controller"
       exit 1
     fi
-    echo "Currently installed CRDs:"
-    kubectl get crds
+    echo "Filtered CRD inventory:"
+    kubectl get crds | grep workload.codeflare.dev
+    if [[ ${MCAD_DEPLOYMENT_MODE} == "kueue" ]]
+    then
+        kubectl get crds | grep kueue.x-k8s.io
+    fi
 }
 
 function run_kuttl_test_suite {
