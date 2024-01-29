@@ -111,6 +111,10 @@ run-dispatcher: manifests generate fmt vet ## Run a dispatcher controller from y
 run-runner: manifests generate fmt vet ## Run a runner controller from your host.
 	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=runner
 
+run-kueue: manifests generate fmt vet ## Run a boxjob controller from your host.
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0 --mode=kueue
+
+
 .PHONY: run-test
 run-test: build envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./internal/... -timeout 130m -count=1 -ginkgo.fail-fast -coverprofile cover.out
