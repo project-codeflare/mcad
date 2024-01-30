@@ -19,4 +19,8 @@ export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 KUEUE_VERSION=v0.5.2
 
 kubectl apply --server-side -f https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml
+
+# hack: wait for kueue to be ready before creating queues
+sleep 15
+
 kubectl apply -f ${ROOT_DIR}/hack/kueue-config.yaml
