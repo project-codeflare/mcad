@@ -183,17 +183,14 @@ func main() {
 			os.Exit(1)
 		}
 
-		// TODO: this is temporary until we get the helm chart + kustomize plumbing for certmanager to be reliable
-		if _, set := os.LookupEnv("ENABLE_WEBHOOKS"); set {
-			wh := &mcad_kueue.BoxedJobWebhook{ManageJobsWithoutQueueName: true}
-			if err := ctrl.NewWebhookManagedBy(mgr).
-				For(&workloadv1alpha1.BoxedJob{}).
-				WithDefaulter(wh).
-				WithValidator(wh).
-				Complete(); err != nil {
-				setupLog.Error(err, "unable to create webhook", "webhook", "boxedjob")
-				os.Exit(1)
-			}
+		wh := &mcad_kueue.BoxedJobWebhook{ManageJobsWithoutQueueName: true}
+		if err := ctrl.NewWebhookManagedBy(mgr).
+			For(&workloadv1alpha1.BoxedJob{}).
+			WithDefaulter(wh).
+			WithValidator(wh).
+			Complete(); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "boxedjob")
+			os.Exit(1)
 		}
 
 		// TODO: fix context
