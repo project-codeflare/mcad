@@ -76,6 +76,11 @@ spec:
           capabilities:
             drop:
             - ALL
+        volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: {{ .Release.Name }}-webhook-server-cert
 {{- if eq .Values.deploymentMode "split" }}
 ---
 apiVersion: apps/v1
