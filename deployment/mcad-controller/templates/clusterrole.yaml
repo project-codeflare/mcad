@@ -199,6 +199,8 @@ rules:
   - get
   - patch
   - update
+{{- end }}
+{{- if eq .Values.deploymentMode "kueue" }}
 - apiGroups:
   - workload.codeflare.dev
   resources:
@@ -211,8 +213,6 @@ rules:
   - patch
   - update
   - watch
-{{- end }}
-{{- if eq .Values.deploymentMode "kueue" }}
 - apiGroups:
   - workload.codeflare.dev
   resources:
