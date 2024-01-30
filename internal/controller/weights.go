@@ -132,12 +132,11 @@ func (w Weights) AsResources() v1.ResourceList {
 	return resources
 }
 
-// Creates a copy of Weights
+// Creates a (deep) copy of Weights
+// (Easier to add to zero than creating all fields)
 func (w Weights) Clone() Weights {
 	r := Weights{}
-	for k, v := range w {
-		r[k] = v
-	}
+	r.Add(w)
 	return r
 }
 
@@ -167,6 +166,12 @@ func (w *WeightsPair) Sub(r *WeightsPair) {
 	w.limits.Sub(r.limits)
 }
 
+// Max of two pairs of weights
+func (w *WeightsPair) Max(r *WeightsPair) {
+	w.requests.Max(r.requests)
+	w.limits.Max(r.limits)
+}
+
 // Clone a pair of weights
 func (w *WeightsPair) Clone() *WeightsPair {
 	requestsClone := w.requests.Clone()
@@ -194,6 +199,25 @@ func (w *WeightsPair) String() string {
 	fmt.Fprintf(&b, "{Requests: %v}; ", w.requests)
 	fmt.Fprintf(&b, "{Limits: %v}", w.limits)
 	return b.String()
+}
+
+// Create new WeightsPair for a pod
+func NewWeightsPairForPod(pod *v1.Pod) *WeightsPair {
+	return NewWeightsPair(NewWeightsForPod(pod), NewLimitsWeightsForPod(pod))
+}
+
+// Converts resource limits of a pod to Weights
+func NewLimitsWeightsForPod(pod *v1.Pod) Weights {
+	podLimit := Weights{}
+	// add up limits of resources of all containers
+	for _, container := range pod.Spec.Containers {
+		podLimit.Add(NewWeights(container.Resources.Limits))
+	}
+	// take max(sum_pod, any_init_container)
+	for _, initContainer := range pod.Spec.InitContainers {
+		podLimit.Max(NewWeights(initContainer.Resources.Limits))
+	}
+	return podLimit
 }
 
 // Remove duplicate resource names in a slice

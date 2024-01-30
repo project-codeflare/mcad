@@ -274,10 +274,11 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatrack
 		}
 		quotaFits := true
 		var appWrapperAskWeights *WeightsPair
+		insufficientResources := []v1.ResourceName{}
 		if len(resourceQuotas.Items) > 0 {
 			appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
 			// TODO: relax assumption that only one resourceQuota per nameSpace
-			quotaFits = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
+			quotaFits, insufficientResources = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
 		}
 		fits, gaps := request.Fits(available[int(appWrapper.Spec.Priority)])
 		if fits {
@@ -290,6 +291,12 @@ func (r *AppWrapperReconciler) selectForDispatch(ctx context.Context, quotatrack
 						avail.Sub(request)
 					}
 				}
+			} else {
+				var msgBuilder strings.Builder
+				for _, resource := range insufficientResources {
+					msgBuilder.WriteString(fmt.Sprintf("Insufficient %v. ", resource))
+				}
+				r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientQuota, message: msgBuilder.String()}
 			}
 		} else {
 			var msgBuilder strings.Builder
@@ -321,7 +328,7 @@ func aggregateLimits(appWrapper *mcadv1beta1.AppWrapper) Weights {
 	limit := Weights{}
 	for _, r := range appWrapper.Spec.Resources.GenericItems {
 		for _, cpr := range r.CustomPodResources {
-			// TODO: check why not use limits spec in custom pod resource?
+			// TODO: check why not implemented limits spec in CustomPodResource?
 			limit.AddProd(cpr.Replicas, NewWeights(cpr.NotImplemented_Limits))
 		}
 	}
@@ -352,14 +359,29 @@ func (r *AppWrapperReconciler) getUnadmittedAppWrappersWeights(ctx context.Conte
 	weightsPairMap := make(map[string]*WeightsPair)
 	for _, appWrapper := range appWrappers.Items {
 		phase, step := r.getCachedAW(&appWrapper)
-		if phase == mcadv1beta1.Running && step == mcadv1beta1.Idle || step == mcadv1beta1.Creating {
+		if phase == mcadv1beta1.Running &&
+			step == mcadv1beta1.Idle || step == mcadv1beta1.Creating || step == mcadv1beta1.Created {
 			namespace := appWrapper.GetNamespace()
 			weightsPair := weightsPairMap[namespace]
 			if weightsPair == nil {
 				weightsPair = NewWeightsPair(Weights{}, Weights{})
 			}
 			weightsPair.Add(getWeightsPairForAppWrapper(&appWrapper))
-			weightsPairMap[namespace] = weightsPair
+
+			// subtract weights for admitted (created) pods for this appWrapper
+			// (already accounted for in the used status of the resourceQuota)
+			pods := &v1.PodList{}
+			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
+				client.MatchingLabels{namespaceLabel: namespace, nameLabel: appWrapper.Name}); err == nil {
+				createdPodsWeightsPair := &WeightsPair{requests: Weights{}, limits: Weights{}}
+				for _, pod := range pods.Items {
+					createdPodsWeightsPair.Add(NewWeightsPairForPod(&pod))
+				}
+				weightsPair.Sub(createdPodsWeightsPair)
+			}
+			nonNegativeWeightsPair := NewWeightsPair(Weights{}, Weights{})
+			nonNegativeWeightsPair.Max(weightsPair)
+			weightsPairMap[namespace] = nonNegativeWeightsPair
 		}
 	}
 	return weightsPairMap, nil

@@ -28,7 +28,11 @@ const DefaultResourceLimitsPrefix = "limits."
 
 // A tracker of allocated quota, mapped by namespace
 type QuotaTracker struct {
-	state                map[string]*QuotaState
+	// state of quotas, used, and allocated amounts
+	state map[string]*QuotaState
+
+	// used amounts by dispatched AppWrappers partially unaccounted by the ResourceQuota,
+	// as some pods may have not passed the ResourceQuota admission controller
 	unAdmittedWeightsMap map[string]*WeightsPair
 }
 
@@ -42,8 +46,11 @@ func NewQuotaTracker() *QuotaTracker {
 
 // State includes total quota, used quota, and currently allocated quota
 type QuotaState struct {
-	quota     *WeightsPair
-	used      *WeightsPair
+	// quota enforced in the ResourceQuota object
+	quota *WeightsPair
+	// used amount in the status of the ResourceQuota object
+	used *WeightsPair
+	// allocated amount by dispatched AppWrappers in the current dispatching cycle
 	allocated *WeightsPair
 }
 
@@ -63,17 +70,9 @@ func (tracker *QuotaTracker) Init(weightsPairMap map[string]*WeightsPair) {
 	tracker.unAdmittedWeightsMap = weightsPairMap
 }
 
-// Check if (used + allocated) <= quota
-func (qs *QuotaState) IsValid() bool {
-	available := qs.quota.Clone()
-	available.Sub(qs.used)
-	fits, _ := qs.allocated.Fits(available)
-	return fits
-}
-
 // Check if the resource demand of an AppWrapper satisfies a ResourceQuota,
-// without changing the current quota allocation
-func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resourceQuota *v1.ResourceQuota) bool {
+// without changing the current quota allocation, returning resource names with insufficient quota
+func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resourceQuota *v1.ResourceQuota) (bool, []v1.ResourceName) {
 	namespace := resourceQuota.GetNamespace()
 	var quotaState *QuotaState
 	var exists bool
@@ -85,17 +84,18 @@ func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resour
 	quotaWeights := quotaState.quota.Clone()
 	quotaWeights.Sub(quotaState.used)
 	quotaWeights.Sub(quotaState.allocated)
-	if unAdmittedWeights, exists := tracker.unAdmittedWeightsMap[namespace]; exists {
+	unAdmittedWeights := &WeightsPair{}
+	if unAdmittedWeights, exists = tracker.unAdmittedWeightsMap[namespace]; exists {
 		quotaWeights.Sub(unAdmittedWeights)
 	}
-	quotaFits, _ := appWrapperAskWeights.Fits(quotaWeights)
+	quotaFits, insufficientResources := appWrapperAskWeights.Fits(quotaWeights)
 
 	mcadLog.Info("QuotaTracker.Satisfies():", "namespace", namespace,
 		"QuotaWeights", quotaState.quota, "UsedWeights", quotaState.used,
-		"AllocatedWeights", quotaState.allocated, "AvailableWeights", quotaWeights,
-		"appWrapperAskWeights", appWrapperAskWeights, "quotaFits", quotaFits)
-
-	return quotaFits
+		"AllocatedWeights", quotaState.allocated, "unAdmittedWeights", unAdmittedWeights,
+		"AvailableWeights", quotaWeights, "appWrapperAskWeights", appWrapperAskWeights,
+		"quotaFits", quotaFits)
+	return quotaFits, insufficientResources
 }
 
 // Update the QuotaState by the allocated weights of an AppWrapper in a namespace,
@@ -115,7 +115,7 @@ func getWeightsPairForAppWrapper(appWrapper *mcadv1beta1.AppWrapper) *WeightsPai
 	return NewWeightsPair(requests, limits)
 }
 
-// Get requests and limits for both quota and used from ResourceQuota status
+// Get requests and limits for both quota and used from ResourceQuota object
 func getQuotaAndUsedWeightsPairsForResourceQuota(resourceQuota *v1.ResourceQuota) (quotaWeights *WeightsPair,
 	usedWeights *WeightsPair) {
 	quotaWeights = getWeightsPairForResourceList(&resourceQuota.Status.Hard)
@@ -131,7 +131,7 @@ func getWeightsPairForResourceList(r *v1.ResourceList) *WeightsPair {
 	for k, v := range *r {
 		if strings.HasPrefix(k.String(), DefaultResourceLimitsPrefix) {
 			trimmedName := strings.Replace(k.String(), DefaultResourceLimitsPrefix, "", 1)
-			if value, exists := limits[v1.ResourceName(trimmedName)]; !exists || value.Cmp(v.AsDec()) < 0 {
+			if _, exists := limits[v1.ResourceName(trimmedName)]; !exists {
 				limits[v1.ResourceName(trimmedName)] = v.AsDec()
 			}
 			continue
@@ -140,7 +140,8 @@ func getWeightsPairForResourceList(r *v1.ResourceList) *WeightsPair {
 			trimmedName := strings.Replace(k.String(), v1.DefaultResourceRequestsPrefix, "", 1)
 			k = v1.ResourceName(trimmedName)
 		}
-		if value, exists := requests[k]; !exists || value.Cmp(v.AsDec()) < 0 {
+		// in case of two keys: requests.xxx and xxx, take the minimum quota of the two
+		if value, exists := requests[k]; !exists || value.Cmp(v.AsDec()) > 0 {
 			requests[k] = v.AsDec()
 		}
 	}

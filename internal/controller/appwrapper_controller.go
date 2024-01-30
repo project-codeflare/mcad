@@ -350,7 +350,8 @@ func (r *AppWrapperReconciler) triggerDispatch() {
 // Attempt to select and dispatch appWrappers until either capacity is exhausted or no candidates remain
 func (r *AppWrapperReconciler) dispatch(ctx context.Context) (ctrl.Result, error) {
 
-	// track quota allocation to AppWrappers during a dispatching cycle
+	// track quota allocation to AppWrappers during a dispatching cycle;
+	// used in only one cycle, does not carry from cycle to cycle
 	quotaTracker := NewQuotaTracker()
 	if weightsPairMap, err := r.getUnadmittedAppWrappersWeights(ctx); err == nil {
 		quotaTracker.Init(weightsPairMap)
