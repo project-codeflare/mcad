@@ -10,6 +10,7 @@ rules:
   - events
   verbs:
   - create
+  - patch
   - update
   - watch
 - apiGroups:
@@ -124,6 +125,14 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - scheduling.sigs.k8s.io
   resources:
