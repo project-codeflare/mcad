@@ -229,3 +229,17 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - resourcequotas
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - workload.codeflare.dev
+  resources:
+  - resourcequotas/status
+  verbs:
+  - get

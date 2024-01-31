@@ -34,6 +34,8 @@ import (
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=resourcequotas,verbs=get;list;watch
+//+kubebuilder:rbac:groups=workload.codeflare.dev,resources=resourcequotas/status,verbs=get
 
 // AppWrapperReconciler is the super type of Dispatcher and Runner reconcilers
 type AppWrapperReconciler struct {
