@@ -14,8 +14,6 @@
 
 # Installs a kueue release onto an existing cluster
 
-export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
-
 KUEUE_VERSION=v0.5.2
 
 kubectl apply --server-side -f https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml
