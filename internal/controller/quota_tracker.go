@@ -84,7 +84,7 @@ func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resour
 	quotaWeights := quotaState.quota.Clone()
 	quotaWeights.Sub(quotaState.used)
 	quotaWeights.Sub(quotaState.allocated)
-	unAdmittedWeights := &WeightsPair{}
+	var unAdmittedWeights *WeightsPair
 	if unAdmittedWeights, exists = tracker.unAdmittedWeightsMap[namespace]; exists {
 		quotaWeights.Sub(unAdmittedWeights)
 	}
