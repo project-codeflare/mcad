@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -193,8 +192,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		// TODO: fix context
-		if err := jobframework.SetupWorkloadOwnerIndex(context.TODO(), mgr.GetFieldIndexer(),
+		if err := jobframework.SetupWorkloadOwnerIndex(ctrl.SetupSignalHandler(), mgr.GetFieldIndexer(),
 			mcad_kueue.GVK,
 		); err != nil {
 			setupLog.Error(err, "Setting up indexes")
