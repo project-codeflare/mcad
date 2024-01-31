@@ -157,7 +157,7 @@ func (r *Dispatcher) listAppWrappers(ctx context.Context) (map[int]Weights, []*m
 }
 
 // Find next AppWrapper to dispatch in queue order
-func (r *Dispatcher) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppWrapper, error) {
+func (r *Dispatcher) selectForDispatch(ctx context.Context, quotatracker *QuotaTracker) ([]*mcadv1beta1.AppWrapper, error) {
 	selected := []*mcadv1beta1.AppWrapper{}
 	logThisDispatch := time.Now().After(r.NextLoggedDispatch)
 	if logThisDispatch {
@@ -204,13 +204,38 @@ func (r *Dispatcher) selectForDispatch(ctx context.Context) ([]*mcadv1beta1.AppW
 	// return ordered slice of AppWrappers that fit (may be empty)
 	for _, appWrapper := range queue {
 		request := aggregateRequests(appWrapper)
+		// get resourceQuota in AppWrapper namespace, if any
+		resourceQuotas := &v1.ResourceQuotaList{}
+		namespace := appWrapper.GetNamespace()
+		if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
+			&client.ListOptions{Namespace: namespace}); err != nil {
+			return nil, err
+		}
+		quotaFits := true
+		var appWrapperAskWeights *WeightsPair
+		insufficientResources := []v1.ResourceName{}
+		if len(resourceQuotas.Items) > 0 {
+			appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
+			// TODO: relax assumption that only one resourceQuota per nameSpace
+			quotaFits, insufficientResources = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
+		}
 		fits, gaps := request.Fits(available[int(appWrapper.Spec.Priority)])
 		if fits {
-			selected = append(selected, appWrapper.DeepCopy()) // deep copy AppWrapper
-			for priority, avail := range available {
-				if priority <= int(appWrapper.Spec.Priority) {
-					avail.Sub(request)
+			// check if appwrapper passes resource quota (if any)
+			if quotaFits {
+				quotatracker.Allocate(namespace, appWrapperAskWeights)
+				selected = append(selected, appWrapper.DeepCopy()) // deep copy AppWrapper
+				for priority, avail := range available {
+					if priority <= int(appWrapper.Spec.Priority) {
+						avail.Sub(request)
+					}
 				}
+			} else {
+				var msgBuilder strings.Builder
+				for _, resource := range insufficientResources {
+					msgBuilder.WriteString(fmt.Sprintf("Insufficient %v. ", resource))
+				}
+				r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientQuota, message: msgBuilder.String()}
 			}
 		} else {
 			var msgBuilder strings.Builder
@@ -235,6 +260,18 @@ func aggregateRequests(appWrapper *mcadv1beta1.AppWrapper) Weights {
 		}
 	}
 	return request
+}
+
+// Aggregate limits
+func aggregateLimits(appWrapper *mcadv1beta1.AppWrapper) Weights {
+	limit := Weights{}
+	for _, r := range appWrapper.Spec.Resources.GenericItems {
+		for _, cpr := range r.CustomPodResources {
+			// TODO: check why not implemented limits spec in CustomPodResource?
+			limit.AddProd(cpr.Replicas, NewWeights(cpr.NotImplemented_Limits))
+		}
+	}
+	return limit
 }
 
 // Propagate reservations at all priority levels to all levels below
