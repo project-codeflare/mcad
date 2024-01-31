@@ -36,7 +36,7 @@ type BoxedJobWebhook struct {
 	ManageJobsWithoutQueueName bool
 }
 
-//+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1alpha1-boxedjob,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=boxedjobs,verbs=create;update,versions=v1alpha1,name=mboxedjob.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1alpha1-boxedjob,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=boxedjobs,verbs=create,versions=v1alpha1,name=mboxedjob.kb.io,admissionReviewVersions=v1
 
 var _ webhook.CustomDefaulter = &BoxedJobWebhook{}
 
