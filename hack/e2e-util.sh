@@ -232,6 +232,13 @@ function configure_cluster {
   do
     echo -n "." && sleep 1;
   done
+
+  # sleep to ensure cert-manager is fully functional
+  echo "Waiting for pod in the cert-manager namespace to become ready"
+  while [[ $(kubectl get pods -n cert-manager -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
+  do
+    echo -n "." && sleep 1;
+  done
 }
 
 function add_virtual_GPUs {
