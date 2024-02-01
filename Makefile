@@ -210,6 +210,7 @@ uninstall: manifests kustomize ## Uninstall CRDs and clusterconfig from the K8s 
 deploy: manifests kustomize ## Deploy CRDS, clusterconfig and controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+	cd config/manager && $(KUSTOMIZE) edit set image controller=quay.io/ibm/mcad
 
 .PHONY: undeploy
 undeploy: ## Undeploy CRDS, clusterconfig and controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

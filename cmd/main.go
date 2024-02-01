@@ -167,7 +167,7 @@ func main() {
 	}
 
 	if mode == KueueMode {
-		if err = (&mcad_kueue.BoxedJobReconciler{
+		if err := (&mcad_kueue.BoxedJobReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
@@ -183,11 +183,19 @@ func main() {
 			os.Exit(1)
 		}
 
-		// TODO: fix context
-		if err := jobframework.SetupWorkloadOwnerIndex(context.TODO(), mgr.GetFieldIndexer(),
-			mcad_kueue.GVK,
-		); err != nil {
-			setupLog.Error(err, "Setting up indexes")
+		wh := &mcad_kueue.BoxedJobWebhook{ManageJobsWithoutQueueName: true}
+		if err := ctrl.NewWebhookManagedBy(mgr).
+			For(&workloadv1alpha1.BoxedJob{}).
+			WithDefaulter(wh).
+			WithValidator(wh).
+			Complete(); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "boxedjob")
+			os.Exit(1)
+		}
+
+		ctx := context.TODO() // TODO: figure out the right context to use here!
+		if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), mcad_kueue.GVK); err != nil {
+			setupLog.Error(err, "Setting up indexes", "GVK", mcad_kueue.GVK)
 			os.Exit(1)
 		}
 	}
