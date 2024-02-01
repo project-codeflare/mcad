@@ -31,13 +31,11 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
-	kindexer "sigs.k8s.io/kueue/pkg/controller/core/indexer"
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1alpha1 "github.com/project-codeflare/mcad/api/v1alpha1"
@@ -196,10 +194,6 @@ func main() {
 		}
 
 		ctx := context.TODO() // TODO: figure out the right context to use here!
-		if err := setupKueueIndexers(ctx, mgr.GetFieldIndexer()); err != nil {
-			setupLog.Error(err, "unable to setup kueue field indexer")
-			os.Exit(1)
-		}
 		if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), mcad_kueue.GVK); err != nil {
 			setupLog.Error(err, "Setting up indexes", "GVK", mcad_kueue.GVK)
 			os.Exit(1)
@@ -221,25 +215,4 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-// Subset of indexr.Setup() from kueue relevant to Workloads
-func setupKueueIndexers(ctx context.Context, indexer client.FieldIndexer) error {
-	if err := indexer.IndexField(ctx, &kueue.Workload{}, kindexer.WorkloadQueueKey,
-		kindexer.IndexWorkloadQueue); err != nil {
-		return fmt.Errorf("setting index on queue for Workload: %w", err)
-	}
-	if err := indexer.IndexField(ctx, &kueue.Workload{}, kindexer.WorkloadClusterQueueKey,
-		kindexer.IndexWorkloadClusterQueue); err != nil {
-		return fmt.Errorf("setting index on clusterQueue for Workload: %w", err)
-	}
-	if err := indexer.IndexField(ctx, &kueue.Workload{}, kindexer.WorkloadQuotaReservedKey,
-		kindexer.IndexWorkloadQuotaReserved); err != nil {
-		return fmt.Errorf("setting index on admitted for Workload: %w", err)
-	}
-	if err := indexer.IndexField(ctx, &kueue.Workload{}, kindexer.WorkloadRuntimeClassKey,
-		kindexer.IndexWorkloadRuntimeClass); err != nil {
-		return fmt.Errorf("setting index on runtimeClass for Workload: %w", err)
-	}
-	return nil
 }
