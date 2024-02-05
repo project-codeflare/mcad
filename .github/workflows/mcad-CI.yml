@@ -20,7 +20,6 @@ jobs:
     - name: checkout code
       uses: actions/checkout@v4
       with:
-        ref: "refs/pull/${{ github.event.number }}/merge"
         fetch-depth: 0
 
     - name: Set latest tag and Branch name
