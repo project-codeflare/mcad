@@ -61,7 +61,8 @@ func main() {
 	var name string
 	var context string
 	var geolocation string
-	var powerslope string
+	var powerIdle string
+	var powerPeak string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -75,7 +76,8 @@ func main() {
 	flag.StringVar(&name, "clusterinfo-name", controller.DefaultClusterName, "The name of the ClusterInfo object.")
 	flag.StringVar(&context, "kube-context", "", "The Kubernetes context.")
 	flag.StringVar(&geolocation, "geolocation", "US-NY-NYIS", "The geolocation of cluster.")
-	flag.StringVar(&powerslope, "powerslope", "1", "The slope in power function.")
+	flag.StringVar(&powerIdle, "powerIdle", "300", "idle power.")
+	flag.StringVar(&powerPeak, "powerPeak", "200", "peak power.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -132,7 +134,8 @@ func main() {
 			Namespace:   namespace,
 			Name:        name,
 			Geolocation: geolocation,
-			PowerSlope:  powerslope,
+			PowerPeak:   powerPeak,
+			PowerIdle:   powerIdle,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create ClusterInfo controller")
 			os.Exit(1)

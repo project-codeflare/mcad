@@ -40,7 +40,8 @@ type ClusterInfoReconciler struct {
 	Namespace   string
 	Name        string
 	Geolocation string
-	PowerSlope  string
+	PowerIdle   string
+	PowerPeak   string
 }
 
 // Reconcile ClusterInfo object
@@ -52,7 +53,8 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// get cluster info if it already exists
 	clusterInfo := &mcadv1beta1.ClusterInfo{ObjectMeta: metav1.ObjectMeta{Namespace: r.Namespace, Name: r.Name}}
 	clusterInfo.Spec.Geolocation = r.Geolocation
-	clusterInfo.Spec.PowerSlope = r.PowerSlope
+	clusterInfo.Spec.PowerIdle = r.PowerIdle
+	clusterInfo.Spec.PowerPeak = r.PowerPeak
 	if err := r.Client.Get(ctx, req.NamespacedName, clusterInfo); err == nil {
 		// do not recompute cluster capacity if old value has not expired yet
 		now := time.Now()
@@ -68,11 +70,13 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 	}
 	// compute available capacity
-	capacity, err := r.computeCapacity(ctx)
+	capacity, usage, err := r.computeCapacity(ctx)
+
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	clusterInfo.Status.Capacity = capacity
+	clusterInfo.Status.Usage = usage
 	clusterInfo.Status.Time = metav1.Now()
 	// update cluster info status
 	if err := r.Status().Update(ctx, clusterInfo); err != nil {
@@ -82,12 +86,13 @@ func (r *ClusterInfoReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 }
 
 // Compute available cluster capacity
-func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.ResourceList, error) {
+func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.ResourceList, v1.ResourceList, error) {
 	capacity := Weights{}
+	usage := Weights{}
 	// add allocatable capacity for each schedulable node
 	nodes := &v1.NodeList{}
 	if err := r.List(ctx, nodes, client.UnsafeDisableDeepCopy); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, node := range nodes.Items {
 		// skip unschedulable nodes
@@ -96,15 +101,16 @@ func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.Resourc
 		}
 		// add allocatable capacity on the node
 		capacity.Add(NewWeights(node.Status.Allocatable))
+		usage.Add(NewWeights(node.Status.Allocatable))
 		// subtract requests from non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		pods := &v1.PodList{}
 		if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
 			client.MatchingFieldsSelector{Selector: fieldSelector}); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[nameLabel]; !ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
@@ -113,8 +119,17 @@ func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.Resourc
 				}
 			}
 		}
+
+		// subtract resource usage of AppWrappers, non-terminated pods on this node
+		for _, pod := range pods.Items {
+			if _, ok := pod.GetLabels()[nameLabel]; ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
+				for _, container := range pod.Spec.Containers {
+					usage.Add(NewWeights(container.Resources.Requests))
+				}
+			}
+		}
 	}
-	return capacity.AsResources(), nil
+	return capacity.AsResources(), usage.AsResources(), nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

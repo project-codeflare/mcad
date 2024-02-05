@@ -311,6 +311,13 @@ func (in *ClusterInfoStatus) DeepCopyInto(out *ClusterInfoStatus) {
 			(*out)[key] = val.DeepCopy()
 		}
 	}
+	if in.Usage != nil {
+		in, out := &in.Usage, &out.Usage
+		*out = make(v1.ResourceList, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val.DeepCopy()
+		}
+	}
 	in.Time.DeepCopyInto(&out.Time)
 }
 
