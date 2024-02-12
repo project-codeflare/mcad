@@ -101,7 +101,7 @@ func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.Resourc
 		}
 		// add allocatable capacity on the node
 		capacity.Add(NewWeights(node.Status.Allocatable))
-		usage.Add(NewWeights(node.Status.Allocatable))
+		//
 		// subtract requests from non-AppWrapper, non-terminated pods on this node
 		fieldSelector, err := fields.ParseSelector(specNodeName + "=" + node.Name)
 		if err != nil {
@@ -120,7 +120,7 @@ func (r *ClusterInfoReconciler) computeCapacity(ctx context.Context) (v1.Resourc
 			}
 		}
 
-		// subtract resource usage of AppWrappers, non-terminated pods on this node
+		// add resource usage of AppWrappers, non-terminated pods on this node
 		for _, pod := range pods.Items {
 			if _, ok := pod.GetLabels()[nameLabel]; ok && pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodSucceeded {
 				for _, container := range pod.Spec.Containers {
