@@ -301,8 +301,8 @@ func (in *CustomPodResource) DeepCopyInto(out *CustomPodResource) {
 			(*out)[key] = val.DeepCopy()
 		}
 	}
-	if in.NotImplemented_Limits != nil {
-		in, out := &in.NotImplemented_Limits, &out.NotImplemented_Limits
+	if in.Limits != nil {
+		in, out := &in.Limits, &out.Limits
 		*out = make(corev1.ResourceList, len(*in))
 		for key, val := range *in {
 			(*out)[key] = val.DeepCopy()

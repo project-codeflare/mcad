@@ -22,10 +22,12 @@ import (
 	"fmt"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -225,8 +227,14 @@ func (r *Dispatcher) triggerDispatch() {
 
 // Attempt to select and dispatch appWrappers until either capacity is exhausted or no candidates remain
 func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
+	// track quota allocation to AppWrappers during a dispatching cycle;
+	// used in only one cycle, does not carry from cycle to cycle
+	quotaTracker := NewQuotaTracker()
+	if weightsPairMap, err := r.getUnadmittedPodsWeights(ctx); err == nil {
+		quotaTracker.Init(weightsPairMap)
+	}
 	// find dispatch candidates according to priorities, precedence, and available resources
-	selectedAppWrappers, err := r.selectForDispatch(ctx)
+	selectedAppWrappers, err := r.selectForDispatch(ctx, quotaTracker)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -256,4 +264,41 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 	}
 
 	return ctrl.Result{RequeueAfter: dispatchDelay}, nil
+}
+
+// Calculate resource demands of pods for appWrappers that have been dispatched but haven't
+// passed through ResourceQuota admission controller yet (approximated by resources not created yet)
+func (r *Dispatcher) getUnadmittedPodsWeights(ctx context.Context) (map[string]*WeightsPair, error) {
+	appWrappers := &mcadv1beta1.AppWrapperList{}
+	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
+		return nil, err
+	}
+	weightsPairMap := make(map[string]*WeightsPair)
+	for _, appWrapper := range appWrappers.Items {
+		_, step := r.getCachedAW(&appWrapper)
+		if step != mcadv1beta1.Idle {
+			namespace := appWrapper.GetNamespace()
+			weightsPair := weightsPairMap[namespace]
+			if weightsPair == nil {
+				weightsPair = NewWeightsPair(Weights{}, Weights{})
+			}
+			weightsPair.Add(getWeightsPairForAppWrapper(&appWrapper))
+
+			// subtract weights for admitted (created) pods for this appWrapper
+			// (already accounted for in the used status of the resourceQuota)
+			pods := &v1.PodList{}
+			if err := r.List(ctx, pods, client.UnsafeDisableDeepCopy,
+				client.MatchingLabels{namespaceLabel: namespace, nameLabel: appWrapper.Name}); err == nil {
+				createdPodsWeightsPair := &WeightsPair{requests: Weights{}, limits: Weights{}}
+				for _, pod := range pods.Items {
+					createdPodsWeightsPair.Add(NewWeightsPairForPod(&pod))
+				}
+				weightsPair.Sub(createdPodsWeightsPair)
+			}
+			nonNegativeWeightsPair := NewWeightsPair(Weights{}, Weights{})
+			nonNegativeWeightsPair.Max(weightsPair)
+			weightsPairMap[namespace] = nonNegativeWeightsPair
+		}
+	}
+	return weightsPairMap, nil
 }

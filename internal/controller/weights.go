@@ -17,6 +17,9 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
+	"fmt"
+
 	"gopkg.in/inf.v0"
 
 	v1 "k8s.io/api/core/v1"
@@ -127,4 +130,105 @@ func (w Weights) AsResources() v1.ResourceList {
 		resources[k] = *resource.NewDecimalQuantity(*v, resource.DecimalSI)
 	}
 	return resources
+}
+
+// Creates a (deep) copy of Weights
+// (Easier to add to zero than creating all fields)
+func (w Weights) Clone() Weights {
+	r := Weights{}
+	r.Add(w)
+	return r
+}
+
+// A pair of Weights used to represent requests and limits for an object
+type WeightsPair struct {
+	requests Weights
+	limits   Weights
+}
+
+// Creates a new pair of weights
+func NewWeightsPair(requests Weights, limits Weights) *WeightsPair {
+	return &WeightsPair{
+		requests: requests,
+		limits:   limits,
+	}
+}
+
+// Add pair of weights to receiver
+func (w *WeightsPair) Add(r *WeightsPair) {
+	w.requests.Add(r.requests)
+	w.limits.Add(r.limits)
+}
+
+// Subtract pair of weights from receiver
+func (w *WeightsPair) Sub(r *WeightsPair) {
+	w.requests.Sub(r.requests)
+	w.limits.Sub(r.limits)
+}
+
+// Max of two pairs of weights
+func (w *WeightsPair) Max(r *WeightsPair) {
+	w.requests.Max(r.requests)
+	w.limits.Max(r.limits)
+}
+
+// Clone a pair of weights
+func (w *WeightsPair) Clone() *WeightsPair {
+	requestsClone := w.requests.Clone()
+	limitsClone := w.limits.Clone()
+	return NewWeightsPair(requestsClone, limitsClone)
+}
+
+// Compare receiver to argument -
+// True if both weights of receiver fit corresponding weights of argument.
+// If False, return list of insufficient resource names
+func (w *WeightsPair) Fits(r *WeightsPair) (bool, []v1.ResourceName) {
+	insufficient := []v1.ResourceName{}
+	requestsFits, requestsInsufficient := w.requests.Fits(r.requests)
+	limitsFits, limitsInsufficient := w.limits.Fits(r.limits)
+	if requestsFits && limitsFits {
+		return true, insufficient
+	}
+	insufficient = append(insufficient, requestsInsufficient...)
+	insufficient = append(insufficient, limitsInsufficient...)
+	return false, RemoveDuplicateResources(insufficient)
+}
+
+func (w *WeightsPair) String() string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "{Requests: %v}; ", w.requests)
+	fmt.Fprintf(&b, "{Limits: %v}", w.limits)
+	return b.String()
+}
+
+// Create new WeightsPair for a pod
+func NewWeightsPairForPod(pod *v1.Pod) *WeightsPair {
+	return NewWeightsPair(NewWeightsForPod(pod), NewLimitsWeightsForPod(pod))
+}
+
+// Converts resource limits of a pod to Weights
+func NewLimitsWeightsForPod(pod *v1.Pod) Weights {
+	podLimit := Weights{}
+	// add up limits of resources of all containers
+	for _, container := range pod.Spec.Containers {
+		podLimit.Add(NewWeights(container.Resources.Limits))
+	}
+	// take max(sum_pod, any_init_container)
+	for _, initContainer := range pod.Spec.InitContainers {
+		podLimit.Max(NewWeights(initContainer.Resources.Limits))
+	}
+	return podLimit
+}
+
+// Remove duplicate resource names in a slice
+func RemoveDuplicateResources(slice []v1.ResourceName) []v1.ResourceName {
+	unique := make(map[v1.ResourceName]bool)
+	result := []v1.ResourceName{}
+	for _, val := range slice {
+		if _, ok := unique[val]; !ok {
+			unique[val] = true
+			result = append(result, val)
+		}
+	}
+	return result
 }
