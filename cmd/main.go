@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -35,13 +34,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
-	workloadv1alpha1 "github.com/project-codeflare/mcad/api/v1alpha1"
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 	"github.com/project-codeflare/mcad/internal/controller"
-	mcad_kueue "github.com/project-codeflare/mcad/internal/kueue"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -56,14 +51,11 @@ const (
 	UnifiedMode    = "unified"
 	DispatcherMode = "dispatcher"
 	RunnerMode     = "runner"
-	KueueMode      = "kueue"
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(mcadv1beta1.AddToScheme(scheme))
-	utilruntime.Must(workloadv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(kueue.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
@@ -80,7 +72,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&mode, "mode", UnifiedMode,
-		"One of "+UnifiedMode+", "+DispatcherMode+", "+RunnerMode+" or "+KueueMode+".")
+		"One of "+UnifiedMode+", "+DispatcherMode+" or "+RunnerMode+".")
 	flag.BoolVar(&multicluster, "multicluster", false, "Enable multi-cluster operation")
 	opts := zap.Options{
 		Development: true,
@@ -91,7 +83,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog.Info("Build info", "mcadVersion", BuildVersion, "date", BuildDate)
 
-	if mode != UnifiedMode && mode != RunnerMode && mode != DispatcherMode && mode != KueueMode {
+	if mode != UnifiedMode && mode != RunnerMode && mode != DispatcherMode {
 		setupLog.Error(nil, fmt.Sprintf("invalid mode: %v", mode))
 		os.Exit(1)
 	}
@@ -162,40 +154,6 @@ func main() {
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterInfo")
-			os.Exit(1)
-		}
-	}
-
-	if mode == KueueMode {
-		if err := (&mcad_kueue.BoxedJobReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "BoxedJob")
-			os.Exit(1)
-		}
-
-		if err := mcad_kueue.NewReconciler(
-			mgr.GetClient(),
-			mgr.GetEventRecorderFor("kueue-boxedjob"),
-		).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "Unable to create controller", "controller", "Kueue")
-			os.Exit(1)
-		}
-
-		wh := &mcad_kueue.BoxedJobWebhook{ManageJobsWithoutQueueName: true}
-		if err := ctrl.NewWebhookManagedBy(mgr).
-			For(&workloadv1alpha1.BoxedJob{}).
-			WithDefaulter(wh).
-			WithValidator(wh).
-			Complete(); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook", "boxedjob")
-			os.Exit(1)
-		}
-
-		ctx := context.TODO() // TODO: figure out the right context to use here!
-		if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), mcad_kueue.GVK); err != nil {
-			setupLog.Error(err, "Setting up indexes", "GVK", mcad_kueue.GVK)
 			os.Exit(1)
 		}
 	}

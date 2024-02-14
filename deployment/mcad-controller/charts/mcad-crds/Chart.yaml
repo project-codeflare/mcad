@@ -1,4 +1,0 @@
-apiVersion: v1
-description: CRDs for MCAD
-name: mcad-crds
-version: 1.0.0

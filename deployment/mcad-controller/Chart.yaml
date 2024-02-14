@@ -2,8 +2,3 @@ apiVersion: v1
 description: The Multi-Cluster App Dispatcher
 name: mcad-controller
 version: 2.2.0
-dependencies:
-  - name: kueue-crds
-    condition: installKueueCRDs
-  - name: mcad-crds
-    condition: installMCADCRDs
