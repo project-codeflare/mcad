@@ -230,7 +230,7 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 	// track quota allocation to AppWrappers during a dispatching cycle;
 	// used in only one cycle, does not carry from cycle to cycle
 	quotaTracker := NewQuotaTracker()
-	if weightsPairMap, err := r.getUnadmittedAppWrappersWeights(ctx); err == nil {
+	if weightsPairMap, err := r.getUnadmittedPodsWeights(ctx); err == nil {
 		quotaTracker.Init(weightsPairMap)
 	}
 	// find dispatch candidates according to priorities, precedence, and available resources
@@ -266,18 +266,17 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 	return ctrl.Result{RequeueAfter: dispatchDelay}, nil
 }
 
-// Calculate resource demands of appWrappers that have been dispatched but haven't
+// Calculate resource demands of pods for appWrappers that have been dispatched but haven't
 // passed through ResourceQuota admission controller yet (approximated by resources not created yet)
-func (r *Dispatcher) getUnadmittedAppWrappersWeights(ctx context.Context) (map[string]*WeightsPair, error) {
+func (r *Dispatcher) getUnadmittedPodsWeights(ctx context.Context) (map[string]*WeightsPair, error) {
 	appWrappers := &mcadv1beta1.AppWrapperList{}
 	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
 		return nil, err
 	}
 	weightsPairMap := make(map[string]*WeightsPair)
 	for _, appWrapper := range appWrappers.Items {
-		phase, step := r.getCachedAW(&appWrapper)
-		if phase == mcadv1beta1.Running &&
-			step == mcadv1beta1.Idle || step == mcadv1beta1.Creating || step == mcadv1beta1.Created {
+		_, step := r.getCachedAW(&appWrapper)
+		if step != mcadv1beta1.Idle {
 			namespace := appWrapper.GetNamespace()
 			weightsPair := weightsPairMap[namespace]
 			if weightsPair == nil {

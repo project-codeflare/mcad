@@ -216,7 +216,7 @@ func (r *Dispatcher) selectForDispatch(ctx context.Context, quotatracker *QuotaT
 		insufficientResources := []v1.ResourceName{}
 		if len(resourceQuotas.Items) > 0 {
 			appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
-			// TODO: relax assumption that only one resourceQuota per nameSpace
+			// assuming only one resourceQuota per nameSpace
 			quotaFits, insufficientResources = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
 		}
 		fits, gaps := request.Fits(available[int(appWrapper.Spec.Priority)])
@@ -267,8 +267,7 @@ func aggregateLimits(appWrapper *mcadv1beta1.AppWrapper) Weights {
 	limit := Weights{}
 	for _, r := range appWrapper.Spec.Resources.GenericItems {
 		for _, cpr := range r.CustomPodResources {
-			// TODO: check why not implemented limits spec in CustomPodResource?
-			limit.AddProd(cpr.Replicas, NewWeights(cpr.NotImplemented_Limits))
+			limit.AddProd(cpr.Replicas, NewWeights(cpr.Limits))
 		}
 	}
 	return limit

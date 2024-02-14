@@ -222,7 +222,7 @@ type CustomPodResource struct {
 	Requests v1.ResourceList `json:"requests"`
 
 	// Limits per replica
-	NotImplemented_Limits v1.ResourceList `json:"limits,omitempty"`
+	Limits v1.ResourceList `json:"limits,omitempty"`
 }
 
 // State transition

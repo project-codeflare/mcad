@@ -90,11 +90,11 @@ func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resour
 	}
 	quotaFits, insufficientResources := appWrapperAskWeights.Fits(quotaWeights)
 
-	mcadLog.Info("QuotaTracker.Satisfies():", "namespace", namespace,
-		"QuotaWeights", quotaState.quota, "UsedWeights", quotaState.used,
-		"AllocatedWeights", quotaState.allocated, "unAdmittedWeights", unAdmittedWeights,
-		"AvailableWeights", quotaWeights, "appWrapperAskWeights", appWrapperAskWeights,
-		"quotaFits", quotaFits)
+	// mcadLog.Info("QuotaTracker.Satisfies():", "namespace", namespace,
+	// 	"QuotaWeights", quotaState.quota, "UsedWeights", quotaState.used,
+	// 	"AllocatedWeights", quotaState.allocated, "unAdmittedWeights", unAdmittedWeights,
+	// 	"AvailableWeights", quotaWeights, "appWrapperAskWeights", appWrapperAskWeights,
+	// 	"quotaFits", quotaFits)
 	return quotaFits, insufficientResources
 }
 
