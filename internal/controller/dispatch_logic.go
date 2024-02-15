@@ -73,17 +73,19 @@ func updateRequestedMetricGeneric(request Weights, priority int, resourceName v1
 // Compute resources reserved by AppWrappers at every priority level for the specified cluster
 // Sort queued AppWrappers in dispatch order
 // AppWrappers in output queue must be cloned if mutated
-func (r *Dispatcher) listAppWrappers(ctx context.Context) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
-	appWrappers := &mcadv1beta1.AppWrapperList{}
-	if err := r.List(ctx, appWrappers, client.UnsafeDisableDeepCopy); err != nil {
-		return nil, nil, err
-	}
-	requests := map[int]Weights{}        // total request per priority level
+func (r *Dispatcher) listAppWrappers(ctx context.Context, appWrappers *mcadv1beta1.AppWrapperList, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
+	reserved := map[int]Weights{}        // total request per priority level
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 
 	appWrapperCount := map[stateStepPriority]int{}
 
 	for _, appWrapper := range appWrappers.Items {
+		if r.MultiClusterMode &&
+			(appWrapper.Spec.Scheduling.ClusterScheduling == nil ||
+				appWrapper.Spec.Scheduling.ClusterScheduling.PolicyResult.TargetCluster.Name != cluster) {
+			continue
+		}
+
 		// get AppWrapper from cache if available as reconciler cache may be lagging
 		state, step := r.getCachedAW(&appWrapper)
 		priority := int(appWrapper.Spec.Priority)
@@ -93,8 +95,8 @@ func (r *Dispatcher) listAppWrappers(ctx context.Context) (map[int]Weights, []*m
 		}
 		appWrapperCount[key]++
 		// make sure to initialize weights for every known priority level
-		if requests[priority] == nil {
-			requests[priority] = Weights{}
+		if reserved[priority] == nil {
+			reserved[priority] = Weights{}
 		}
 		if step != mcadv1beta1.Idle {
 			// use max request among AppWrapper request and total request of non-terminated AppWrapper pods
@@ -112,10 +114,10 @@ func (r *Dispatcher) listAppWrappers(ctx context.Context) (map[int]Weights, []*m
 			}
 			// compute max
 			awRequest.Max(podRequest)
-			requests[int(appWrapper.Spec.Priority)].Add(awRequest)
+			reserved[int(appWrapper.Spec.Priority)].Add(awRequest)
 		} else if state == mcadv1beta1.Queued &&
 			time.Now().After(appWrapper.Status.RequeueTimestamp.Add(time.Duration(appWrapper.Spec.Scheduling.Requeuing.PauseTimeInSeconds)*time.Second)) {
-			// add AppWrapper to queue
+			// add AppWrapper to queue of candidates to dispatch
 			copy := appWrapper // must copy appWrapper before taking a reference, shallow copy ok
 			queue = append(queue, &copy)
 		}
@@ -132,11 +134,11 @@ func (r *Dispatcher) listAppWrappers(ctx context.Context) (map[int]Weights, []*m
 	}
 	// update requested resource metrics before assertPriorities()
 	resetRequestedMetrics()
-	for priority, request := range requests {
+	for priority, request := range reserved {
 		updateRequestedMetrics(request, priority)
 	}
 	// propagate reservations at all priority levels to all levels below
-	assertPriorities(requests)
+	assertPriorities(reserved)
 	// order AppWrapper queue based on priority and precedence (creation time)
 	sort.Slice(queue, func(i, j int) bool {
 		if queue[i].Spec.Priority > queue[j].Spec.Priority {
@@ -153,101 +155,103 @@ func (r *Dispatcher) listAppWrappers(ctx context.Context) (map[int]Weights, []*m
 		}
 		return queue[i].UID < queue[j].UID // break ties with UID to ensure total ordering
 	})
-	return requests, queue, nil
+	return reserved, queue, nil
 }
 
-// Find next AppWrapper to dispatch in queue order
+// Find next AppWrappers to dispatch in queue order
 func (r *Dispatcher) selectForDispatch(ctx context.Context, quotatracker *QuotaTracker) ([]*mcadv1beta1.AppWrapper, error) {
+	allClusters := &mcadv1beta1.ClusterInfoList{}
+	if err := r.List(ctx, allClusters); err != nil {
+		return nil, err
+	}
+	allAppWrappers := &mcadv1beta1.AppWrapperList{}
+	if err := r.List(ctx, allAppWrappers, client.UnsafeDisableDeepCopy); err != nil {
+		return nil, err
+	}
 	selected := []*mcadv1beta1.AppWrapper{}
 	logThisDispatch := time.Now().After(r.NextLoggedDispatch)
 	if logThisDispatch {
 		r.NextLoggedDispatch = time.Now().Add(clusterInfoTimeout)
 	}
 
-	clusters := &mcadv1beta1.ClusterInfoList{}
-	if err := r.List(ctx, clusters); err != nil {
-		return selected, err
-	}
-	// TODO: Multi-cluster assuming a single cluster here
-	if len(clusters.Items) != 1 {
-		mcadLog.Info("Misconfigured clusterinfo", "clusterinfos", clusters.Items)
-		return selected, nil
-	}
-	capacity := NewWeights(clusters.Items[0].Status.Capacity)
-
-	if logThisDispatch {
-		mcadLog.Info("Total capacity", "capacity", capacity)
-	}
-	requests, queue, err := r.listAppWrappers(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// compute available cluster capacity at each priority level
-	// available cluster capacity = total capacity reported in cluster info - capacity reserved by AppWrappers
-	available := map[int]Weights{}
-	for priority, request := range requests {
-		// copy capacity before subtracting request
-		available[priority] = Weights{}
-		available[priority].Add(capacity)
-		available[priority].Sub(request)
+	// For each cluster, make dispatching decisions
+	for _, cluster := range allClusters.Items {
+		capacity := NewWeights(cluster.Status.Capacity)
 		if logThisDispatch {
-			mcadLog.Info("Available capacity", "priority", priority, "capacity", available[priority])
+			mcadLog.Info("Total capacity", "cluster", cluster.Name, "capacity", capacity)
 		}
-	}
-	if logThisDispatch {
-		pretty := make([]string, len(queue))
-		for i, appWrapper := range queue {
-			pretty[i] = appWrapper.Namespace + "/" + appWrapper.Name + ":" + string(appWrapper.UID)
-		}
-		mcadLog.Info("Queue", "queue", pretty)
-	}
-	// return ordered slice of AppWrappers that fit (may be empty)
-	for _, appWrapper := range queue {
-		request := aggregateRequests(appWrapper)
-		// get resourceQuota in AppWrapper namespace, if any
-		resourceQuotas := &v1.ResourceQuotaList{}
-		namespace := appWrapper.GetNamespace()
-		if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
-			&client.ListOptions{Namespace: namespace}); err != nil {
+		requests, queue, err := r.listAppWrappers(ctx, allAppWrappers, cluster.Name)
+		if err != nil {
 			return nil, err
 		}
-		quotaFits := true
-		var appWrapperAskWeights *WeightsPair
-		insufficientResources := []v1.ResourceName{}
-		if len(resourceQuotas.Items) > 0 {
-			appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
-			// assuming only one resourceQuota per nameSpace
-			quotaFits, insufficientResources = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
+		// compute available cluster capacity at each priority level
+		// available cluster capacity = total capacity reported in cluster info - capacity reserved by AppWrappers
+		available := map[int]Weights{}
+		for priority, request := range requests {
+			// copy capacity before subtracting request
+			available[priority] = Weights{}
+			available[priority].Add(capacity)
+			available[priority].Sub(request)
+			if logThisDispatch {
+				mcadLog.Info("Available capacity", "cluster", cluster.Name, "priority", priority, "capacity", available[priority])
+			}
 		}
-		fits, gaps := request.Fits(available[int(appWrapper.Spec.Priority)])
-		if fits {
-			// check if appwrapper passes resource quota (if any)
-			if quotaFits {
-				quotatracker.Allocate(namespace, appWrapperAskWeights)
-				selected = append(selected, appWrapper.DeepCopy()) // deep copy AppWrapper
-				for priority, avail := range available {
-					if priority <= int(appWrapper.Spec.Priority) {
-						avail.Sub(request)
+		if logThisDispatch {
+			pretty := make([]string, len(queue))
+			for i, appWrapper := range queue {
+				pretty[i] = appWrapper.Namespace + "/" + appWrapper.Name + ":" + string(appWrapper.UID)
+			}
+			mcadLog.Info("Queue", "cluster", cluster.Name, "queue", pretty)
+		}
+		// compute ordered slice of AppWrappers that fit on the cluster (may be empty)
+		for _, appWrapper := range queue {
+			request := aggregateRequests(appWrapper)
+			// get resourceQuota in AppWrapper namespace, if any
+			resourceQuotas := &v1.ResourceQuotaList{}
+			namespace := appWrapper.GetNamespace()
+			if err := r.List(ctx, resourceQuotas, client.UnsafeDisableDeepCopy,
+				&client.ListOptions{Namespace: namespace}); err != nil {
+				return nil, err
+			}
+			quotaFits := true
+			var appWrapperAskWeights *WeightsPair
+			insufficientResources := []v1.ResourceName{}
+			if len(resourceQuotas.Items) > 0 {
+				appWrapperAskWeights = getWeightsPairForAppWrapper(appWrapper)
+				// assuming only one resourceQuota per nameSpace
+				quotaFits, insufficientResources = quotatracker.Satisfies(appWrapperAskWeights, &resourceQuotas.Items[0])
+			}
+			fits, gaps := request.Fits(available[int(appWrapper.Spec.Priority)])
+			if fits {
+				// check if appwrapper passes resource quota (if any)
+				if quotaFits {
+					quotatracker.Allocate(namespace, appWrapperAskWeights)
+					selected = append(selected, appWrapper.DeepCopy()) // deep copy AppWrapper
+					for priority, avail := range available {
+						if priority <= int(appWrapper.Spec.Priority) {
+							avail.Sub(request)
+						}
 					}
+				} else {
+					var msgBuilder strings.Builder
+					for _, resource := range insufficientResources {
+						msgBuilder.WriteString(fmt.Sprintf("Insufficient %v. ", resource))
+					}
+					r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientQuota, message: msgBuilder.String()}
 				}
 			} else {
 				var msgBuilder strings.Builder
-				for _, resource := range insufficientResources {
-					msgBuilder.WriteString(fmt.Sprintf("Insufficient %v. ", resource))
-				}
-				r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientQuota, message: msgBuilder.String()}
-			}
-		} else {
-			var msgBuilder strings.Builder
-			for _, resource := range gaps {
-				msgBuilder.WriteString(
-					fmt.Sprintf("Insufficient %v; requested %v but only %v available. ", resource, request[resource], available[int(appWrapper.Spec.Priority)][resource]),
-				)
+				for _, resource := range gaps {
+					msgBuilder.WriteString(
+						fmt.Sprintf("Insufficient %v; requested %v but only %v available. ", resource, request[resource], available[int(appWrapper.Spec.Priority)][resource]),
+					)
 
+				}
+				r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientResources, message: msgBuilder.String()}
 			}
-			r.Decisions[appWrapper.UID] = &QueuingDecision{reason: mcadv1beta1.QueuedInsufficientResources, message: msgBuilder.String()}
 		}
 	}
+
 	return selected, nil
 }
 
