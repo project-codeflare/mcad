@@ -19,11 +19,6 @@ spec:
       serviceAccountName: {{ .Values.serviceAccount }}
       terminationGracePeriodSeconds: 10
       priorityClassName: system-node-critical
-      volumes:
-      - name: cert
-        secret:
-          defaultMode: 420
-          secretName: {{ .Release.Name }}-webhook-server-cert
       containers:
       - args:
         - --secure-listen-address=0.0.0.0:8443
@@ -84,10 +79,6 @@ spec:
           capabilities:
             drop:
             - ALL
-        volumeMounts:
-        - mountPath: /tmp/k8s-webhook-server/serving-certs
-          name: cert
-          readOnly: true
 {{- if eq .Values.deploymentMode "split" }}
 ---
 apiVersion: apps/v1

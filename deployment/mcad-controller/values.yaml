@@ -15,10 +15,6 @@ clusterName: mcad-cluster
 # one of unified, split, dispatcher, runner
 deploymentMode: unified
 
-# Should CRDs be installed?
-installKueueCRDs: false
-installMCADCRDs: true
-
 multicluster: false
 
 # Resources for the controller pod

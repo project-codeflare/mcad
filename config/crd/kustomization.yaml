@@ -4,7 +4,6 @@
 resources:
 - bases/workload.codeflare.dev_appwrappers.yaml
 - bases/workload.codeflare.dev_clusterinfo.yaml
-- bases/workload.codeflare.dev_boxedjobs.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patches:
@@ -12,18 +11,15 @@ patches:
 # patches here are for enabling the conversion webhook for each CRD
 #- path: patches/webhook_in_appwrappers.yaml
 #- path: patches/webhook_in_clusterinfo.yaml
-- path: patches/webhook_in_boxedjobs.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable cert-manager, uncomment all the sections with [CERTMANAGER] prefix.
 # patches here are for enabling the CA injection for each CRD
 #- path: patches/cainjection_in_appwrappers.yaml
 #- path: patches/cainjection_in_clusterinfo.yaml
-- path: patches/cainjection_in_boxedjobs.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 
 # [WEBHOOK] To enable webhook, uncomment the following section
 # the following config is for teaching kustomize how to do kustomization for CRDs.
-
-configurations:
-- kustomizeconfig.yaml
+#configurations:
+#- kustomizeconfig.yaml

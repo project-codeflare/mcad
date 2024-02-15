@@ -207,9 +207,6 @@ function configure_cluster {
   echo "Installing high-priority PriorityClass"
   kubectl apply -f $ROOT_DIR/hack/high-priority-class.yaml
 
-  echo "Installing cert-manager"
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
-
   # Turn off master taints
   kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-
 
@@ -229,13 +226,6 @@ function configure_cluster {
   # sleep to allow the pods to restart
   echo "Waiting for pod in the kube-system namespace to become ready"
   while [[ $(kubectl get pods -n kube-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
-  do
-    echo -n "." && sleep 1;
-  done
-
-  # sleep to ensure cert-manager is fully functional
-  echo "Waiting for pod in the cert-manager namespace to become ready"
-  while [[ $(kubectl get pods -n cert-manager -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
   do
     echo -n "." && sleep 1;
   done
@@ -377,12 +367,6 @@ function cleanup {
 function install_mcad {
     local helm_args=" --install mcad-controller ${ROOT_DIR}/deployment/mcad-controller  --namespace mcad-system --create-namespace --wait"
     helm_args+=" --set deploymentMode=${MCAD_DEPLOYMENT_MODE} --set multicluster=${MCAD_MULTICLUSTER}"
-    if [[ ${MCAD_DEPLOYMENT_MODE} == "kueue" ]]
-    then
-       helm_args+=" --set installKueueCRDs=true --set installMCADCRDs=false"
-    else
-       helm_args+=" --set installKueueCRDs=false --set installMCADCRDs=true"
-    fi
     helm_args+=" --set loglevel=${LOG_LEVEL} --set resources.requests.cpu=500m --set resources.requests.memory=1024Mi"
     helm_args+=" --set resources.limits.cpu=500m --set resources.limits.memory=1024Mi"
     helm_args+=" --set configMap.name=mcad-controller-configmap --set configMap.podCreationTimeout='"120000"'"
@@ -399,10 +383,6 @@ function install_mcad {
     fi
     echo "Filtered CRD inventory:"
     kubectl get crds | grep workload.codeflare.dev
-    if [[ ${MCAD_DEPLOYMENT_MODE} == "kueue" ]]
-    then
-        kubectl get crds | grep kueue.x-k8s.io
-    fi
 }
 
 function run_kuttl_test_suite {
