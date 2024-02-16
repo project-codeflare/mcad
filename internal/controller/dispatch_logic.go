@@ -70,10 +70,9 @@ func updateRequestedMetricGeneric(request Weights, priority int, resourceName v1
 	}
 }
 
-// Compute resources reserved by AppWrappers at every priority level for the specified cluster
-// Sort queued AppWrappers in dispatch order
-// AppWrappers in output queue must be cloned if mutated
-func (r *Dispatcher) listAppWrappers(ctx context.Context, appWrappers *mcadv1beta1.AppWrapperList, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
+// buildQueue returns a dispatch ordered queue of pending AppWrappers and the resources reserved by AppWrappers at every priority level.
+// AppWrappers in the returned queue must be cloned if mutated
+func (r *Dispatcher) buildQueue(ctx context.Context, appWrappers *mcadv1beta1.AppWrapperList, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
 	reserved := map[int]Weights{}        // total request per priority level
 	queue := []*mcadv1beta1.AppWrapper{} // queued appWrappers
 
@@ -180,7 +179,7 @@ func (r *Dispatcher) selectForDispatch(ctx context.Context, quotatracker *QuotaT
 		if logThisDispatch {
 			mcadLog.Info("Total capacity", "cluster", cluster.Name, "capacity", capacity)
 		}
-		requests, queue, err := r.listAppWrappers(ctx, allAppWrappers, cluster.Name)
+		requests, queue, err := r.buildQueue(ctx, allAppWrappers, cluster.Name)
 		if err != nil {
 			return nil, err
 		}
