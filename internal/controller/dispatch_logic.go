@@ -70,6 +70,10 @@ func updateRequestedMetricGeneric(request Weights, priority int, resourceName v1
 	}
 }
 
+func assignedToCluster(aw mcadv1beta1.AppWrapper, cluster string) bool {
+	return aw.Labels != nil && aw.Labels[assignedClusterLabel] == cluster
+}
+
 // buildQueue returns a dispatch ordered queue of pending AppWrappers and the resources reserved by AppWrappers at every priority level.
 // AppWrappers in the returned queue must be cloned if mutated
 func (r *Dispatcher) buildQueue(ctx context.Context, appWrappers *mcadv1beta1.AppWrapperList, cluster string) (map[int]Weights, []*mcadv1beta1.AppWrapper, error) {
@@ -79,9 +83,7 @@ func (r *Dispatcher) buildQueue(ctx context.Context, appWrappers *mcadv1beta1.Ap
 	appWrapperCount := map[stateStepPriority]int{}
 
 	for _, appWrapper := range appWrappers.Items {
-		if r.MultiClusterMode &&
-			(appWrapper.Spec.Scheduling.ClusterScheduling == nil ||
-				appWrapper.Spec.Scheduling.ClusterScheduling.PolicyResult.TargetCluster.Name != cluster) {
+		if r.MultiClusterMode && !assignedToCluster(appWrapper, cluster) {
 			continue
 		}
 

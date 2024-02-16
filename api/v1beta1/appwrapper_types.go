@@ -56,9 +56,6 @@ type SchedulingSpec struct {
 	Requeuing RequeuingSpec `json:"requeuing,omitempty"`
 
 	NotImplemented_DispatchDuration NotImplemented_DispatchDurationSpec `json:"dispatchDuration,omitempty"`
-
-	// Cluster specification
-	ClusterScheduling *ClusterSchedulingSpec `json:"clusterScheduling,omitempty"`
 }
 
 type NotImplemented_DispatchDurationSpec struct {
@@ -94,19 +91,6 @@ type RequeuingSpec struct {
 	// Waiting time before trying to dispatch again after requeuing
 	// +kubebuilder:default=90
 	PauseTimeInSeconds int64 `json:"pauseTimeInSeconds,omitempty"`
-}
-
-// Where to run
-type ClusterSchedulingSpec struct {
-	PolicyResult ClusterDecision `json:"policyResult,omitempty"`
-}
-
-type ClusterDecision struct {
-	TargetCluster ClusterReference `json:"targetCluster,omitempty"`
-}
-
-type ClusterReference struct {
-	Name string `json:"name"`
 }
 
 // AppWrapperStatus defines the observed state of AppWrapper

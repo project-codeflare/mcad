@@ -129,20 +129,6 @@ spec:
                   the wrapped resources. It defines the policy for requeuing jobs
                   based on the number of running pods.
                 properties:
-                  clusterScheduling:
-                    description: Cluster specification
-                    properties:
-                      policyResult:
-                        properties:
-                          targetCluster:
-                            properties:
-                              name:
-                                type: string
-                            required:
-                            - name
-                            type: object
-                        type: object
-                    type: object
                   dispatchDuration:
                     properties:
                       expected:
