@@ -277,6 +277,91 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 	return ctrl.Result{RequeueAfter: dispatchDelay}, nil
 }
 
+func (r *Dispatcher) createPlacement(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper, req ctrl.Request, clusterId string) (bool, error) {
+	placement := ksv1alpha1.Placement{}
+	// Placement object bears the appwrapper name and is deployed in the same namespace
+	if err := r.Get(ctx, req.NamespacedName, &placement); err != nil {
+		// create Placement object per appwrapper
+		if apierrors.IsNotFound(err) {
+			// TODO: Multicluster. This is where we create the placement that maps
+			// the appWrapper to the execution cluster. Only if the placement creation is successful
+			// will we do the update of the status to running/creating.
+			placement = ksv1alpha1.Placement{
+				Spec: ksv1alpha1.PlacementSpec{
+					ClusterSelectors: []metav1.LabelSelector{
+						{
+
+							MatchLabels: map[string]string{
+								ksLabelLocationGroupKey: ksLabelLocationGroup,
+								ksLabelClusterNameKey:   clusterId,
+							},
+						},
+					},
+					Downsync: []ksv1alpha1.ObjectTest{
+						{
+							Namespaces: []string{
+								appWrapper.Namespace,
+							},
+							ObjectNames: []string{
+								appWrapper.Name,
+							},
+
+							ObjectSelectors: []metav1.LabelSelector{
+								{
+									MatchLabels: map[string]string{
+										ksLabelPartOfKey:   ksLabelPartOf,
+										ksLabelDeployOnKey: clusterId,
+									},
+								},
+							},
+						},
+					},
+					// turn the flag on so that kubestellar updates status of the appwrapper
+					WantSingletonReportedState: true,
+				},
+			}
+			placement.Name = req.Name
+			placement.Namespace = req.Namespace
+			if err := r.Create(ctx, &placement); err != nil {
+				if apierrors.IsAlreadyExists(err) {
+					return false, nil
+				}
+				return false, err
+			}
+			// Placement created
+			return true, nil
+		} else {
+			return false, err
+		}
+	}
+	return false, nil
+}
+
+func addRequiredLabels(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) bool {
+
+	labels := appWrapper.Labels
+	labelsMatched := 0
+	newLabels := map[string]string{}
+	for key, value := range labels {
+		if key == ksLabelPartOfKey || key == ksLabelDeployOnKey {
+			labelsMatched++
+		}
+		newLabels[key] = value
+	}
+	if labelsMatched != 2 {
+		newLabels[ksLabelPartOfKey] = ksLabelPartOf
+		newLabels[ksLabelDeployOnKey] = "wec4"
+		appWrapper.Labels = newLabels
+		return true
+		// save labels
+		//		if err := r.Update(ctx, appWrapper); err != nil {
+		//			return ctrl.Result{}, err
+		//		}
+
+	}
+	return false
+}
+
 // Calculate resource demands of pods for appWrappers that have been dispatched but haven't
 // passed through ResourceQuota admission controller yet (approximated by resources not created yet)
 func (r *Dispatcher) getUnadmittedPodsWeights(ctx context.Context) (map[string]*WeightsPair, error) {
