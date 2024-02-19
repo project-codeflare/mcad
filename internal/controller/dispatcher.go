@@ -24,9 +24,11 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -35,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	ksv1alpha1 "github.com/kubestellar/kubestellar/api/control/v1alpha1"
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
 )
 
@@ -45,6 +48,12 @@ type Dispatcher struct {
 	Events             chan event.GenericEvent        // event channel to trigger dispatch
 	NextLoggedDispatch time.Time                      // when next to log dispatching decisions
 }
+
+const (
+	ksLabelLocationGroupKey = "location-group"
+	ksLabelLocationGroup    = "edge"
+	ksLabelClusterNameKey   = "name"
+)
 
 // Reconcile one AppWrapper or dispatch queued AppWrappers during the dispatching phases of their lifecycle.
 //
@@ -77,10 +86,9 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// handle deletion
 	if !appWrapper.DeletionTimestamp.IsZero() {
 		if r.MultiClusterMode {
-			// TODO: Multicluster. This is where we remove the placement that maps
-			// the appWrapper to the execution cluster. Only after the placement is
-			// successfully removed will we proceed to removing the dispatch finalizer
-			return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
+			if err := r.deleteBindingPolicy(ctx, appWrapper); err != nil {
+				return ctrl.Result{}, err
+			}
 		} else {
 			// wait for the runner to remove its finalizer before we remove ours
 			if controllerutil.ContainsFinalizer(appWrapper, runnerFinalizer) {
@@ -154,19 +162,18 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 					return ctrl.Result{}, err
 				}
 
-				// TODO: Multicluster. This is where we create the placement that maps
-				// the appWrapper to the execution cluster. Only if the placement creation is successful
-				// will we do the update of the status to running/creating.
-				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
+				if err := r.createBindingPolicy(ctx, appWrapper); err != nil {
+					log.FromContext(ctx).Error(err, "Error while creating BindingPolicy object")
+					return ctrl.Result{}, err
+				}
 			}
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepting)
 
 		case mcadv1beta1.Deleted:
 			if r.MultiClusterMode {
-				// TODO: Multicluster. This is where we delete the placement that maps
-				// the appWrapper to the execution cluster. Only after the placement is
-				// completely deleted will we proceed to resetting the status to queued/idle
-				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
+				if err := r.deleteBindingPolicy(ctx, appWrapper); err != nil {
+					return ctrl.Result{}, err
+				}
 			}
 
 			// reset status to queued/idle
@@ -201,10 +208,9 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		switch appWrapper.Status.Step {
 		case mcadv1beta1.Deleted:
 			if r.MultiClusterMode {
-				// TODO: Multicluster. This is where we delete the placement that maps
-				// the appWrapper to the execution cluster. Only after the placement is
-				// completely deleted will we proceed to resetting the status to failed/idle
-				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
+				if err := r.deleteBindingPolicy(ctx, appWrapper); err != nil {
+					return ctrl.Result{}, err
+				}
 			}
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Failed, mcadv1beta1.Idle)
 
@@ -275,6 +281,90 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 	}
 
 	return ctrl.Result{RequeueAfter: dispatchDelay}, nil
+}
+
+func (r *Dispatcher) createBindingPolicy(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) error {
+	bindingPolicy := ksv1alpha1.BindingPolicy{}
+	namespacedName := types.NamespacedName{
+		Name: bindingPolicyName(appWrapper),
+	}
+	if err := r.Get(ctx, namespacedName, &bindingPolicy); err != nil {
+		// create BindingPolicy object per appwrapper
+		if apierrors.IsNotFound(err) {
+
+			if appWrapper.Labels != nil && appWrapper.Labels[assignedClusterLabel] != "" {
+
+				bindingPolicy = ksv1alpha1.BindingPolicy{
+					Spec: ksv1alpha1.BindingPolicySpec{
+						ClusterSelectors: []metav1.LabelSelector{
+							{
+								MatchLabels: map[string]string{
+									ksLabelLocationGroupKey: ksLabelLocationGroup,
+									ksLabelClusterNameKey:   appWrapper.Labels[assignedClusterLabel],
+								},
+							},
+						},
+						Downsync: []ksv1alpha1.DownsyncObjectTest{
+							{
+								Namespaces: []string{
+									appWrapper.Namespace,
+								},
+								ObjectNames: []string{
+									appWrapper.Name,
+								},
+
+								ObjectSelectors: []metav1.LabelSelector{
+									{
+										MatchLabels: map[string]string{
+											assignedClusterLabel: appWrapper.Labels[assignedClusterLabel],
+										},
+									},
+								},
+							},
+						},
+						// turn the flag on so that kubestellar updates status of the appwrapper
+						WantSingletonReportedState: true,
+					},
+				}
+				bindingPolicy.Name = bindingPolicyName(appWrapper)
+				if err := r.Create(ctx, &bindingPolicy); err != nil {
+					if apierrors.IsAlreadyExists(err) {
+						return nil
+					}
+					return err
+				}
+				// BindingPolicy created
+				return nil
+			} else {
+				log.FromContext(ctx).Error(errors.New("cluster assignment label is missing from the AppWrapper"), "Add label", assignedClusterLabel)
+			}
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+func bindingPolicyName(appWrapper *mcadv1beta1.AppWrapper) string {
+	return appWrapper.Name + "-" + appWrapper.Namespace
+}
+func (r *Dispatcher) deleteBindingPolicy(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) error {
+	bindingPolicy := ksv1alpha1.BindingPolicy{}
+	namespacedName := types.NamespacedName{
+		Name: bindingPolicyName(appWrapper),
+	}
+	if err := r.Get(ctx, namespacedName, &bindingPolicy); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		log.FromContext(ctx).Error(errors.New("error fetching bindingPolicy object"), namespacedName.Name)
+		return err
+	}
+	if err := r.Delete(ctx, &bindingPolicy); err != nil {
+		log.FromContext(ctx).Error(errors.New("unable to delete bindingPolicy object"), namespacedName.Name)
+		return err
+	}
+	log.FromContext(ctx).Info("bindingPolicy object deleted", namespacedName.Name)
+	return nil
 }
 
 // Calculate resource demands of pods for appWrappers that have been dispatched but haven't
