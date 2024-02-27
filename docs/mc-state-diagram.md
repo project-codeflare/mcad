@@ -1,5 +1,6 @@
-# AppWrapper State Diagram
-The following state diagram describes the transitions between the states of an AppWrapper.
+# AppWrapper State Diagram (Split Controller View)
+The following state diagram describes the transitions between the states of an AppWrapper
+focusing on the division of the states handled by the Dispatcher and Runner.
 The first row of each state indicates the `AppWrapperState` and the second indicates the `AppWrapperStep`.
 
 ```mermaid
@@ -41,25 +42,29 @@ stateDiagram-v2
     fi: Failed
     fi : Idle
 
-    HappyPath : Happy Path
-    state HappyPath  {
+    Dispatcher : Dispatcher (Hub Cluster)
+    state Dispatcher  {
         e --> qi
         qi --> ri
-        ri --> ra
+        ri --> ra : create BindingPolicy
+        rd --> rf
+        rf --> qi : delete BindingPolicy
+        fd --> ff
+        ff --> fi : delete BindingPolicy
+    }
+
+    Runner : Runner (Spoke Cluster)
+    state Runner {
         ra --> rc
         rc --> rcd
         rcd --> si
         rc --> rd : requeueOrFail
         rcd --> rd : requeueOrFail
-        rd --> rf
-        rf --> qi
+        rc --> fc : requeueOrFail
+        rc --> fd : requeueOrFail
+        rcd --> fcd : requeueOrFail
+        rcd --> fd : requeueOrFail
     }
-    rc --> fc : requeueOrFail
-    rc --> fd : requeueOrFail
-    rcd --> fcd : requeueOrFail
-    rcd --> fd : requeueOrFail
-    fd --> ff
-    ff --> fi
 
     classDef failed fill:pink
     class fi failed
