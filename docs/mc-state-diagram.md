@@ -1,6 +1,8 @@
 # AppWrapper State Diagram (Split Controller View)
 The following state diagram describes the transitions between the states of an AppWrapper
 focusing on the division of the states handled by the Dispatcher and Runner.
+The placement of the box indicates which controller is responsible for handling that
+state and initiating the transition to the next state.
 The first row of each state indicates the `AppWrapperState` and the second indicates the `AppWrapperStep`.
 
 ```mermaid
@@ -65,14 +67,4 @@ stateDiagram-v2
         rcd --> fcd : requeueOrFail
         rcd --> fd : requeueOrFail
     }
-
-    classDef failed fill:pink
-    class fi failed
-    class fc failed
-    class fcd failed
-    class fd failed
-    class ff failed
-
-    classDef succeeded fill:lightgreen
-    class si succeeded
 ```
