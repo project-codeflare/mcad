@@ -1,9 +1,15 @@
 # AppWrapper State Diagram (Split Controller View)
-The following state diagram describes the transitions between the states of an AppWrapper
-focusing on the division of the states handled by the Dispatcher and Runner.
-The placement of the box indicates which controller is responsible for handling that
-state and initiating the transition to the next state.
-The first row of each state indicates the `AppWrapperState` and the second indicates the `AppWrapperStep`.
+During its lifetime an AppWrapper instance will transition between a number of states.
+As is typical in Kubernetes resources, the current state of an AppWrapper is encoded by the
+values stored in multiple fields of its Status.
+
+The state diagram below depicts these transitions and the division of
+responsibility between our two controllers: the Dispatcher and Runner.
+The placement of each box indicates which controller is responsible
+for reconciling AppWrappers in that state and determining when its
+Status should be updated to initiated a transition to another state.
+The first row in each box indicates the `AppWrapperState` and the
+second indicates the `AppWrapperStep`.
 
 ```mermaid
 stateDiagram-v2
