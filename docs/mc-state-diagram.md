@@ -66,11 +66,11 @@ stateDiagram-v2
         ra --> rc
         rc --> rcd
         rcd --> si
-        rc --> rd : requeueOrFail
-        rcd --> rd : requeueOrFail
-        rc --> fc : requeueOrFail
-        rc --> fd : requeueOrFail
-        rcd --> fcd : requeueOrFail
-        rcd --> fd : requeueOrFail
+        rc --> rd
+        rcd --> rd
+        rc --> fc
+        rc --> fd
+        rcd --> fcd
+        rcd --> fd
     }
 ```
