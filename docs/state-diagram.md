@@ -12,10 +12,10 @@ stateDiagram-v2
     qi : Idle
 
     %% Running
-    ra : Running
-    ra : Accepting
     ri : Running
     ri : Dispatching
+    ra : Running
+    ra : Accepting
     rc : Running
     rc : Creating
     rcd : Running
@@ -44,9 +44,9 @@ stateDiagram-v2
     HappyPath : Happy Path
     state HappyPath  {
         e --> qi
-        qi --> ra
-        ra --> ri
-        ri --> rc
+        qi --> ri
+        ri --> ra
+        ra --> rc
         rc --> rcd
         rcd --> si
         rc --> rd : requeueOrFail
