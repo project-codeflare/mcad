@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -96,6 +98,21 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 
 	// handle state transitions that occur on the execution cluster
 	switch appWrapper.Status.State {
+	case mcadv1beta1.Empty:
+		if r.MultiClusterMode {
+			if status, ok := appWrapper.ObjectMeta.Annotations[serializedStatusKey]; ok {
+				if err := json.Unmarshal([]byte(status), &appWrapper.Status); err != nil {
+					return ctrl.Result{}, err
+				}
+				// NOTE: Status is serialized by dispatcher in Running.Dispatching (_before_ we transition to Running.Accepting)
+				if appWrapper.Status.State != mcadv1beta1.Running || appWrapper.Status.Step != mcadv1beta1.Dispatching {
+					return ctrl.Result{}, fmt.Errorf("unexpected status handoff from dispatcher: %v.%v", appWrapper.Status.State, appWrapper.Status.Step)
+
+				}
+			}
+			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepting)
+		}
+
 	case mcadv1beta1.Running:
 		switch appWrapper.Status.Step {
 

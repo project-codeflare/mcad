@@ -48,7 +48,8 @@ type AppWrapperReconciler struct {
 const (
 	nameLabel            = "appwrapper.mcad.ibm.com"                     // owner name label for wrapped resources
 	namespaceLabel       = "appwrapper.mcad.ibm.com/namespace"           // owner namespace label for wrapped resources
-	assignedClusterLabel = "appwrapper.mcad.ibm.com/assignedCluster"     // cluster to which appwrapper has been assigned for execution.
+	assignedClusterLabel = "appwrapper.mcad.ibm.com/assignedCluster"     // cluster to which appwrapper has been assigned for execution
+	serializedStatusKey  = "appwrapper.mcad.ibm.com/serializedStatus"    // annotation key for serializing status from hub to spoke
 	dispatchFinalizer    = "workload.codeflare.dev/finalizer_dispatcher" // finalizer name for dispatcher
 	runnerFinalizer      = "workload.codeflare.dev/finalizer_runner"     // finalizer name for runner
 	nvidiaGpu            = "nvidia.com/gpu"                              // GPU resource name

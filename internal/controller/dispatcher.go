@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -143,6 +144,16 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		switch appWrapper.Status.Step {
 		case mcadv1beta1.Dispatching:
 			if r.MultiClusterMode {
+				// Serialize current status to an annotation so it can be mirrored in the execution cluster
+				pickledStatus, err := json.Marshal(appWrapper.Status)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				metav1.SetMetaDataAnnotation(&appWrapper.ObjectMeta, serializedStatusKey, string(pickledStatus))
+				if err := r.Update(ctx, appWrapper); err != nil {
+					return ctrl.Result{}, err
+				}
+
 				// TODO: Multicluster. This is where we create the placement that maps
 				// the appWrapper to the execution cluster. Only if the placement creation is successful
 				// will we do the update of the status to running/creating.
