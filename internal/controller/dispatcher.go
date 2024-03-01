@@ -157,7 +157,7 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				// TODO: Multicluster. This is where we create the placement that maps
 				// the appWrapper to the execution cluster. Only if the placement creation is successful
 				// will we do the update of the status to running/creating.
-				// return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
+				return ctrl.Result{}, fmt.Errorf("unimplemented multi-cluster synch path")
 			}
 			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepting)
 
