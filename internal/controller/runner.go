@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
+	//	"reflect"
 	"strconv"
 	"time"
 
@@ -110,11 +110,11 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 
 	// Add TEMPORARY hack to process appwrappers when status is not available due to middleware
 	// between the hub and spoke clusters stripping it
-//	if r.MultiClusterMode {
-//		if reflect.ValueOf(appWrapper.Status).IsZero() {
-//			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepting)
-//		}
-//	}
+	//	if r.MultiClusterMode {
+	//		if reflect.ValueOf(appWrapper.Status).IsZero() {
+	//			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepting)
+	//		}
+	//	}
 
 	// handle state transitions that occur on the execution cluster
 	switch appWrapper.Status.State {

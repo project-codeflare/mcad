@@ -39,6 +39,8 @@ import (
 
 	ksv1alpha1 "github.com/kubestellar/kubestellar/api/control/v1alpha1"
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
+
+	names "k8s.io/apiserver/pkg/storage/names"
 )
 
 // AppWrapperReconciler responsible for the portion of the lifecycle that happens on the scheduling cluster
@@ -53,6 +55,7 @@ const (
 	ksLabelLocationGroupKey = "location-group"
 	ksLabelLocationGroup    = "edge"
 	ksLabelClusterNameKey   = "name"
+	ksBindingPolicyKey = "workload.codeflare.dev/bindingPolicyName"
 )
 
 // Reconcile one AppWrapper or dispatch queued AppWrappers during the dispatching phases of their lifecycle.
@@ -161,6 +164,11 @@ func (r *Dispatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				if err != nil {
 					return ctrl.Result{}, err
 				}
+				bindingPolicyName := names.SimpleNameGenerator.GenerateName(appWrapper.Name+"-")
+				if appWrapper.ObjectMeta.Labels == nil {
+					appWrapper.ObjectMeta.Labels = make(map[string]string)
+				}
+				appWrapper.ObjectMeta.Labels[ksBindingPolicyKey] = bindingPolicyName
 				metav1.SetMetaDataAnnotation(&appWrapper.ObjectMeta, serializedStatusKey, string(pickledStatus))
 				if err := r.Update(ctx, appWrapper); err != nil {
 					return ctrl.Result{}, err
@@ -296,7 +304,7 @@ func (r *Dispatcher) dispatch(ctx context.Context) (ctrl.Result, error) {
 func (r *Dispatcher) createBindingPolicy(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) error {
 	bindingPolicy := ksv1alpha1.BindingPolicy{}
 	namespacedName := types.NamespacedName{
-		Name: appWrapper.Name,
+		Name: appWrapper.ObjectMeta.Labels[ksBindingPolicyKey],
 	}
 	// BindingPolicy object bears the appwrapper name
 	if err := r.Get(ctx, namespacedName, &bindingPolicy); err != nil {
@@ -337,7 +345,7 @@ func (r *Dispatcher) createBindingPolicy(ctx context.Context, appWrapper *mcadv1
 						WantSingletonReportedState: true,
 					},
 				}
-				bindingPolicy.Name = appWrapper.Name
+				bindingPolicy.Name = appWrapper.ObjectMeta.Labels[ksBindingPolicyKey]
 				if err := r.Create(ctx, &bindingPolicy); err != nil {
 					if apierrors.IsAlreadyExists(err) {
 						return nil
@@ -358,7 +366,7 @@ func (r *Dispatcher) createBindingPolicy(ctx context.Context, appWrapper *mcadv1
 func (r *Dispatcher) deleteBindingPolicy(ctx context.Context, appWrapper *mcadv1beta1.AppWrapper) error {
 	bindingPolicy := ksv1alpha1.BindingPolicy{}
 	namespacedName := types.NamespacedName{
-		Name: appWrapper.Name,
+		Name: appWrapper.ObjectMeta.Labels[ksBindingPolicyKey],
 	}
 	// bindingPolicy object bears the appwrapper name
 	if err := r.Get(ctx, namespacedName, &bindingPolicy); err != nil {
