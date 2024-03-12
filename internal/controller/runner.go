@@ -93,7 +93,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 			}
 		}
 
-		// Currently a hack to remove dispatcher finalizer as it prevents deletion of the AW.
+		// Currently a hack to remove dispatcher finalizer. 
 		if controllerutil.ContainsFinalizer(appWrapper, dispatchFinalizer) {
 			// remove dispatcher finalizer
 			if controllerutil.RemoveFinalizer(appWrapper, dispatchFinalizer) {

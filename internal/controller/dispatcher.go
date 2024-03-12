@@ -361,19 +361,18 @@ func (r *Dispatcher) deleteBindingPolicy(ctx context.Context, appWrapper *mcadv1
 	namespacedName := types.NamespacedName{
 		Name : bindingPolicyName(appWrapper),
 	}
-	// bindingPolicy object bears the appwrapper name
 	if err := r.Get(ctx, namespacedName, &bindingPolicy); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
-		log.FromContext(ctx).Error(errors.New("error fetching bindingPolicy object"), appWrapper.Name)
+		log.FromContext(ctx).Error(errors.New("error fetching bindingPolicy object"), namespacedName.Name)
 		return err
 	}
 	if err := r.Delete(ctx, &bindingPolicy); err != nil {
-		log.FromContext(ctx).Error(errors.New("unable to delete bindingPolicy object"), appWrapper.Name)
+		log.FromContext(ctx).Error(errors.New("unable to delete bindingPolicy object"), namespacedName.Name)
 		return err
 	}
-	log.FromContext(ctx).Info("bindingPolicy object deleted", appWrapper.Name)
+	log.FromContext(ctx).Info("bindingPolicy object deleted", namespacedName.Name)
 	return nil
 }
 
