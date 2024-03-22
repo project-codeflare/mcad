@@ -72,6 +72,8 @@ github.com/kubestellar/kubestellar v0.2.3-0.20240118162615-a9b0c2a2114e h1:y3Idp
 github.com/kubestellar/kubestellar v0.2.3-0.20240118162615-a9b0c2a2114e/go.mod h1:X6VXLgASL5HSbTuYIe+D43X1ACLaMo2GL/KcfjDGsDU=
 github.com/kubestellar/kubestellar v0.20.0 h1:/G6Lf1pml9rzsKxeeSCPqpLm4do5pWE7v0kxzl2fw9k=
 github.com/kubestellar/kubestellar v0.20.0/go.mod h1:g4PURCRviMUnP0QIM8M0AXI/yZBI+dWU8O8nnCe7uoQ=
+github.com/kubestellar/kubestellar v0.21.0 h1:5+jJyDQY0A7+5f6qWrCaM7y4klYBU78ZQn2BFACB/C4=
+github.com/kubestellar/kubestellar v0.21.0/go.mod h1:uMFFD6UeGhdUfL3MV1gS2t5YSm1A/vpk/Ch3i++mJzg=
 github.com/mailru/easyjson v0.7.7 h1:UGYAvKxe3sBsEDzO8ZeWOSlIQfWFlxbzLZe7hwFURr0=
 github.com/mailru/easyjson v0.7.7/go.mod h1:xzfreul335JAWq5oZzymOObrkdz5UnU4kGfJJLY9Nlc=
 github.com/matttproud/golang_protobuf_extensions v1.0.4 h1:mmDVorXM7PCGKw94cs5zkfA9PSy5pEvNWRP0ET0TIVo=

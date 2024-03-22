@@ -3,7 +3,7 @@ module github.com/project-codeflare/mcad
 go 1.21
 
 require (
-	github.com/kubestellar/kubestellar v0.20.0
+	github.com/kubestellar/kubestellar v0.21.0
 	github.com/onsi/ginkgo/v2 v2.13.1
 	github.com/onsi/gomega v1.29.0
 	github.com/prometheus/client_golang v1.17.0

@@ -92,29 +92,10 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				log.FromContext(ctx).Info("Deleted runner finalizer")
 			}
 		}
-
-		// Currently a hack to remove dispatcher finalizer. 
-		if controllerutil.ContainsFinalizer(appWrapper, dispatchFinalizer) {
-			// remove dispatcher finalizer
-			if controllerutil.RemoveFinalizer(appWrapper, dispatchFinalizer) {
-				if err := r.Update(ctx, appWrapper); err != nil {
-					return ctrl.Result{}, err
-				}
-				log.FromContext(ctx).Info("Deleted dispatcher finalizer")
-			}
-		}
 		// remove AppWrapper from cache
 		r.deleteCachedAW(appWrapper)
 		return ctrl.Result{}, nil
 	}
-
-	// Add TEMPORARY hack to process appwrappers when status is not available due to middleware
-	// between the hub and spoke clusters stripping it
-	//	if r.MultiClusterMode {
-	//		if reflect.ValueOf(appWrapper.Status).IsZero() {
-	//			return r.updateStatus(ctx, appWrapper, mcadv1beta1.Running, mcadv1beta1.Accepting)
-	//		}
-	//	}
 
 	// handle state transitions that occur on the execution cluster
 	switch appWrapper.Status.State {
