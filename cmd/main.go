@@ -25,6 +25,9 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	ksv1alpha1 "github.com/kubestellar/kubestellar/api/control/v1alpha1"
+	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
+	"github.com/project-codeflare/mcad/internal/controller"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -34,9 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-
-	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
-	"github.com/project-codeflare/mcad/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -56,6 +56,7 @@ const (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(mcadv1beta1.AddToScheme(scheme))
+	utilruntime.Must(ksv1alpha1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
