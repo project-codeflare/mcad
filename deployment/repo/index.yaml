@@ -2,6 +2,14 @@ apiVersion: v1
 entries:
   mcad-controller:
   - apiVersion: v1
+    created: "2024-04-16T09:08:41.858519-04:00"
+    description: The Multi-Cluster App Dispatcher
+    digest: 0d7a0193211681ca7206f7693a7233cdd38ba8bdf53072070cc80f866eb294b7
+    name: mcad-controller
+    urls:
+    - https://raw.githubusercontent.com/project-codeflare/mcad/main/deployment/repo/mcad-controller-2.3.0.tgz
+    version: 2.3.0
+  - apiVersion: v1
     created: "2024-01-09T09:09:47.620156-05:00"
     description: The Multi-Cluster App Dispatcher
     digest: 5f69bc02004f546cf7e7a428db4a2d0001e637576b0e9c69c57acd77443909d2

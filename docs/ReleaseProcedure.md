@@ -4,8 +4,8 @@
 
 1. Create a branch `release-prep`
 2. cd deployment
-3. Edit mcad-deployment/Chart.yaml to update `version` to `X.Y.Z`
-4. Edit mcad-deployment/values.yaml to change `tag` from `latest` to `vX.Y.Z`
+3. Edit mcad-controller/Chart.yaml to update `version` to `X.Y.Z`
+4. Edit mcad-controller/values.yaml to change `tag` from `latest` to `vX.Y.Z`
 5. Execute `helm package mcad-controller`
 6. Restore `tag` in values.yaml to `latest`
 7. `cp mcad-controller-X.Y.Z.tgz repo`
