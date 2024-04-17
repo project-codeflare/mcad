@@ -83,7 +83,7 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 				// requeue reconciliation after delay
 				return ctrl.Result{RequeueAfter: deletionDelay}, nil
 			}
-			// remove finalizer
+			// remove runner finalizer
 			if controllerutil.RemoveFinalizer(appWrapper, runnerFinalizer) {
 				if err := r.Update(ctx, appWrapper); err != nil {
 					return ctrl.Result{}, err
