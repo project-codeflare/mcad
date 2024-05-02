@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 image:
   repository: quay.io/ibm/mcad
-  tag: latest
+  tag: v2.3.1
   pullPolicy: Always
 
 serviceAccount: mcad-controller
