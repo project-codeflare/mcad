@@ -394,7 +394,7 @@ func (r *Dispatcher) getUnadmittedPodsWeights(ctx context.Context) (map[string]*
 				for _, pod := range pods.Items {
 					createdPodsWeightsPair.Add(NewWeightsPairForPod(&pod))
 				}
-				weightsPair.Sub(createdPodsWeightsPair)
+				weightsPair.QuotaSub(createdPodsWeightsPair)
 			}
 			nonNegativeWeightsPair := NewWeightsPair(Weights{}, Weights{})
 			nonNegativeWeightsPair.Max(weightsPair)

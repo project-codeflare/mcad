@@ -77,6 +77,16 @@ func (w Weights) Sub(r Weights) {
 	}
 }
 
+// Subtract use from quota
+func (w Weights) QuotaSub(r Weights) {
+	for k, v := range r {
+		if w[k] == nil {
+			continue // ignore undefined quota
+		}
+		w[k].Sub(w[k], v)
+	}
+}
+
 // Add coefficient * weights to receiver
 func (w Weights) AddProd(coefficient int32, r Weights) {
 	for k, v := range r {
@@ -113,6 +123,28 @@ func (w Weights) Fits(r Weights) (bool, []v1.ResourceName) {
 		}
 		// v > 0 so r[k] must be defined and no less than v
 		if r[k] == nil || v.Cmp(r[k]) == 1 {
+			insufficient = append(insufficient, k)
+		}
+	}
+	if len(insufficient) == 0 {
+		return true, nil
+	} else {
+		return false, insufficient
+	}
+}
+
+// Compare receiver to argument
+// True if receiver is less than or equal to argument in every dimension where argument is defined
+func (w Weights) QuotaFits(r Weights) (bool, []v1.ResourceName) {
+	insufficient := []v1.ResourceName{}
+	zero := &inf.Dec{}    // shared zero, never mutated
+	for k, v := range w { // range over receiver not argument
+		// ignore 0 requests or no quota
+		if v.Cmp(zero) <= 0 || r[k] == nil {
+			continue
+		}
+		// v > 0 so r[k] must be no less than v
+		if v.Cmp(r[k]) == 1 {
 			insufficient = append(insufficient, k)
 		}
 	}
@@ -161,9 +193,9 @@ func (w *WeightsPair) Add(r *WeightsPair) {
 }
 
 // Subtract pair of weights from receiver
-func (w *WeightsPair) Sub(r *WeightsPair) {
-	w.requests.Sub(r.requests)
-	w.limits.Sub(r.limits)
+func (w *WeightsPair) QuotaSub(r *WeightsPair) {
+	w.requests.QuotaSub(r.requests)
+	w.limits.QuotaSub(r.limits)
 }
 
 // Max of two pairs of weights
@@ -184,8 +216,8 @@ func (w *WeightsPair) Clone() *WeightsPair {
 // If False, return list of insufficient resource names
 func (w *WeightsPair) Fits(r *WeightsPair) (bool, []v1.ResourceName) {
 	insufficient := []v1.ResourceName{}
-	requestsFits, requestsInsufficient := w.requests.Fits(r.requests)
-	limitsFits, limitsInsufficient := w.limits.Fits(r.limits)
+	requestsFits, requestsInsufficient := w.requests.QuotaFits(r.requests)
+	limitsFits, limitsInsufficient := w.limits.QuotaFits(r.limits)
 	if requestsFits && limitsFits {
 		return true, insufficient
 	}
