@@ -178,8 +178,12 @@ func (r *AppWrapperReconciler) isSuccessful(ctx context.Context, appWrapper *mca
 			}
 		}
 	}
-	// To succeed we need to pass the custom completionstatus check or have enough successful pods if MinAvailable > 0
-	return custom || appWrapper.Spec.Scheduling.MinAvailable > 0 && counts.Succeeded >= int(appWrapper.Spec.Scheduling.MinAvailable), nil
+	// To succeed we need to pass the custom completion status check or have enough successful pods if MinAvailable >= 0
+	targetSucceeded := 1
+	if appWrapper.Spec.Scheduling.MinAvailable > int32(targetSucceeded) {
+		targetSucceeded = int(appWrapper.Spec.Scheduling.MinAvailable)
+	}
+	return custom || (appWrapper.Spec.Scheduling.MinAvailable >= 0 && counts.Succeeded >= targetSucceeded), nil
 }
 
 // Delete wrapped resources, forcing deletion of pods and wrapped resources if enabled
