@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
 	"strings"
 
 	mcadv1beta1 "github.com/project-codeflare/mcad/api/v1beta1"
@@ -82,12 +83,13 @@ func (tracker *QuotaTracker) Satisfies(appWrapperAskWeights *WeightsPair, resour
 	}
 	// check if both appwrapper requests and limits fit available resource quota
 	quotaWeights := quotaState.quota.Clone()
-	quotaWeights.Sub(quotaState.used)
-	quotaWeights.Sub(quotaState.allocated)
+	quotaWeights.QuotaSub(quotaState.used)
+	quotaWeights.QuotaSub(quotaState.allocated)
 	var unAdmittedWeights *WeightsPair
 	if unAdmittedWeights, exists = tracker.unAdmittedWeightsMap[namespace]; exists {
-		quotaWeights.Sub(unAdmittedWeights)
+		quotaWeights.QuotaSub(unAdmittedWeights)
 	}
+	fmt.Println(quotaWeights)
 	quotaFits, insufficientResources := appWrapperAskWeights.Fits(quotaWeights)
 
 	// mcadLog.Info("QuotaTracker.Satisfies():", "namespace", namespace,
