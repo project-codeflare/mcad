@@ -96,6 +96,18 @@ func (r *Runner) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 		return ctrl.Result{}, nil
 	}
 
+	if controllerutil.ContainsFinalizer(appWrapper, legacyFinalizer) {
+		// Convert 2.2.0 and earlier single finalizer to two finalizer design
+		controllerutil.AddFinalizer(appWrapper, dispatchFinalizer)
+		controllerutil.AddFinalizer(appWrapper, runnerFinalizer)
+		controllerutil.RemoveFinalizer(appWrapper, legacyFinalizer)
+		if err := r.Update(ctx, appWrapper); err != nil {
+			return ctrl.Result{}, err
+		}
+		log.FromContext(ctx).Info("Converted 2.2 finalizer to 2.3 finalizers")
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	// handle state transitions that occur on the execution cluster
 	switch appWrapper.Status.State {
 	case mcadv1beta1.Empty:
