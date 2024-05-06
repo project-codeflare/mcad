@@ -16,6 +16,8 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: {{ .Values.serviceAccount }}
       terminationGracePeriodSeconds: 10
       priorityClassName: system-node-critical
@@ -99,6 +101,8 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: {{ .Values.serviceAccount }}
       terminationGracePeriodSeconds: 10
       priorityClassName: system-node-critical
